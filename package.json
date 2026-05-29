@@ -1,0 +1,48 @@
+{
+  "name": "ravocal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Group scheduling and ranked-choice voting app",
+  "type": "module",
+  "workspaces": ["app", "server", "db"],
+  "scripts": {
+    "dev": "npm run build -w db && concurrently \"npm run dev:server\" \"npm run dev:app\"",
+    "dev:app": "npm run dev -w app",
+    "dev:server": "npm run dev -w server",
+    "build": "npm run build -w db && npm run codegen && npm run build -w app && npm run build -w server",
+    "build:app": "npm run build -w app",
+    "build:server": "npm run build -w server",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "check": "npm run codegen && npm run check:biome && npm run check:types",
+    "check:biome": "biome check .",
+    "check:fix": "biome check --write .",
+    "check:types": "tsc --noEmit -p app/tsconfig.json && tsc --noEmit -p server/tsconfig.json && tsc --noEmit -p db/tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "npm run generate -w db",
+    "db:migrate": "npm run migrate -w db",
+    "db:push": "npm run push -w db",
+    "db:studio": "npm run studio -w db",
+    "codegen": "npm run codegen:server && npm run codegen:app",
+    "codegen:app": "graphql-codegen --config codegen.ts",
+    "codegen:server": "graphql-codegen --config codegen.server.ts"
+  },
+  "overrides": {
+    "graphql": "16.10.0"
+  },
+  "devDependencies": {
+    "@0no-co/graphqlsp": "^1.15.4",
+    "@biomejs/biome": "2.4.6",
+    "@graphql-codegen/cli": "^7.0.0",
+    "@graphql-codegen/client-preset": "^6.0.0",
+    "@graphql-codegen/schema-ast": "^6.0.0",
+    "@graphql-codegen/typescript": "^6.0.0",
+    "@graphql-codegen/typescript-resolvers": "^6.0.0",
+    "concurrently": "^9.1.2",
+    "typescript": "~5.8.3",
+    "vitest": "^3.1.0"
+  }
+}

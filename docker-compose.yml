@@ -1,0 +1,21 @@
+services:
+  ravocal:
+    image: vantreeseba/ravocal:latest
+    restart: unless-stopped
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      APP_URL: ${APP_URL:-http://localhost:3001}
+      NODE_ENV: production
+      PORT: 3001
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@localhost}
+    ports:
+      - "${PORT:-3001}:3001"
+    volumes:
+      - ravocal_data:/data
+
+volumes:
+  ravocal_data:

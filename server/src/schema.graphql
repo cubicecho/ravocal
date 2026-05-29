@@ -1,0 +1,124 @@
+scalar DateTime
+
+type User {
+  id: ID!
+  email: String!
+  name: String
+  createdAt: DateTime!
+}
+
+type Group {
+  id: ID!
+  name: String!
+  ownerId: ID!
+  owner: User!
+  overlapThreshold: Int!
+  members: [GroupMember!]!
+  pendingInvites: [GroupInvite!]!
+  timeBlocks: [TimeBlock!]!
+  activeVote: Vote
+  createdAt: DateTime!
+}
+
+type GroupMember {
+  id: ID!
+  groupId: ID!
+  userId: ID!
+  user: User!
+  joinedAt: DateTime!
+}
+
+type GroupInvite {
+  id: ID!
+  groupId: ID!
+  email: String!
+  expiresAt: DateTime!
+  createdAt: DateTime!
+}
+
+type TimeBlock {
+  id: ID!
+  groupId: ID!
+  userId: ID!
+  user: User!
+  startsAt: DateTime!
+  endsAt: DateTime!
+  createdAt: DateTime!
+}
+
+enum VoteStatus {
+  active
+  closed
+}
+
+type Vote {
+  id: ID!
+  groupId: ID!
+  status: VoteStatus!
+  isForced: Boolean!
+  slots: [VoteSlot!]!
+  myRankings: [VoteRanking!]!
+  winnerSlotId: ID
+  closedAt: DateTime
+  createdAt: DateTime!
+}
+
+type VoteSlot {
+  id: ID!
+  voteId: ID!
+  startsAt: DateTime!
+  endsAt: DateTime!
+  overlapCount: Int!
+}
+
+type VoteRanking {
+  id: ID!
+  voteId: ID!
+  slotId: ID!
+  userId: ID!
+  rank: Int!
+}
+
+type AuthPayload {
+  token: String!
+  user: User!
+}
+
+input RankingInput {
+  slotId: ID!
+  rank: Int!
+}
+
+type Query {
+  me: User
+  myGroups: [Group!]!
+  group(id: ID!): Group
+}
+
+type Mutation {
+  # Auth — public
+  requestMagicLink(email: String!): Boolean!
+  verifyMagicLink(token: String!): AuthPayload!
+
+  # Profile
+  updateMyProfile(name: String!): User!
+
+  # Groups
+  createGroup(name: String!, overlapThreshold: Int): Group!
+  updateGroup(id: ID!, name: String, overlapThreshold: Int): Group!
+  deleteGroup(id: ID!): Boolean!
+
+  # Invites
+  inviteToGroup(groupId: ID!, email: String!): GroupInvite!
+  acceptGroupInvite(token: String!): GroupMember!
+
+  # Time blocks
+  addTimeBlock(groupId: ID!, startsAt: DateTime!, endsAt: DateTime!): TimeBlock!
+  removeTimeBlock(id: ID!): Boolean!
+
+  # Votes
+  startVote(groupId: ID!): Vote!
+  forceStartVote(groupId: ID!): Vote!
+  submitRankings(voteId: ID!, rankings: [RankingInput!]!): [VoteRanking!]!
+  closeVote(voteId: ID!): Vote!
+}
