@@ -60,16 +60,29 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 ```
 
-## shadcn/ui
+## cubeui
 
-Install components via the CLI:
+The UI comes from the [cubeui](https://github.com/cubicecho/cubeui) registry, installed with the
+shadcn CLI from `app/` (`components.json` registers `@cubeui`):
 
 ```bash
-npx shadcn@latest add button
-npx shadcn@latest add input card dialog
+npx shadcn@latest add @cubeui/page-layout
+npx shadcn@latest add @cubeui/button --overwrite   # update an installed item
 ```
 
-Components land in `app/src/components/ui/`. Never add app logic there — it's primitives only. App-specific components go in `app/src/components/domain/`.
+Primitives land in `app/src/components/ui/`, the layout shells and `app-form` in
+`app/src/components/`, and helpers such as `utils.ts` in `app/src/lib/`. They are installed, not
+edited: change them upstream and reinstall. `biome.json` turns linting and formatting off for them,
+so a new item's files join that override. App-specific components go in
+`app/src/components/domain/`.
+
+- A page is `PageLayout` (a detail page passes `loading` and puts `LoadState` with `record` in its
+  body); a list page puts `LoadState` with `count` and an `EmptyState` over a `List` of `ListItem`s.
+  Pass `asQuery(result)` from `@/lib/as-query` as an Apollo query's `query`.
+- Forms are `useAppForm` with the bound fields (`InputField`, …) and `form.SubmitButton`. A
+  mutation's failure goes under the fields with `FormError`. `RangeField`
+  (`components/domain/form/range-field.tsx`) is the slider the registry does not ship.
+- The palette is cubeui's (`app/cubeui-tokens.css`), light and dark following the system.
 
 ## Apollo Client
 

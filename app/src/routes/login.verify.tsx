@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router"
 import { useEffect } from "react";
 import { z } from "zod";
 import { graphql } from "@/__generated__/index.js";
+import { PendingScreen } from "@/components/domain/pending-screen";
 
 const searchSchema = z.object({ token: z.string() });
 
@@ -39,17 +40,11 @@ function VerifyPage() {
     });
   }, [token, verifyMagicLink, navigate]);
 
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-destructive">{error.message}</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <p className="text-muted-foreground">Signing you in…</p>
-    </div>
+    <PendingScreen
+      title="Signing you in…"
+      failedTitle="That sign-in link didn't work"
+      error={error}
+    />
   );
 }

@@ -1,6 +1,16 @@
 import { useQuery } from "@apollo/client";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { graphql } from "@/__generated__/index.js";
+import { EmptyState } from "@/components/empty-state";
+import { List } from "@/components/list";
+import { ListItem } from "@/components/list-item";
+import { LoadState } from "@/components/load-state";
+import { PageLayout } from "@/components/page-layout";
+import { Section } from "@/components/section";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "@/components/ui/icons";
+import { asQuery } from "@/lib/as-query";
 
 export const Route = createFileRoute("/groups/$groupId")({
   component: GroupPage,
@@ -66,82 +76,111 @@ const GROUP_DETAIL = graphql(`
   }
 `);
 
+function formatWindow(startsAt: string, endsAt: string): string {
+  return `${new Date(startsAt).toLocaleString()} – ${new Date(endsAt).toLocaleString()}`;
+}
+
 function GroupPage() {
   const { groupId } = Route.useParams();
-  const { data, loading, error } = useQuery(GROUP_DETAIL, { variables: { id: groupId } });
-
-  if (loading) return <p className="p-8 text-muted-foreground">Loading…</p>;
-  if (error) return <p className="p-8 text-destructive">{error.message}</p>;
-
-  const group = data?.group;
-  if (!group) return <p className="p-8 text-muted-foreground">Group not found.</p>;
+  const result = useQuery(GROUP_DETAIL, { variables: { id: groupId } });
+  const group = result.data?.group;
 
   return (
-    <div className="p-8 max-w-3xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold">{group.name}</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Overlap threshold: {group.overlapThreshold}%
-        </p>
-      </div>
+    <PageLayout
+      title={group?.name ?? "Group"}
+      description={group ? `Overlap threshold: ${group.overlapThreshold}%` : undefined}
+      loading={result.loading}
+      width="prose"
+      backSlot={
+        <Button
+          variant="outline"
+          size="icon-sm"
+          aria-label="Back to your groups"
+          iconSlot={<ArrowLeft />}
+          linkSlot={<Link to="/groups" />}
+        />
+      }
+      contentSlot={
+        <>
+          <LoadState
+            query={asQuery(result)}
+            what="this group"
+            record={group}
+            notFoundLabel="Group not found"
+            description="You may not be a member, or the link is old."
+            actionSlot={
+              <Button
+                variant="outline"
+                linkSlot={<Link to="/groups" />}
+                content="Back to your groups"
+              />
+            }
+            level={2}
+          />
+          {group ? (
+            <>
+              <Section
+                title={`Members (${group.members.length})`}
+                contentSlot={
+                  <List
+                    label="Members"
+                    contentSlot={group.members.map((m) => (
+                      <ListItem
+                        key={m.id}
+                        title={m.user.name ?? m.user.email}
+                        meta={
+                          m.userId === group.ownerId ? (
+                            <Badge variant="outline">Owner</Badge>
+                          ) : undefined
+                        }
+                      />
+                    ))}
+                  />
+                }
+              />
 
-      <section>
-        <h2 className="text-lg font-semibold mb-3">Members ({group.members.length})</h2>
-        <ul className="space-y-2">
-          {group.members.map((m) => (
-            <li key={m.id} className="flex items-center gap-2 text-sm">
-              <span>{m.user.name ?? m.user.email}</span>
-              {m.userId === group.ownerId && (
-                <span className="text-xs text-muted-foreground">(owner)</span>
+              <Section
+                title="Free Time Blocks"
+                contentSlot={
+                  group.timeBlocks.length === 0 ? (
+                    <EmptyState compact title="No time blocks submitted yet." />
+                  ) : (
+                    <List
+                      label="Free time blocks"
+                      contentSlot={group.timeBlocks.map((tb) => (
+                        <ListItem
+                          key={tb.id}
+                          title={tb.user.name ?? tb.user.email}
+                          description={formatWindow(tb.startsAt, tb.endsAt)}
+                        />
+                      ))}
+                    />
+                  )
+                }
+              />
+
+              {group.activeVote && (
+                <Section
+                  title="Active Vote"
+                  description={`${group.activeVote.isForced ? "Forced vote" : "Regular vote"} · ${group.activeVote.slots.length} candidate slots`}
+                  contentSlot={
+                    <List
+                      label="Candidate slots"
+                      contentSlot={group.activeVote.slots.map((slot) => (
+                        <ListItem
+                          key={slot.id}
+                          title={formatWindow(slot.startsAt, slot.endsAt)}
+                          meta={`${slot.overlapCount} free`}
+                        />
+                      ))}
+                    />
+                  }
+                />
               )}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section>
-        <h2 className="text-lg font-semibold mb-3">Free Time Blocks</h2>
-        {group.timeBlocks.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No time blocks submitted yet.</p>
-        ) : (
-          <ul className="space-y-2">
-            {group.timeBlocks.map((tb) => (
-              <li key={tb.id} className="text-sm rounded-md border border-border p-3">
-                <span className="font-medium">{tb.user.name ?? tb.user.email}</span>
-                <span className="text-muted-foreground ml-2">
-                  {new Date(tb.startsAt).toLocaleString()} –{" "}
-                  {new Date(tb.endsAt).toLocaleString()}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {group.activeVote && (
-        <section>
-          <h2 className="text-lg font-semibold mb-3">Active Vote</h2>
-          <div className="rounded-lg border border-border p-4 space-y-3">
-            <p className="text-sm text-muted-foreground">
-              {group.activeVote.isForced ? "Forced vote" : "Regular vote"} ·{" "}
-              {group.activeVote.slots.length} candidate slots
-            </p>
-            <ul className="space-y-2">
-              {group.activeVote.slots.map((slot) => (
-                <li key={slot.id} className="text-sm flex items-center justify-between rounded-md border border-border px-3 py-2">
-                  <span>
-                    {new Date(slot.startsAt).toLocaleString()} –{" "}
-                    {new Date(slot.endsAt).toLocaleString()}
-                  </span>
-                  <span className="text-muted-foreground">
-                    {slot.overlapCount} free
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-      )}
-    </div>
+            </>
+          ) : null}
+        </>
+      }
+    />
   );
 }

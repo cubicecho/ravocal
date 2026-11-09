@@ -11,7 +11,7 @@ Monorepo: npm workspaces with three packages: `app/` (frontend), `server/` (Grap
 | Layer    | Technology                                        |
 | -------- | ------------------------------------------------- |
 | Frontend | React 19, Vite, TanStack Router, Apollo Client    |
-| UI       | Tailwind CSS, shadcn/ui components, Radix UI      |
+| UI       | Tailwind CSS 4, cubeui (shadcn registry), Radix UI |
 | API      | Apollo Server, GraphQL                             |
 | Database | Drizzle ORM, PGlite (embedded Postgres)            |
 | Auth     | Magic-link email + JWT (jose)                      |
@@ -48,14 +48,14 @@ ravocal/
 │   ├── src/
 │   │   ├── __generated__/   # Auto-generated GraphQL types (do not edit)
 │   │   ├── components/
-│   │   │   ├── ui/          # shadcn/ui primitives
+│   │   │   ├── ui/          # cubeui primitives (installed; do not edit)
 │   │   │   ├── domain/      # Feature components (group/, vote/, calendar/)
 │   │   │   └── layouts/     # Structural wrappers
-│   │   ├── lib/             # Utilities (cn(), date helpers)
+│   │   ├── lib/             # cubeui helpers (utils.ts, …) and the app's own (as-query.ts)
 │   │   └── routes/          # TanStack Router file-based routes
 │   ├── index.html
 │   ├── vite.config.ts
-│   └── tailwind.config.ts
+│   └── components.json      # shadcn config; @cubeui points at the registry
 ├── server/                  # GraphQL API (Apollo Server, port 3001)
 │   └── src/
 │       ├── index.ts         # Server entry point

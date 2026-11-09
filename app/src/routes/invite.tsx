@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router"
 import { useEffect } from "react";
 import { z } from "zod";
 import { graphql } from "@/__generated__/index.js";
+import { PendingScreen } from "@/components/domain/pending-screen";
 
 const searchSchema = z.object({ token: z.string() });
 
@@ -37,17 +38,7 @@ function InvitePage() {
     });
   }, [token, jwtToken, acceptInvite, navigate]);
 
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-destructive">{error.message}</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <p className="text-muted-foreground">Accepting invite…</p>
-    </div>
+    <PendingScreen title="Accepting invite…" failedTitle="That invite didn't work" error={error} />
   );
 }
