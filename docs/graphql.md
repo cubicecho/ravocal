@@ -67,9 +67,12 @@ Any other column in `values` or `set` is `BAD_USER_INPUT`.
 | `forceStartVote(groupId)` | mutation | the owner | `Vote!` over every time anyone is free, the owner's first. The order is stored (`VoteSlot.position`) |
 | `submitRankings(voteId, rankings: [{ slotId, rank }])` | mutation | members | `[VoteRanking!]!`: your ballot, replacing any earlier one. Each slot once, from this vote, while it is open. `[]` withdraws it |
 | `closeVote(voteId)` | mutation | the owner | `Vote!` with `winnerSlotId` set by instant runoff (`docs/voting.md`), and emails the result |
-| `authConfig` | query | anyone | `{ secureLocalNet, magicLink, providers { id name signInUrl } }` |
+| `authConfig` | query | anyone | `{ secureLocalNet, magicLink, providers { id name signInUrl } }`. The OIDC provider is `id: oidc` |
+| `ssoSetup` | query | anyone | `{ source: ENV \| PAIRED \| NONE, issuer, name, canPair, redirectUri }`. `issuer` only for a caller who may pair |
+| `pairSso(setupUrl)` | mutation | the admin, or anyone while there are no accounts; nobody under `OIDC_ISSUER` | `SsoSetup!`. Registers Ravocal with the provider a setup URL names and offers its button at once. A provider refusal is `BAD_USER_INPUT` (or `TOO_MANY_REQUESTS`) with `extensions.reason`; over a pairing, `CONFLICT`; not allowed, `FORBIDDEN` (docs/server.md, "The OIDC provider, and pairing") |
+| `unpairSso` | mutation | as `pairSso` | `SsoSetup!`. Deletes the client at the provider and forgets the pairing, even when the provider would not confirm |
 
-The owner-only and member-only refusals are `NOT_FOUND`, the same as a group or vote that doesn't exist.
+The owner-only and member-only refusals are `NOT_FOUND`, the same as a group or vote that doesn't exist. Pairing's are `FORBIDDEN`: they are about the instance, not a row.
 
 ## Sign-in and sessions
 
@@ -84,7 +87,7 @@ These fields are better-auth's endpoints, served by `@cubicecho/graphql-better-a
 | `listSessions` | query | yes | Every live session of the caller's account |
 | `signOut` | mutation | no | Ends the caller's session: `{ success: true }`, or `false` when there was none |
 | `revokeSession(token)`, `revokeSessions`, `revokeOtherSessions` | mutation | yes | End one, all, or all but this one |
-| `linkSocialAccount(provider)`, `listUserAccounts`, `unlinkAccount(accountId)` | | yes | Connecting Google or Facebook in Settings |
+| `linkSocialAccount(provider)`, `listUserAccounts`, `unlinkAccount(accountId)` | | yes | Connecting Google, Facebook or the OIDC provider in Settings |
 
 `signInMagicLink`, `magicLinkVerify` and `verifyOneTimeToken` are rate limited by `ctx.limiter` (`RATE_LIMIT_DEFAULTS`: 5 in 15 minutes): by client address, and the first by email too. Past the budget they are refused as `TOO_MANY_REQUESTS`, with `extensions.retryAfter` in seconds.
 

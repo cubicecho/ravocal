@@ -46,6 +46,8 @@ its default and what it does is in [`.env.example`](.env.example). What an insta
 | `SECURE_LOCAL_NET` | `false` | Sign in with an address alone. Private networks only. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | unset | Sign in with Google. Both or neither. |
 | `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET` | unset | Sign in with Facebook. Both or neither. |
+| `OIDC_ISSUER`, `OIDC_CLIENT_ID` | unset | Sign in with your own OpenID Connect provider. Both or neither; or pair one from the app instead. |
+| `OIDC_CLIENT_SECRET`, `OIDC_CLIENT_AUTH`, `OIDC_NAME` | unset, `client_secret_basic`, `SSO` | That provider's secret (unset for a public client), how it is sent, and the button's label. |
 | `SERVER_URL` | `APP_URL` | Where a browser reaches the server, if not at `APP_URL`. |
 | `TRUST_PROXY` | `false` | `1` behind one reverse proxy, so sign-in is rate-limited per visitor, not per proxy. |
 | `PORT` | `3001` | The host port the app is published on. |
@@ -62,7 +64,7 @@ host.
 ## Sign-in methods
 
 There are no passwords. Set at least one of these. With none, the server starts, warns in its log, and nobody can sign
-in.
+in until a provider is paired from the login page.
 
 - **Email link.** Set `SMTP_URL` to a mail relay. Readers type their address and get a link that signs them in once.
   Invite and vote emails go out the same way. Without `SMTP_URL`, those emails are printed to the server's log.
@@ -81,6 +83,18 @@ in.
   A Google sign-in reaches the account that has its address only when Google says it checked the address. Facebook
   never says so, so a Facebook sign-in whose address already has an account is refused, and the reader signs in by
   email and connects Facebook in Settings.
+- **Your own OpenID Connect provider** (heautou, Keycloak, Authentik, …), as a "Continue with <name>" button. Two ways:
+  - **Pair it from the app.** If the provider supports Dynamic Client Registration, its admin makes a setup URL for
+    Ravocal (`<issuer>#setup=<token>&name=<label>`). On a brand-new instance, the login page offers "Set up sign-in":
+    paste the URL, and the button appears. Afterwards only the admin can change it, under Settings, "Single sign-on".
+    The admin is the first account ever made (on an instance that had accounts before, the oldest one). The setup
+    URL works once, and Ravocal never stores or logs its token.
+  - **Set it in the environment.** Register a client with redirect URI `<SERVER_URL>/api/auth/callback/oidc`, then set
+    `OIDC_ISSUER` and `OIDC_CLIENT_ID` (and `OIDC_CLIENT_SECRET` for a confidential client). This wins over any
+    pairing, and the app cannot change it.
+
+  As with Google, a sign-in reaches the account that has its address only when the provider's `email_verified` claim
+  says it checked the address.
 
 ## Development
 

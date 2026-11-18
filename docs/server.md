@@ -8,7 +8,8 @@ graphql-yoga 5 on Express 5, running TypeScript directly (Node 26 strips types w
 | ------ | ----- |
 | `core/` | What every folder reads, about no one concept: config, defaults, wire constants, errors, validation, the context type, preflight |
 | `http/` | The Express app and the process around it: `createApp`, `/healthz`, a provider's sign-in redirects, the SPA, shutdown |
-| `auth/` | Who the caller is, and how they sign in: better-auth and the host that rebuilds it, Google and Facebook, its endpoints as GraphQL, `authConfig`, the sign-in throttle |
+| `auth/` | Who the caller is, and how they sign in: better-auth and the host that rebuilds it, Google, Facebook and the OIDC provider, its endpoints as GraphQL, `authConfig`, the sign-in throttle, the admin |
+| `sso/` | The instance's OIDC provider: where it comes from (the environment, or a pairing), pairing by setup URL, and `ssoSetup`, `pairSso`, `unpairSso` |
 | `graphql/` | The served schema, and the rules every operation obeys: `createSchema`, tenancy, permissions, the write guards, the Yoga handler and context factory, the logger, the operation limits |
 | `groups/` | A group and its members: `createGroup`, `removeMember`, the update hook, the loaders hand-written resolvers reach a group through |
 | `invites/` | Joining by link: `inviteToGroup`, `acceptGroupInvite`, `cancelInvite`, and the invite email |
@@ -21,7 +22,7 @@ graphql-yoga 5 on Express 5, running TypeScript directly (Node 26 strips types w
 | `core/config.ts` | Typed getters over `process.env`. No other module reads the environment, except preflight and the db package |
 | `core/defaults.ts` | Every tunable value as `<CONCEPT>_DEFAULTS` groups: `HTTP_DEFAULTS`, `OPERATION_LIMIT_DEFAULTS`, `RATE_LIMIT_DEFAULTS`, `AUTH_DEFAULTS`, `USER_DEFAULTS`, `GROUP_DEFAULTS`, `SCHEDULE_DEFAULTS` |
 | `core/wire.ts` | `HttpStatus`, and the unit conversions (`MS_PER_MINUTE`, `SECONDS_PER_DAY`, `PERCENT`, …) |
-| `core/errors.ts` | `ErrorCode`, `badInput` / `notFound` / `forbidden` / `unauthenticated` / `rateLimited` / `tooComplex`, `requireAuth`, `errorMessage` |
+| `core/errors.ts` | `ErrorCode`, `badInput` / `notFound` / `forbidden` / `conflict` / `unauthenticated` / `rateLimited` / `tooComplex`, `requireAuth`, `errorMessage` |
 | `core/validation.ts` | `parseOrThrow`: a zod failure as `BAD_USER_INPUT` |
 | `core/context.ts` | The `Context` interface |
 | `core/preflight.ts` | The first import of index.ts: refuses a bad configuration with a sentence |
@@ -42,14 +43,18 @@ graphql-yoga 5 on Express 5, running TypeScript directly (Node 26 strips types w
 | `graphql/logger.ts` | `graphqlLogger`: Yoga's logger with the `[graphql]` tag |
 | `graphql/operation-limits.ts` | `useOperationLimits`: tokens, depth, aliases and cost |
 | `auth/better-auth.ts` | `createAuth(db, opts)`: better-auth on Drizzle with the `bearer`, `oneTimeToken`, providers and `magicLink` plugins, and the account-linking rules; `sendsMagicLinks`, `nonSessionCookies`, `sessionUserId` |
-| `auth/auth-host.ts` | `createAuthHost(db, opts)` and `fixedAuthHost(auth, providers)`: the current auth instance, which providers it offers, and `rebuild()` |
+| `auth/auth-host.ts` | `createAuthHost(db, opts)` and `fixedAuthHost(auth, providers)`: the current auth instance, which providers it offers (`currentProviders(db)`: the environment's, then the OIDC provider), and `rebuild()` |
+| `auth/admin.ts` | `claimFirstAdmin`, `isAdmin`, `hasUsers`: who runs the instance |
 | `auth/unproven-access.ts` | `revokeUnprovenAccess`: the database hooks that end an account's unproven sessions and provider links when its address is first proven |
-| `auth/providers.ts` | `providersPlugin`: Google and Facebook through better-auth's `genericOAuth`, and `PROVIDER_ENDPOINTS`, where each is reached |
+| `auth/providers.ts` | `providersPlugin`: Google, Facebook and the OIDC provider through better-auth's `genericOAuth`, and `PROVIDER_ENDPOINTS`, where Google and Facebook are reached |
 | `auth/endpoints.ts` | `applyBetterAuthExtension`: better-auth's endpoints (`BETTER_AUTH_OPERATIONS`) as GraphQL fields, with Ravocal's `around`s |
 | `auth/resolvers.ts` | `applyAuthExtension`: `authConfig` |
 | `auth/throttle.ts` | `AuthFlow`, `throttle(ctx, flow, email?)`: what every sign-in step calls first |
 | `auth/rate-limit.ts` | `createRateLimiter`: the in-process sliding window behind `ctx.limiter` |
 | `auth/email.ts` | The mail transport: `sendMail` (the default `Mailer`), `sendEach` (sends what a committed write announces, logging a failure), `sendMagicLinkEmail` |
+| `sso/settings.ts` | `effectiveOidc(db)`: the one place that decides the OIDC provider (the environment, else the `oidc_settings` row, else none) and its `SsoSource`; reading, saving and clearing the row |
+| `sso/pairing.ts` | `parseSetupUrl`, `pair(db, setupUrl)`, `unpair(db)`, `PairingError` and its `PairingFailure` reasons |
+| `sso/resolvers.ts` | `applySsoExtension`: `ssoSetup`, `pairSso`, `unpairSso`, and `canPairSso` |
 | `<domain>/resolvers.ts` | `apply<Domain>Extension(schema)`: the domain's hand-written SDL and resolvers |
 | `<domain>/input.ts` | The zod schemas its writes are parsed with |
 | `<domain>/hooks.ts` | Its table's `onWrite` hooks, merged in build-schema.ts |
@@ -58,10 +63,10 @@ graphql-yoga 5 on Express 5, running TypeScript directly (Node 26 strips types w
 
 `server/src/index.ts` is boot only:
 
-1. `core/preflight.ts` (its first import): `DATABASE_URL` must be set, in production `BETTER_AUTH_SECRET` must not be unset, a published default, or shorter than `AUTH_DEFAULTS.minSecretLength`, and `SECURE_LOCAL_NET` is refused when `APP_URL`'s host is not private (unless `I_KNOW_SECURE_LOCAL_NET_IS_PUBLIC=true`), a provider's client id without its secret (or the reverse) is refused, and so is a `SERVER_URL` that is not a URL
+1. `core/preflight.ts` (its first import): `DATABASE_URL` must be set, in production `BETTER_AUTH_SECRET` must not be unset, a published default, or shorter than `AUTH_DEFAULTS.minSecretLength`, and `SECURE_LOCAL_NET` is refused when `APP_URL`'s host is not private (unless `I_KNOW_SECURE_LOCAL_NET_IS_PUBLIC=true`), a provider's client id without its secret (or the reverse) is refused, so are `OIDC_ISSUER` without `OIDC_CLIENT_ID` (or the reverse), an `OIDC_ISSUER` that is not an http(s) URL and an unknown `OIDC_CLIENT_AUTH`, and so is a `SERVER_URL` that is not a URL
 2. `waitForDatabase` (from `@cubicecho/ravocal-db/wait`), exiting with a sentence if Postgres never answers
 3. The migrations in `db/drizzle`
-4. `createApp({ db, authHost: await createAuthHost(db), staticDir })`, then `listen` on `PORT` (default 3001) on every interface. It logs each provider it offers with the redirect URI to register (`<SERVER_URL>/api/auth/callback/<id>`), and warns under `[auth]` when `SECURE_LOCAL_NET` is on, and when nobody can sign in (no `SMTP_URL`, no provider and no `SECURE_LOCAL_NET`)
+4. `createApp({ db, authHost: await createAuthHost(db), staticDir })`, then `listen` on `PORT` (default 3001) on every interface. It logs each provider it offers (the OIDC provider with its issuer) with the redirect URI to register (`<SERVER_URL>/api/auth/callback/<id>`), and warns under `[auth]` when `SECURE_LOCAL_NET` is on, and when nobody can sign in (no `SMTP_URL`, no provider and no `SECURE_LOCAL_NET`; pairing from the login page is still open then)
 5. `stopOnSignals(server, { after: closeDatabase })`: on SIGTERM or SIGINT it stops taking requests, lets the open ones finish (cutting them after `HTTP_DEFAULTS.drainSeconds`), closes the database and exits, inside `HTTP_DEFAULTS.shutdownDeadlineSeconds`
 
 Every log line carries a `[subsystem]` tag: `[preflight]`, `[db]`, `[server]`, `[auth]`, `[graphql]`, `[email]`.
@@ -72,7 +77,7 @@ Every log line carries a `[subsystem]` tag: `[preflight]`, `[db]`, `[server]`, `
 | ----- | ------------ |
 | `/graphql` | Yoga, behind `express.json({ limit: HTTP_DEFAULTS.bodyLimit })` (1 MB; over it is 413). GraphiQL outside production |
 | `GET /healthz` | `{ ok, version }`, or 503 with `error` when Postgres doesn't answer |
-| `GET /sso/:provider` | Starts a sign-in with Google or Facebook: a 302 to the provider, with better-auth's state cookie |
+| `GET /sso/:provider` | Starts a sign-in with Google, Facebook or the OIDC provider (`oidc`): a 302 to the provider, with better-auth's state cookie |
 | `GET /api/auth/callback/:provider` | Where the provider sends the browser back: better-auth's own callback, then a 302 to the app |
 | everything else | The SPA: a file from `app/dist`, or `index.html` |
 
@@ -100,7 +105,7 @@ Rows are shared by group membership. `scope` ANDs a filter into every generated 
 
 `scope` can't tell a read from a write, and a member may read a row they may not change. graphql-casl (`permissions.ts`) is that second lock: the abilities say who may change what (`Group` by `ownerId`, `TimeBlock` by `userId`, `User` by `id`), and `scopeArgs` ANDs them into the generated write's `where` with the `drizzleFilters` adapter. drizzle-graphql 19's filters have `AND`, `OR` and `NOT` at every level, so the merge is a plain `{ AND: [clientWhere, conditions] }`, and a client `OR` stays inside it.
 
-The permission map is `'*': accept` for reads (the scope refuses an anonymous caller with `UNAUTHENTICATED`) and an allow-list for `Mutation`: `'*': deny`, better-auth's served mutations (read off the schema, so a better-auth upgrade keeps them), the hand-written mutations behind a signed-in check, and six generated writes (`createTimeBlock`, `updateTimeBlock`, `deleteTimeBlock`, `updateGroup`, `deleteGroup`, `updateUser`). Everything else drizzle-graphql generates, the bulk forms included, is `FORBIDDEN`.
+The permission map is `'*': accept` for reads (the scope refuses an anonymous caller with `UNAUTHENTICATED`) and an allow-list for `Mutation`: `'*': deny`, better-auth's served mutations (read off the schema, so a better-auth upgrade keeps them) and `pairSso`/`unpairSso` (`SSO_MUTATIONS`; open, because a new instance is set up signed out, and the resolvers decide), the hand-written mutations behind a signed-in check, and six generated writes (`createTimeBlock`, `updateTimeBlock`, `deleteTimeBlock`, `updateGroup`, `deleteGroup`, `updateUser`). Everything else drizzle-graphql generates, the bulk forms included, is `FORBIDDEN`.
 
 ### Write hooks
 
@@ -149,9 +154,10 @@ Yoga masks every error that is not a `GraphQLError` as `Unexpected error.` (`INT
 | ---- | ------ | ---- |
 | `UNAUTHENTICATED` | `requireAuth(ctx)`, `unauthenticated()` | No session. The app drops its token on this code, so a bad sign-in link is never this |
 | `NOT_FOUND` | `notFound(message)` | The row doesn't exist, **or the caller can't reach it**: another group's, a member's block they didn't make, an owner-only action by someone else. One code, so ids can't be probed |
-| `FORBIDDEN` | the permission map's `fallbackError` | A mutation off the allow-list: a role refusal, never a row |
-| `BAD_USER_INPUT` | `badInput(message)`, `parseOrThrow` | Arguments the caller can fix, a spent or expired link or invite, accepting an invite while already a member, a vote in the wrong state |
-| `TOO_MANY_REQUESTS` | `rateLimited(message, retryAfter)` | Only the sign-in throttle. `extensions.retryAfter` is in seconds |
+| `FORBIDDEN` | the permission map's `fallbackError`, `forbidden(message)` | A mutation off the allow-list, or changing the instance's sign-in without being allowed to (`sso/resolvers.ts`): a role refusal, never a row |
+| `CONFLICT` | `conflict(message)` | The instance has to change first: pairing a provider over one already paired |
+| `BAD_USER_INPUT` | `badInput(message)`, `parseOrThrow` | Arguments the caller can fix, a spent or expired link or invite, accepting an invite while already a member, a vote in the wrong state, a pairing the provider refused (with `extensions.reason`) |
+| `TOO_MANY_REQUESTS` | `rateLimited(message, retryAfter)` | The sign-in throttle, with `extensions.retryAfter` in seconds; and a provider rate-limiting a pairing (`extensions.reason: RATE_LIMITED`) |
 | `QUERY_TOO_COMPLEX` | `tooComplex(message)` | Only `operation-limits.ts` |
 
 drizzle-graphql's own errors keep their `DRIZZLE_*` codes (`DRIZZLE_LIMIT_EXCEEDED`, `DRIZZLE_MULTI_ROW_MATCH`, …). Its `onError` hands every other error on to Yoga, which masks it and logs its innermost cause; the library's own sanitizer would have answered it as a coded error and left nothing in the log.
@@ -202,15 +208,51 @@ Sign-in links expire in `AUTH_DEFAULTS.magicLinkTtlMinutes` (15) and work once. 
 Linking by address (`account.accountLinking` in `auth/better-auth.ts`):
 
 - **No provider is trusted by name.** A sign-in reaches the account that has its address only when the provider says it checked the address.
-- **Google** passes its own `email_verified` claim through. A Google-checked address signs in to the account that has it, even one made under `SECURE_LOCAL_NET` that nobody confirmed, and confirms it. An unchecked one that an account already has is refused as `account_not_linked`.
+- **Google** and the **OIDC provider** pass their own `email_verified` claim through (a missing claim counts as unchecked). A Google-checked address signs in to the account that has it, even one made under `SECURE_LOCAL_NET` that nobody confirmed, and confirms it. An unchecked one that an account already has is refused as `account_not_linked`. `requireLocalEmailVerified` is off whichever providers are set up: one rule, keyed on the provider's claim, never on its name.
 - **Facebook** never counts as checking an address, so a Facebook sign-in whose address an account already has is refused as `account_not_linked`; the reader signs in by email and connects Facebook in Settings.
 - A new address makes a new account, with the address unconfirmed. No address at all is `email_not_found`.
-- **The first proof of an address** (a magic link, or a Google sign-in Google checked; `SECURE_LOCAL_NET` proves nothing) ends every session the account had and deletes every provider account but the one proving it (`auth/unproven-access.ts`: better-auth database hooks that see the proof wherever better-auth confirms an address; the magic link also does it itself, `revokeUnprovenAccountAccess`). So whoever made an account with someone else's address keeps no way in once its owner arrives. A provider connected from Settings after the proof is kept: an address is proven only once. Group memberships are not touched.
+- **The first proof of an address** (a magic link, or a Google or OIDC sign-in whose provider checked it; `SECURE_LOCAL_NET` proves nothing) ends every session the account had and deletes every provider account but the one proving it (`auth/unproven-access.ts`: better-auth database hooks that see the proof wherever better-auth confirms an address; the magic link also does it itself, `revokeUnprovenAccountAccess`). So whoever made an account with someone else's address keeps no way in once its owner arrives. A provider connected from Settings after the proof is kept: an address is proven only once. Group memberships are not touched.
 - **Connecting in Settings** is `linkSocialAccount(provider)` over GraphQL, as the signed-in reader. Its `around` points the provider back at `/settings`, and puts the state cookie on the GraphQL response (`ctx.setCookie`). The callback then links the provider to that reader, whatever address it has. Facebook's profile counts as checked only here, where `getOAuthState()` says the callback finishes a link, because better-auth links only trusted or checked providers.
 - **Disconnecting** is `unlinkAccount(accountId)`. It is refused as `BAD_USER_INPUT` when it would leave no provider this instance offers connected and no email way in (a confirmed address while links are sent, or `SECURE_LOCAL_NET`). better-auth also wants a session from the last day (`session.freshAge`); an older one is asked to sign in again.
 - `listUserAccounts` lists the providers connected.
 
-`AuthHost.rebuild()` builds a new instance from the providers set now, and the next request uses it; sessions are rows in Postgres, so nobody is signed out. Nothing calls it yet.
+`AuthHost.rebuild()` builds a new instance from the providers set now, and the next request uses it; sessions are rows in Postgres, so nobody is signed out. `pairSso` and `unpairSso` call it before they answer.
+
+### The OIDC provider, and pairing
+
+A generic OpenID Connect provider (heautou, Keycloak, Authentik, …) under the id `oidc`, through `genericOAuth` like the others: `discoveryUrl` `<issuer>/.well-known/openid-configuration`, `requireIdTokenVerification` and `pkce` stated, scopes `openid profile email`, `tokenEndpointAuth` `none` for a public client with no secret and otherwise `client_secret_basic` or `client_secret_post`. The user is named from `name`, then `preferred_username`, then the address's local part. Its button, `/sso/oidc`, the callback and Settings are the same loops over `authHost.providers()` as Google's.
+
+Where it comes from is decided only by `sso/settings.ts` `effectiveOidc(db)`:
+
+1. **The environment wins.** `OIDC_ISSUER` and `OIDC_CLIENT_ID` (with `OIDC_CLIENT_SECRET`, `OIDC_CLIENT_AUTH` default `client_secret_basic`, and `OIDC_NAME` default `AUTH_DEFAULTS.oidcName`, `SSO`) are `SsoSource.ENV`, and the app cannot change them.
+2. Otherwise the `oidc_settings` row a pairing wrote (`PAIRED`).
+3. Otherwise none (`NONE`).
+
+**Pairing** (`sso/pairing.ts`). A provider that does Dynamic Client Registration hands its admin a setup URL, `<issuer>#setup=<initial access token>&name=<label>`. The token is in the fragment, so no server logs it on the way. `parseSetupUrl` wants an http(s) URL with `setup`; the issuer is the URL without its fragment, query and trailing slashes, and the name falls back to `SSO`. `pair(db, setupUrl)`:
+
+1. Fetches the discovery document, and **checks that its `issuer` is the pasted issuer before the token goes anywhere**; it must name a `registration_endpoint`.
+2. POSTs `{ client_name: 'Ravocal', redirect_uris: ['<SERVER_URL>/api/auth/callback/oidc'], token_endpoint_auth_method: 'client_secret_basic', grant_types: ['authorization_code'], response_types: ['code'] }` with `Authorization: Bearer <token>` (RFC 7591).
+3. Keeps `client_id` (required), `client_secret`, the auth method the provider actually registered, `registration_access_token` and `registration_client_uri` in the one `oidc_settings` row.
+
+Every call goes through one `call()` with `AbortSignal.timeout(AUTH_DEFAULTS.oidcPairingTimeoutMs)` (10 s). The setup token is never stored or logged, and no message carries it. A failure is a `PairingError`, answered with its `reason` in `extensions.reason`:
+
+| reason | when | code |
+|---|---|---|
+| `BAD_URL` | not a URL, not http(s), or no `setup` | `BAD_USER_INPUT` |
+| `NOT_A_PROVIDER` | unreachable, no discovery, another issuer, no `client_id`, or an unexpected status | `BAD_USER_INPUT` |
+| `NO_REGISTRATION` | no `registration_endpoint`: register by hand and use `OIDC_ISSUER`/`OIDC_CLIENT_ID` | `BAD_USER_INPUT` |
+| `EXPIRED` | 401, or `invalid_token` | `BAD_USER_INPUT` |
+| `REFUSED` | 400, with the provider's `error_description` | `BAD_USER_INPUT` |
+| `RATE_LIMITED` | 429 | `TOO_MANY_REQUESTS` |
+
+`unpair(db)` sends an RFC 7592 `DELETE` to the registration client URI with the registration access token (a 2xx, 401 or 404 counts as gone), then forgets the row whatever the answer, warning under `[auth]` when it could not confirm.
+
+**GraphQL** (`sso/resolvers.ts`): `ssoSetup { source issuer name canPair redirectUri }`, readable signed out, with `issuer` only for a caller who may pair; `pairSso(setupUrl)` and `unpairSso` answer the same type, after `authHost.rebuild()`. All three are on the permission map's allow-list; the resolvers decide:
+
+- **Who may pair** (`canPairSso`): nobody when the source is `ENV`; the admin; or anyone while the instance has no accounts at all, so whoever installs it can set sign-in up from the login page. Once anyone has an account, a stranger's provider could vouch for an existing address, so only the admin may.
+- A refusal is `FORBIDDEN` with a sentence ("Sign-in is set by OIDC_ISSUER in the server's environment. Change it there." / "Only the admin can change how people sign in."): it is about the instance, not a row, so the NOT_FOUND rule does not apply. Pairing over a pairing is `CONFLICT` ("Disconnect it first"); an empty URL is `BAD_USER_INPUT`.
+
+**The admin** (`auth/admin.ts`): `users.is_admin`. better-auth's `databaseHooks.user.create.after` runs `claimFirstAdmin(db, userId)` for every new account, whichever way it signed in: one `UPDATE … WHERE NOT EXISTS (an admin)`, and the partial unique index `uq_users_one_admin` refuses the later of two first sign-ups that commit together. The `oidc_pairing` migration made the oldest account the admin on an instance that already had accounts. The column is readable like the rest of `users`, and the users update hook keeps it out of `updateUser`.
 
 Rate limit: `signInMagicLink`, `magicLinkVerify` and `verifyOneTimeToken` call `throttle(ctx, flow, email?)` first. The limiter (`RATE_LIMIT_DEFAULTS`, 5 per 15 minutes per key) counts by client address and, for `signInMagicLink`, by normalized email, and refuses past the budget as `TOO_MANY_REQUESTS`. better-auth's own limiter only runs on its REST routes, which are not mounted. The counts are in process.
 
@@ -222,12 +264,14 @@ Rate limit: `signInMagicLink`, `magicLinkVerify` and `verifyOneTimeToken` call `
 
 - `__tests__/helpers.ts`: `createClient(db, userId, { auth, authHost, limiter, ip, headers, cookies, mail })` runs operations in-process against the real, guarded schema, and `mail` collects what its mailer sent; `expectError` returns `{ message, code, extensions }`. `createTestAuth(db, { providers, providerEndpoints })` is real better-auth on PGlite with sign-in links captured in `links` (no provider unless given), `createLinklessAuth(db)` has no way to send one, and `createSessionToken(auth, userId)` starts a real session
 - `__tests__/graphql/access.test.ts`: every row of the access table, as owner, member and outsider: reads, every write, a client `OR` that can't widen a read or a write, and `NOT_FOUND` for a filtered single-row write
-- `__tests__/graphql/tenancy.test.ts`: every exposed table has a scope, the auth tables are unreachable, no input takes a nested relation, every generated write the map doesn't name is refused, and every served better-auth operation is allowed
+- `__tests__/graphql/tenancy.test.ts`: every exposed table has a scope, the auth and server tables (`oidc_settings`) are unreachable, no input takes a nested relation, every generated write the map doesn't name is refused, and every served better-auth operation, `ssoSetup`, `pairSso` and `unpairSso` are allowed
 - `__tests__/groups/`, `invites/`, `time-blocks/`, `votes/`: `createGroup` and `removeMember`; inviting, accepting (once, before expiry, from any address, not while already a member) and cancelling; the UTC grid; starting, forcing (the owner-first order read back from the stored positions), ranking and closing a vote. `votes/tally.test.ts` is the pure algorithm
 - `__tests__/auth/endpoints.test.ts`: sign-in, verify, bad links as `BAD_USER_INPUT`, sign-out, sessions, `SECURE_LOCAL_NET` and `authConfig`
 - `__tests__/auth/rate-limit.test.ts`: the limiter's window, and the sixth sign-in refused by address and by email
+- `__tests__/auth/admin.test.ts`: the first account becomes the admin and no other, even signing up at once; a second admin is refused; the `oidc_pairing` migration on PGlite makes the oldest account the admin
 - `__tests__/http/app.test.ts`: the real `createApp` over HTTP against PGlite: health, the body cap, the operation limits (with introspection and every document in `app/src` let through), masking, the SPA and CORS
-- `__tests__/http/sso.test.ts`: Google and Facebook sign-in through the real app over HTTP, against a stand-in for both on a loopback port (`http/fixtures/fake-provider.ts`: discovery, a JWKS from jose, a token endpoint checking the client secret and PKCE, a Graph-style `/me`). The one-time token, linking by address, the first proof of an address, connecting and disconnecting, `sso_off`, `authConfig.providers` and `AuthHost.rebuild()`
+- `__tests__/http/sso.test.ts`: Google and Facebook sign-in through the real app over HTTP, against a stand-in for both on a loopback port (`http/fixtures/fake-provider.ts`: Google's half is `http/fixtures/oidc-issuer.ts`, discovery, a JWKS from jose and a token endpoint checking the client secret and PKCE; Facebook's a Graph-style `/me`). The one-time token, linking by address, the first proof of an address, connecting and disconnecting, `sso_off`, `authConfig.providers` and `AuthHost.rebuild()`
+- `__tests__/sso/pairing.test.ts`: pairing through the real app over HTTP against a Dynamic Client Registration stand-in (`sso/fixtures/fake-dcr.ts`, whose sign-in half is `oidc-issuer.ts`): setup URLs, the registered redirect URI and the button without a restart, each failure reason, a forged issuer refused before the token is sent, who may pair, unpairing (a 404 as gone, the row forgotten on a refusal), signing in through the paired provider with both linking outcomes, and the setup token in no log line or response
 - `__tests__/http/shutdown.test.ts`: `stopOnSignals` in a child process, sent SIGTERM mid-request
 
 ## Running the Server
