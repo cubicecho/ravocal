@@ -1,4 +1,4 @@
-import { type DB, timeBlocks, votes } from "@ravocal/db";
+import { type DB, timeBlocks, votes } from "@cubicecho/ravocal-db";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   addMember,

@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ApolloServer } from "@apollo/server";
 import { expressMiddleware } from "@apollo/server/express4";
-import { db, migrateDb } from "@ravocal/db";
+import { db, migrateDb } from "@cubicecho/ravocal-db";
 import cors from "cors";
 import express from "express";
 import { createContext } from "./context.ts";

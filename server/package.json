@@ -1,5 +1,5 @@
 {
-  "name": "@ravocal/server",
+  "name": "@cubicecho/ravocal-server",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
   "dependencies": {
     "@apollo/server": "^4.12.1",
     "@graphql-tools/schema": "^10.0.7",
-    "@ravocal/db": "*",
+    "@cubicecho/ravocal-db": "*",
     "cors": "^2.8.5",
     "drizzle-orm": "^0.43.1",
     "express": "^4.21.2",

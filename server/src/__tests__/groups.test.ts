@@ -1,4 +1,4 @@
-import { type DB, groupInvites, groupMembers } from "@ravocal/db";
+import { type DB, groupInvites, groupMembers } from "@cubicecho/ravocal-db";
 import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {

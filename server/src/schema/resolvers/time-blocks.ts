@@ -1,4 +1,4 @@
-import { groupMembers, timeBlocks } from "@ravocal/db";
+import { groupMembers, timeBlocks } from "@cubicecho/ravocal-db";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Context } from "../../context.ts";

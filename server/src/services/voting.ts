@@ -1,4 +1,4 @@
-import type { TimeBlock, VoteRanking, VoteSlot } from "@ravocal/db";
+import type { TimeBlock, VoteRanking, VoteSlot } from "@cubicecho/ravocal-db";
 
 type Member = { userId: string };
 type SlotCandidate = { startsAt: Date; endsAt: Date; overlapCount: number };

@@ -146,7 +146,7 @@ npm run db:studio        # Drizzle Studio GUI
 ### Imports
 - `type` imports for type-only symbols (enforced by Biome `style/useImportType`)
 - `@/` path alias within `app/` (maps to `app/src/`)
-- `@ravocal/db` package name when importing db in server
+- `@cubicecho/ravocal-db` package name when importing db in server
 - `.js` extensions in server/db imports (ESM requirement)
 
 ### TypeScript

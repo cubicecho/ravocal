@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { type DB, magicLinks, users } from "@ravocal/db";
+import { type DB, magicLinks, users } from "@cubicecho/ravocal-db";
 import { eq } from "drizzle-orm";
 import { SignJWT } from "jose";
 import { sendMagicLinkEmail } from "./email.ts";

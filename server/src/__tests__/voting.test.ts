@@ -1,4 +1,4 @@
-import type { TimeBlock, VoteRanking, VoteSlot } from "@ravocal/db";
+import type { TimeBlock, VoteRanking, VoteSlot } from "@cubicecho/ravocal-db";
 import { describe, expect, it } from "vitest";
 import { computeVoteSlots, tallyRankedChoice } from "../services/voting.ts";
 

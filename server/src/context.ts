@@ -1,4 +1,4 @@
-import type { DB } from "@ravocal/db";
+import type { DB } from "@cubicecho/ravocal-db";
 import type { Request } from "express";
 import { jwtVerify } from "jose";
 

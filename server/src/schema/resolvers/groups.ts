@@ -1,4 +1,4 @@
-import { groupInvites, groupMembers, groups, users } from "@ravocal/db";
+import { groupInvites, groupMembers, groups, users } from "@cubicecho/ravocal-db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Context } from "../../context.ts";

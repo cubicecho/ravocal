@@ -1,5 +1,5 @@
+import { type DB, db, groupMembers, groups, migrateDb, schema, users } from "@cubicecho/ravocal-db";
 import { PGlite } from "@electric-sql/pglite";
-import { type DB, db, groupMembers, groups, migrateDb, schema, users } from "@ravocal/db";
 import { getTableName, is, sql, Table } from "drizzle-orm";
 import { type ExecutionResult, type GraphQLSchema, graphql } from "graphql";
 import type { Context } from "../context.ts";
@@ -16,7 +16,7 @@ type AnyData = any;
 type Variables = Record<string, unknown>;
 
 /**
- * Migrates the @ravocal/db singleton and hands it back.
+ * Migrates the @cubicecho/ravocal-db singleton and hands it back.
  *
  * @remarks
  * vitest.config.ts sets `DATABASE_URL=memory://`, and each test file gets its
