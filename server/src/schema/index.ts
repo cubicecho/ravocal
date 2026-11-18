@@ -6,7 +6,7 @@ import { DateTimeResolver } from "graphql-scalars";
 import { applyAuthResolvers } from "./resolvers/auth.ts";
 import { applyGroupResolvers } from "./resolvers/groups.ts";
 import { applyTimeBlockResolvers } from "./resolvers/time-blocks.ts";
-import { applyVoteResolvers } from "./resolvers/votes.ts";
+import { applyVoteResolvers, voteFields } from "./resolvers/votes.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const typeDefs = readFileSync(join(__dirname, "../schema.graphql"), "utf-8");
@@ -26,6 +26,7 @@ export function buildSchema() {
       DateTime: DateTimeResolver,
       Query: queryFields,
       Mutation: mutationFields,
+      Vote: voteFields,
     },
   });
 }
