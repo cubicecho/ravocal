@@ -1,4 +1,4 @@
-import type { TimeBlock, VoteRanking, VoteSlot } from "@cubicecho/ravocal-db";
+import type { TimeBlock, VoteRanking, VoteSlot } from '@cubicecho/ravocal-db';
 
 type Member = { userId: string };
 type SlotCandidate = { startsAt: Date; endsAt: Date; overlapCount: number };
@@ -94,9 +94,7 @@ export function tallyRankedChoice(slots: VoteSlot[], rankings: VoteRanking[]): s
     if (winner) return winner[0];
 
     const minVotes = Math.min(...tally.values());
-    const toEliminate = [...tally.entries()]
-      .filter(([, count]) => count === minVotes)
-      .map(([id]) => id);
+    const toEliminate = [...tally.entries()].filter(([, count]) => count === minVotes).map(([id]) => id);
     for (const id of toEliminate) remaining.delete(id);
   }
 

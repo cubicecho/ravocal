@@ -1,7 +1,7 @@
-import { groupMembers, timeBlocks } from "@cubicecho/ravocal-db";
-import { and, eq } from "drizzle-orm";
-import { z } from "zod";
-import type { Context } from "../../context.ts";
+import { groupMembers, timeBlocks } from '@cubicecho/ravocal-db';
+import { and, eq } from 'drizzle-orm';
+import { z } from 'zod';
+import type { Context } from '../../context.ts';
 
 const AddTimeBlockInput = z
   .object({
@@ -18,7 +18,7 @@ const AddTimeBlockInput = z
       const thirtyMin = 30 * 60 * 1000;
       return diffMs >= thirtyMin && start.getMinutes() % 30 === 0 && end.getMinutes() % 30 === 0;
     },
-    { message: "Time blocks must be 30-minute aligned and at least 30 minutes long" },
+    { message: 'Time blocks must be 30-minute aligned and at least 30 minutes long' },
   );
 
 export function applyTimeBlockResolvers(
@@ -30,13 +30,13 @@ export function applyTimeBlockResolvers(
     args: { groupId: string; startsAt: Date; endsAt: Date },
     ctx: Context,
   ) => {
-    if (!ctx.userId) throw new Error("Not authenticated");
+    if (!ctx.userId) throw new Error('Not authenticated');
     const input = AddTimeBlockInput.parse(args);
 
     const membership = await ctx.db.query.groupMembers.findFirst({
       where: and(eq(groupMembers.groupId, input.groupId), eq(groupMembers.userId, ctx.userId)),
     });
-    if (!membership) throw new Error("Forbidden");
+    if (!membership) throw new Error('Forbidden');
 
     const [block] = await ctx.db
       .insert(timeBlocks)
@@ -51,12 +51,12 @@ export function applyTimeBlockResolvers(
   };
 
   mutationFields.removeTimeBlock = async (_: unknown, args: { id: string }, ctx: Context) => {
-    if (!ctx.userId) throw new Error("Not authenticated");
+    if (!ctx.userId) throw new Error('Not authenticated');
     const block = await ctx.db.query.timeBlocks.findFirst({
       where: eq(timeBlocks.id, args.id),
     });
     if (!block) throw new Error(`TimeBlock ${args.id} not found`);
-    if (block.userId !== ctx.userId) throw new Error("Forbidden");
+    if (block.userId !== ctx.userId) throw new Error('Forbidden');
     await ctx.db.delete(timeBlocks).where(eq(timeBlocks.id, args.id));
     return true;
   };

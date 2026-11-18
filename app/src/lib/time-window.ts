@@ -1,9 +1,9 @@
 const WINDOW = new Intl.DateTimeFormat(undefined, {
-  weekday: "short",
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
 });
 
 /**
@@ -14,7 +14,7 @@ export function formatWindow(startsAt: string, endsAt: string): string {
   return WINDOW.formatRange(new Date(startsAt), new Date(endsAt));
 }
 
-const DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+const DAY = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
 
 /** A date with no time: "Nov 24". */
 export function formatDay(at: string): string {

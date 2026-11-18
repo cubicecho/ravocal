@@ -1,14 +1,14 @@
-import { useMutation } from "@apollo/client";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
-import { z } from "zod";
-import { graphql } from "@/__generated__/index.js";
-import { PendingScreen } from "@/components/domain/pending-screen";
-import { signIn, takeAfterSignIn } from "@/lib/auth";
+import { useMutation } from '@apollo/client';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useEffect, useRef } from 'react';
+import { z } from 'zod';
+import { graphql } from '@/__generated__/index.js';
+import { PendingScreen } from '@/components/domain/pending-screen';
+import { signIn, takeAfterSignIn } from '@/lib/auth';
 
 const searchSchema = z.object({ token: z.string() });
 
-export const Route = createFileRoute("/login_/verify")({
+export const Route = createFileRoute('/login_/verify')({
   validateSearch: searchSchema,
   component: VerifyPage,
 });
@@ -47,11 +47,5 @@ function VerifyPage() {
     void verifyMagicLink({ variables: { token } });
   }, [token, verifyMagicLink]);
 
-  return (
-    <PendingScreen
-      title="Signing you in…"
-      failedTitle="That sign-in link didn't work"
-      error={error}
-    />
-  );
+  return <PendingScreen title="Signing you in…" failedTitle="That sign-in link didn't work" error={error} />;
 }

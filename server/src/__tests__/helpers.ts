@@ -1,14 +1,14 @@
-import { type DB, db, groupMembers, groups, migrateDb, schema, users } from "@cubicecho/ravocal-db";
-import { PGlite } from "@electric-sql/pglite";
-import { getTableName, is, sql, Table } from "drizzle-orm";
-import { type ExecutionResult, type GraphQLSchema, graphql } from "graphql";
-import type { Context } from "../context.ts";
-import { buildSchema } from "../schema/index.ts";
+import { type DB, db, groupMembers, groups, migrateDb, schema, users } from '@cubicecho/ravocal-db';
+import { PGlite } from '@electric-sql/pglite';
+import { getTableName, is, sql, Table } from 'drizzle-orm';
+import { type ExecutionResult, type GraphQLSchema, graphql } from 'graphql';
+import type { Context } from '../context.ts';
+import { buildSchema } from '../schema/index.ts';
 
 /** Every table in the schema, quoted for one statement that empties them all. */
 const TABLE_LIST = Object.values(schema)
   .flatMap((value) => (is(value, Table) ? [`"${getTableName(value)}"`] : []))
-  .join(", ");
+  .join(', ');
 
 /** A GraphQL response's `data`, shaped by the caller. */
 // biome-ignore lint/suspicious/noExplicitAny: each test reads the fields its own query asked for
@@ -28,8 +28,8 @@ type Variables = Record<string, unknown>;
  * @throws If the singleton is not in memory, so a test never migrates a real database.
  */
 export async function openTestDb(): Promise<DB> {
-  if (process.env.DATABASE_URL !== "memory://") {
-    throw new Error("Tests need DATABASE_URL=memory:// (see vitest.config.ts).");
+  if (process.env.DATABASE_URL !== 'memory://') {
+    throw new Error('Tests need DATABASE_URL=memory:// (see vitest.config.ts).');
   }
   await migrateDb();
   return db;
@@ -52,9 +52,9 @@ export async function resetTestDb(testDb: DB): Promise<void> {
  */
 export async function closeTestDb(testDb: DB): Promise<void> {
   // `DB` covers both drivers, so the PGlite client behind it isn't on the type.
-  const client: unknown = Reflect.get(testDb, "$client");
+  const client: unknown = Reflect.get(testDb, '$client');
   if (!(client instanceof PGlite)) {
-    throw new Error("Expected the in-memory PGlite test db.");
+    throw new Error('Expected the in-memory PGlite test db.');
   }
   await client.close();
 }
@@ -79,15 +79,8 @@ export async function createUser(testDb: DB, email: string): Promise<string> {
  * @param overlapThreshold - Percent of members a normal vote needs free.
  * @returns The group id.
  */
-export async function createGroup(
-  testDb: DB,
-  ownerId: string,
-  overlapThreshold = 50,
-): Promise<string> {
-  const [group] = await testDb
-    .insert(groups)
-    .values({ name: "Book club", ownerId, overlapThreshold })
-    .returning();
+export async function createGroup(testDb: DB, ownerId: string, overlapThreshold = 50): Promise<string> {
+  const [group] = await testDb.insert(groups).values({ name: 'Book club', ownerId, overlapThreshold }).returning();
   await addMember(testDb, group.id, ownerId);
   return group.id;
 }
@@ -126,7 +119,7 @@ export function createClient(testDb: DB, userId: string | null): TestClient {
   cachedSchema ??= buildSchema();
   const schemaForRun = cachedSchema;
 
-  const run: TestClient["run"] = (query, variables) => {
+  const run: TestClient['run'] = (query, variables) => {
     const contextValue: Context = { db: testDb, userId };
     return graphql({
       schema: schemaForRun,
@@ -136,7 +129,7 @@ export function createClient(testDb: DB, userId: string | null): TestClient {
     });
   };
 
-  const expectOk: TestClient["expectOk"] = async (query, variables) => {
+  const expectOk: TestClient['expectOk'] = async (query, variables) => {
     const result = await run(query, variables);
     const [first] = result.errors ?? [];
     if (first !== undefined) {
@@ -145,11 +138,11 @@ export function createClient(testDb: DB, userId: string | null): TestClient {
     return result.data;
   };
 
-  const expectError: TestClient["expectError"] = async (query, variables) => {
+  const expectError: TestClient['expectError'] = async (query, variables) => {
     const result = await run(query, variables);
     const [first] = result.errors ?? [];
     if (first === undefined) {
-      throw new Error("Expected an error, got a successful result.");
+      throw new Error('Expected an error, got a successful result.');
     }
     return first.message;
   };

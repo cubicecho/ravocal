@@ -1,5 +1,5 @@
-import { migrateDb } from "./index.ts";
+import { migrateDb } from './index.ts';
 
 await migrateDb();
 
-console.log("Migration complete.");
+console.log('Migration complete.');
