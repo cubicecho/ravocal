@@ -3,15 +3,7 @@ import { accounts, sessions, users, verifications } from '@cubicecho/ravocal-db/
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { bearer, magicLink, oneTimeToken } from 'better-auth/plugins';
-import {
-  appUrl,
-  authSecret,
-  type ProviderConfig,
-  ProviderId,
-  providerConfigs,
-  serverUrl,
-  smtpConfigured,
-} from '../core/config.ts';
+import { appUrl, authSecret, type ProviderConfig, providerConfigs, serverUrl, smtpConfigured } from '../core/config.ts';
 import { AUTH_DEFAULTS } from '../core/defaults.ts';
 import { SECONDS_PER_DAY, SECONDS_PER_MINUTE } from '../core/wire.ts';
 import { sendMagicLinkEmail } from './email.ts';
@@ -24,9 +16,6 @@ const MAGIC_LINK_PLUGIN_ID = 'magic-link';
 export const MAGIC_LINK_PATH = '/auth/verify';
 /** The app's sign-in page, which reads `?error=` and says why a provider's sign-in failed. */
 export const LOGIN_PATH = '/login';
-
-/** The providers whose word on an address is taken: a sign-in with one reaches the account that has the address. */
-const TRUSTED_PROVIDERS: ProviderId[] = [ProviderId.Google];
 
 /** What delivering one sign-in link is given. */
 export interface MagicLink {
@@ -100,8 +89,9 @@ export function createAuth(
     account: {
       accountLinking: {
         enabled: true,
-        trustedProviders: TRUSTED_PROVIDERS,
-        // So a Google sign-in reaches an account made under SECURE_LOCAL_NET too, whose address nobody checked.
+        // No provider is trusted by name: a sign-in reaches the account that has its address only when the provider
+        // says it checked the address (Google's email_verified; Facebook never does, providers.ts).
+        // So a Google-checked address reaches an account made under SECURE_LOCAL_NET too, whose address nobody checked.
         requireLocalEmailVerified: false,
         // Connecting a provider in Settings links it to the signed-in reader, whatever address it has.
         allowDifferentEmails: true,

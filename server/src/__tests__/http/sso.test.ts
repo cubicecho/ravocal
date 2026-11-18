@@ -253,6 +253,24 @@ describe('signing in with Google', () => {
     expect((await userByEmail('ada@example.com'))?.emailVerified).toBe(true);
   });
 
+  it('refuses an address Google did not check when an account already has it, as Facebook is refused', async () => {
+    const existing = await createUser(db, 'ada@example.com');
+    await db.update(users).set({ emailVerified: true }).where(eq(users.id, existing));
+    provider.google = { ...provider.google, email_verified: false };
+    const { location } = await signIn(ProviderId.Google);
+    expect(location.pathname).toBe('/login');
+    expect(location.searchParams.get('error')).toBe('account_not_linked');
+    expect(location.searchParams.get('provider')).toBe(ProviderId.Google);
+    expect(await providersOf(existing)).toEqual([]);
+  });
+
+  it('makes an account with the address not yet confirmed when Google did not check a new address', async () => {
+    provider.google = { ...provider.google, email_verified: false };
+    const session = await verified((await signIn(ProviderId.Google)).location);
+    expect(await userByEmail('ada@example.com')).toMatchObject({ id: session.userId, emailVerified: false });
+    expect(await providersOf(session.userId)).toEqual([ProviderId.Google]);
+  });
+
   it('refuses a callback whose state does not match', async () => {
     const { location } = await signIn(ProviderId.Google, (back) => back.searchParams.set('state', 'forged'));
     expect(location.pathname).toBe('/login');

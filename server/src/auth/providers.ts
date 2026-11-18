@@ -47,8 +47,8 @@ async function isLinking(): Promise<boolean> {
 
 /**
  * Google, through its discovery document. Its id token is verified against Google's keys and bound to the sign-in by
- * a nonce, and its `email_verified` claim is what better-auth reads. Google is a trusted provider (better-auth.ts),
- * so an address it vouches for signs in to the account that has it.
+ * a nonce. No provider is trusted by name: an address signs in to the account that has it only when Google's own
+ * `email_verified` claim says Google checked it, and otherwise is refused with `account_not_linked`.
  *
  * @param provider - The client.
  * @param endpoints - Where Google is.
@@ -65,7 +65,19 @@ function google(provider: ProviderConfig, endpoints: ProviderEndpoints): Generic
     tokenEndpointAuth: { method: 'client_secret_basic' },
     pkce: true,
     scopes: ['openid', 'email', 'profile'],
+    // Stated rather than left to the plugin's default reading, so an upgrade cannot quietly trust an unchecked address.
+    mapProfileToUser: (profile) => ({ emailVerified: isTrue(profile.email_verified) }),
   };
+}
+
+/**
+ * Reads a claim that should be true, which some providers send as the string "true".
+ *
+ * @param claim - The claim as the provider sent it.
+ * @returns true only for `true` or "true".
+ */
+function isTrue(claim: unknown): boolean {
+  return claim === true || claim === 'true';
 }
 
 /**
