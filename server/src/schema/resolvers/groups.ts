@@ -1,9 +1,9 @@
-import { eq } from "drizzle-orm";
 import { groupInvites, groupMembers, groups, users } from "@ravocal/db";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Context } from "../../context.ts";
-import { sendGroupInviteEmail } from "../../services/email.ts";
 import { randomToken } from "../../services/auth.ts";
+import { sendGroupInviteEmail } from "../../services/email.ts";
 
 const CreateGroupInput = z.object({
   name: z.string().min(1).max(100),
@@ -15,6 +15,33 @@ const UpdateGroupInput = z.object({
   overlapThreshold: z.number().int().min(0).max(100).optional(),
 });
 
+/** Everything a `Group` resolves to, loaded in one relational query. */
+const GROUP_WITH = {
+  owner: true,
+  members: { with: { user: true } },
+  invites: true,
+  timeBlocks: { with: { user: true } },
+  votes: { with: { slots: true, rankings: true } },
+} as const;
+
+interface LoadedGroup {
+  members: Array<{ userId: string }>;
+  invites: Array<{ acceptedAt: Date | null }>;
+  votes: Array<{ status: string; rankings: Array<{ userId: string }> }>;
+}
+
+/** A loaded group in the `Group` type's shape, with the viewer's own rankings on its vote. */
+function shapeGroup(group: LoadedGroup, userId: string) {
+  const active = group.votes.find((v) => v.status === "active");
+  return {
+    ...group,
+    pendingInvites: group.invites.filter((i) => !i.acceptedAt),
+    activeVote: active
+      ? { ...active, myRankings: active.rankings.filter((r) => r.userId === userId) }
+      : null,
+  };
+}
+
 export function applyGroupResolvers(
   queryFields: Record<string, unknown>,
   mutationFields: Record<string, unknown>,
@@ -25,41 +52,28 @@ export function applyGroupResolvers(
   };
 
   queryFields.myGroups = async (_: unknown, __: unknown, ctx: Context) => {
-    if (!ctx.userId) throw new Error("Not authenticated");
+    const userId = ctx.userId;
+    if (!userId) throw new Error("Not authenticated");
     const memberships = await ctx.db.query.groupMembers.findMany({
-      where: eq(groupMembers.userId, ctx.userId),
-      with: { group: true },
+      where: eq(groupMembers.userId, userId),
+      with: { group: { with: GROUP_WITH } },
     });
-    return memberships.map((m: { group: unknown }) => m.group);
+    return memberships.map((m: { group: LoadedGroup }) => shapeGroup(m.group, userId));
   };
 
   queryFields.group = async (_: unknown, args: { id: string }, ctx: Context) => {
     if (!ctx.userId) throw new Error("Not authenticated");
-    const group = await ctx.db.query.groups.findFirst({
+    const group: LoadedGroup | undefined = await ctx.db.query.groups.findFirst({
       where: eq(groups.id, args.id),
-      with: {
-        owner: true,
-        members: { with: { user: true } },
-        invites: true,
-        timeBlocks: { with: { user: true } },
-        votes: true,
-      },
+      with: GROUP_WITH,
     });
     if (!group) throw new Error(`Group ${args.id} not found`);
-    const isMember = group.members.some((m: { userId: string }) => m.userId === ctx.userId);
+    const isMember = group.members.some((m) => m.userId === ctx.userId);
     if (!isMember) throw new Error("Forbidden");
-    return {
-      ...group,
-      pendingInvites: group.invites.filter((i: { acceptedAt: unknown }) => !i.acceptedAt),
-      activeVote: group.votes.find((v: { status: string }) => v.status === "active") ?? null,
-    };
+    return shapeGroup(group, ctx.userId);
   };
 
-  mutationFields.updateMyProfile = async (
-    _: unknown,
-    args: { name: string },
-    ctx: Context,
-  ) => {
+  mutationFields.updateMyProfile = async (_: unknown, args: { name: string }, ctx: Context) => {
     if (!ctx.userId) throw new Error("Not authenticated");
     const [updated] = await ctx.db
       .update(users)
@@ -80,9 +94,7 @@ export function applyGroupResolvers(
       .insert(groups)
       .values({ ...input, ownerId: ctx.userId })
       .returning();
-    await ctx.db
-      .insert(groupMembers)
-      .values({ groupId: group.id, userId: ctx.userId });
+    await ctx.db.insert(groupMembers).values({ groupId: group.id, userId: ctx.userId });
     return group;
   };
 
@@ -95,7 +107,10 @@ export function applyGroupResolvers(
     const group = await ctx.db.query.groups.findFirst({ where: eq(groups.id, args.id) });
     if (!group) throw new Error(`Group ${args.id} not found`);
     if (group.ownerId !== ctx.userId) throw new Error("Forbidden");
-    const input = UpdateGroupInput.parse({ name: args.name, overlapThreshold: args.overlapThreshold });
+    const input = UpdateGroupInput.parse({
+      name: args.name,
+      overlapThreshold: args.overlapThreshold,
+    });
     const patch = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined));
     const [updated] = await ctx.db
       .update(groups)
@@ -137,11 +152,7 @@ export function applyGroupResolvers(
     return invite;
   };
 
-  mutationFields.acceptGroupInvite = async (
-    _: unknown,
-    args: { token: string },
-    ctx: Context,
-  ) => {
+  mutationFields.acceptGroupInvite = async (_: unknown, args: { token: string }, ctx: Context) => {
     if (!ctx.userId) throw new Error("Not authenticated");
     const invite = await ctx.db.query.groupInvites.findFirst({
       where: eq(groupInvites.token, args.token),
