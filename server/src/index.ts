@@ -54,7 +54,8 @@ await migrate(db, { migrationsFolder: join(__dirname, '../../db/drizzle') });
 
 const schema = buildSchema();
 
-const apolloServer = new ApolloServer({ schema });
+// Shutdown is handled below. Apollo's own handler re-raises the signal, which would read as a second one.
+const apolloServer = new ApolloServer({ schema, stopOnTerminationSignals: false });
 await apolloServer.start();
 
 const app = express();
@@ -99,16 +100,19 @@ function stop(signal: NodeJS.Signals): void {
     process.exit(1);
   }, SHUTDOWN_DEADLINE_MS).unref();
   httpServer.close(() => {
-    closeDatabase().then(
-      () => {
-        console.log('[server] stopped');
-        process.exit(0);
-      },
-      (error: unknown) => {
-        console.error(`[server] shutdown failed: ${errorMessage(error)}`);
-        process.exit(1);
-      },
-    );
+    apolloServer
+      .stop()
+      .then(closeDatabase)
+      .then(
+        () => {
+          console.log('[server] stopped');
+          process.exit(0);
+        },
+        (error: unknown) => {
+          console.error(`[server] shutdown failed: ${errorMessage(error)}`);
+          process.exit(1);
+        },
+      );
   });
   httpServer.closeIdleConnections();
 }
