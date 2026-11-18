@@ -1,7 +1,7 @@
 // Getters, not constants, so a test (or a reload) sees the current environment.
 import { createRequire } from 'node:module';
 import { DATABASE_DEFAULTS } from '@cubicecho/ravocal-db/defaults';
-import { AUTH_DEFAULTS, EMAIL_DEFAULTS, HTTP_DEFAULTS } from './defaults.ts';
+import { AUTH_DEFAULTS, HTTP_DEFAULTS } from './defaults.ts';
 
 const NODE_ENV_PRODUCTION = 'production';
 /** The TRUST_PROXY value that trusts no hop. */
@@ -9,9 +9,16 @@ const TRUST_PROXY_OFF = 'false';
 /** A hop count: digits only. */
 const HOP_COUNT = /^\d+$/;
 const UNKNOWN_VERSION = 'unknown';
+/** The flag values that mean on. Anything else set means off. */
+const FLAG_ON = new Set(['1', 'true', 'yes']);
+/** The local part of the From address when `SMTP_FROM` is unset. */
+const DEFAULT_FROM_LOCAL_PART = 'ravocal';
 
-/** What signs session tokens when `JWT_SECRET` is unset. Preflight refuses it in production. */
-export const DEV_SECRET = 'dev-secret-change-in-production';
+/**
+ * What signs sessions when `BETTER_AUTH_SECRET` is unset. Preflight refuses it in production. 32 characters or more,
+ * or better-auth warns about it on every start.
+ */
+export const DEV_SECRET = 'dev-secret-change-me-in-production';
 /** The value `.env.example` ships. Public, so as good as no secret at all. */
 export const PLACEHOLDER_SECRET = 'change-me-to-a-long-random-string';
 
@@ -36,6 +43,18 @@ function envNumber(value: string | undefined, fallback: number): number {
  */
 function envString(value: string | undefined): string | undefined {
   return value === undefined || value === '' ? undefined : value;
+}
+
+/**
+ * Reads an on/off flag.
+ *
+ * @param value - The raw env value.
+ * @param fallback - Used when the value is unset or blank.
+ * @returns true for "1", "true" or "yes" in any case, false for anything else set.
+ */
+function envFlag(value: string | undefined, fallback: boolean): boolean {
+  const trimmed = (value ?? '').trim().toLowerCase();
+  return trimmed === '' ? fallback : FLAG_ON.has(trimmed);
 }
 
 /**
@@ -114,16 +133,16 @@ const VERSION = readVersion();
 export const version = (): string => VERSION;
 
 /**
- * The session-token signing secret as set. Preflight checks this one.
+ * What better-auth signs with, as set. Preflight checks this one.
  *
- * @returns `JWT_SECRET`, or undefined when it is unset or empty.
+ * @returns `BETTER_AUTH_SECRET`, or undefined when it is unset or empty.
  */
-export const configuredJwtSecret = (): string | undefined => envString(process.env.JWT_SECRET);
+export const configuredAuthSecret = (): string | undefined => envString(process.env.BETTER_AUTH_SECRET);
 
 /**
- * Why `secret` must not sign production tokens, or undefined when it may.
+ * Why `secret` must not sign production sessions, or undefined when it may.
  *
- * @param secret - `JWT_SECRET` as set.
+ * @param secret - `BETTER_AUTH_SECRET` as set.
  * @returns The reason, as the end of a sentence ("is not set").
  */
 export function describeWeakSecret(secret: string | undefined): string | undefined {
@@ -140,43 +159,45 @@ export function describeWeakSecret(secret: string | undefined): string | undefin
 }
 
 /**
- * What session tokens are signed and checked with.
+ * What better-auth signs sessions with.
  *
- * @returns `JWT_SECRET`, or `DEV_SECRET` when unset, so development needs no .env entry.
+ * @returns `BETTER_AUTH_SECRET`, or `DEV_SECRET` when unset, so development needs no .env entry.
  */
-export const jwtSecret = (): string => configuredJwtSecret() ?? DEV_SECRET;
+export const authSecret = (): string => configuredAuthSecret() ?? DEV_SECRET;
 
 /**
- * The SMTP server to send through. Unset means emails are printed to the console instead.
+ * Whether typing an email address signs in, with no link to follow. The network is then the credential, so
+ * preflight refuses it with a public `APP_URL`.
  *
- * @returns `SMTP_HOST`, or undefined.
+ * @returns `SECURE_LOCAL_NET` as a flag, or `AUTH_DEFAULTS.secureLocalNet` when unset.
  */
-export const smtpHost = (): string | undefined => envString(process.env.SMTP_HOST);
+export const secureLocalNet = (): boolean => envFlag(process.env.SECURE_LOCAL_NET, AUTH_DEFAULTS.secureLocalNet);
 
 /**
- * The SMTP server's port.
+ * Whether a public `APP_URL` is accepted alongside `SECURE_LOCAL_NET`.
  *
- * @returns `SMTP_PORT`, or `EMAIL_DEFAULTS.smtpPort`.
+ * @returns `I_KNOW_SECURE_LOCAL_NET_IS_PUBLIC` as a flag, off when unset.
  */
-export const smtpPort = (): number => envNumber(process.env.SMTP_PORT, EMAIL_DEFAULTS.smtpPort);
+export const allowsPublicLocalNet = (): boolean => envFlag(process.env.I_KNOW_SECURE_LOCAL_NET_IS_PUBLIC, false);
 
 /**
- * The SMTP login. Unset means no authentication.
+ * Where email is sent through, as a nodemailer connection URL (`smtp://user:pass@host:587`).
  *
- * @returns `SMTP_USER`, or undefined.
+ * @returns `SMTP_URL`, or undefined when unset. Then no sign-in links are sent, and other emails are printed.
  */
-export const smtpUser = (): string | undefined => envString(process.env.SMTP_USER);
+export const smtpUrl = (): string | undefined => envString(process.env.SMTP_URL);
 
 /**
- * The SMTP password, read only alongside `smtpUser`.
+ * Whether this instance can send email.
  *
- * @returns `SMTP_PASS`, or undefined.
+ * @returns true when `SMTP_URL` is set.
  */
-export const smtpPass = (): string | undefined => envString(process.env.SMTP_PASS);
+export const smtpConfigured = (): boolean => smtpUrl() !== undefined;
 
 /**
  * The From address on every email.
  *
- * @returns `EMAIL_FROM`, or `EMAIL_DEFAULTS.from`.
+ * @returns `SMTP_FROM`, or `ravocal@` the host of `APP_URL`.
  */
-export const emailFrom = (): string => envString(process.env.EMAIL_FROM) ?? EMAIL_DEFAULTS.from;
+export const smtpFrom = (): string =>
+  envString(process.env.SMTP_FROM) ?? `${DEFAULT_FROM_LOCAL_PART}@${new URL(appUrl()).hostname}`;

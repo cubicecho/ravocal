@@ -5,6 +5,7 @@ export const ErrorCode = {
   Unauthenticated: 'UNAUTHENTICATED',
   NotFound: 'NOT_FOUND',
   BadUserInput: 'BAD_USER_INPUT',
+  TooManyRequests: 'TOO_MANY_REQUESTS',
   Forbidden: 'FORBIDDEN',
   QueryTooComplex: 'QUERY_TOO_COMPLEX',
 } as const;
@@ -31,9 +32,19 @@ export const forbidden = withCode(ErrorCode.Forbidden);
 export const tooComplex = withCode(ErrorCode.QueryTooComplex);
 
 /**
- * Builds the signed-out refusal.
+ * Builds the rate-limit refusal.
  *
- * @param [message] - Client-readable message. The app matches on the default.
+ * @param message - Client-readable message.
+ * @param retryAfter - Seconds until the caller may try again.
+ * @returns The error, for the caller to throw.
+ */
+export const rateLimited = (message: string, retryAfter: number): GraphQLError =>
+  new GraphQLError(message, { extensions: { code: ErrorCode.TooManyRequests, retryAfter } });
+
+/**
+ * Builds the signed-out refusal. The app drops its session on the code.
+ *
+ * @param [message] - Client-readable message.
  * @returns The error, for the caller to throw.
  */
 export const unauthenticated = (message = 'Not authenticated'): GraphQLError =>

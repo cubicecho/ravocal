@@ -4,14 +4,12 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required. The image no longer embeds a database; point it at a Postgres}
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required. Generate one with openssl rand -hex 32}
       APP_URL: ${APP_URL:-http://localhost:3001}
       NODE_ENV: production
       PORT: 3001
-      SMTP_HOST: ${SMTP_HOST:-}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASS: ${SMTP_PASS:-}
-      EMAIL_FROM: ${EMAIL_FROM:-noreply@localhost}
+      # A nodemailer URL (smtp://user:pass@host:587). Without it nobody can sign in, unless SECURE_LOCAL_NET is on.
+      SMTP_URL: ${SMTP_URL:-}
+      SMTP_FROM: ${SMTP_FROM:-}
     ports:
       - "${PORT:-3001}:3001"

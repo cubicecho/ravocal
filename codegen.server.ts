@@ -1,7 +1,8 @@
 import type { CodegenConfig } from '@graphql-codegen/cli';
 
 const config: CodegenConfig = {
-  schema: './server/src/schema.graphql',
+  // The served schema, printed by server/src/schema/write-schema.ts (`npm run codegen:server` runs it first).
+  schema: './server/src/__generated__/schema.graphql',
   generates: {
     'server/src/__generated__/resolvers.ts': {
       plugins: ['typescript', 'typescript-resolvers'],

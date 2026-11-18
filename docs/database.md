@@ -24,9 +24,10 @@ db/
     ├── relations.ts      # defineRelations
     ├── defaults.ts       # DATABASE_DEFAULTS
     ├── wait.ts           # waitForDatabase
-    ├── ssl.ts            # requiresSsl
-    └── models/           # one table per file: users.ts, magic-links.ts, groups.ts, group-members.ts,
-                          # group-invites.ts, time-blocks.ts, votes.ts, vote-slots.ts, vote-rankings.ts
+    ├── ssl.ts            # requiresSsl, isPrivateHost (preflight's SECURE_LOCAL_NET check), hostOf
+    └── models/           # one table per file: users.ts, sessions.ts, accounts.ts, verifications.ts,
+                          # groups.ts, group-members.ts, group-invites.ts, time-blocks.ts, votes.ts,
+                          # vote-slots.ts, vote-rankings.ts
 ```
 
 Server modules import tables and row types from `/schema`, never the package root: the root opens a client and throws when `DATABASE_URL` is unset, which is what tests rely on. `server/src/index.ts` is the one importer of the root's values; `import type { DB }` from the root is erased at runtime and fine anywhere.
@@ -40,18 +41,21 @@ Constraint names are explicit: `uq_<table>_<cols>` for unique indexes and `idx_<
 |--------|------|-------|
 | id | uuid PK | default random |
 | email | text NOT NULL | lowercased on write; unique (`uq_users_email`) |
-| name | text | nullable, set after first login |
+| name | text NOT NULL | the address's local part until the user sets one |
+| email_verified | boolean NOT NULL | false until a sign-in link proves the address |
+| image | text | better-auth's; unused |
 | created_at | timestamptz NOT NULL | auto |
+| updated_at | timestamptz NOT NULL | auto |
 
-### `magic_links`
-| Column | Type | Notes |
-|--------|------|-------|
-| id | uuid PK | |
-| user_id | uuid FK → users | cascade delete |
-| token | text UNIQUE NOT NULL | 32-byte hex |
-| expires_at | timestamptz NOT NULL | 15 min from creation |
-| used_at | timestamptz | null until redeemed |
-| created_at | timestamptz NOT NULL | auto |
+### better-auth's tables: `sessions`, `accounts`, `verifications`
+
+better-auth reads and writes these through its Drizzle adapter (`server/src/auth/better-auth.ts`, uuid ids). Nothing else should.
+
+| Table | Holds |
+|-------|-------|
+| `sessions` | One row per signed-in browser: `user_id` (cascade), `token` (the bearer token, unique `uq_sessions_token`), `expires_at` (`AUTH_DEFAULTS.sessionTtlDays` after last use), `ip_address`, `user_agent`. Deleting a row signs that browser out |
+| `accounts` | One row per outside provider a user signs in with. Empty until provider sign-in arrives; magic links make none |
+| `verifications` | A pending sign-in link: the hash of its token in `identifier`, until it is spent or `expires_at` (`AUTH_DEFAULTS.magicLinkTtlMinutes`) passes |
 
 ### `groups`
 | Column | Type | Notes |
@@ -177,7 +181,7 @@ const group = await db.query.groups.findFirst({
 const membership = await db.query.groupMembers.findFirst({ where: { groupId, userId } });
 
 // insert + return
-const [user] = await db.insert(users).values({ email }).returning();
+const [group] = await db.insert(groups).values({ name, ownerId }).returning();
 
 // update and delete use the core builder with eq/and from drizzle-orm
 await db.update(groups).set({ name }).where(eq(groups.id, id));

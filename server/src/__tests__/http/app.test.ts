@@ -6,13 +6,22 @@ import { join } from 'node:path';
 import type { Express } from 'express';
 import { getIntrospectionQuery } from 'graphql';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Auth } from '../../auth/better-auth.ts';
 import { version } from '../../core/config.ts';
 import { OPERATION_LIMIT_DEFAULTS } from '../../core/defaults.ts';
 import { ErrorCode, errorMessage } from '../../core/errors.ts';
 import { HttpStatus } from '../../core/wire.ts';
 import { createApp } from '../../http/app.ts';
-import { signSessionToken } from '../../services/auth.ts';
-import { closeTestDb, createTestDb, createUser, portOf, resetTestDb, type TestDb } from '../helpers.ts';
+import {
+  closeTestDb,
+  createSessionToken,
+  createTestAuth,
+  createTestDb,
+  createUser,
+  portOf,
+  resetTestDb,
+  type TestDb,
+} from '../helpers.ts';
 
 const { maxTokens, maxDepth, maxAliases, maxCost } = OPERATION_LIMIT_DEFAULTS;
 /** The tokens around the repeated field in `{ me { id id … } }`: two braces each side and `me`. */
@@ -106,15 +115,17 @@ async function appDocuments(): Promise<Array<[string, string]>> {
 
 describe('app over HTTP', () => {
   let db: TestDb;
+  let auth: Auth;
   let staticDir: string;
   let server: Server;
   let base: string;
 
   beforeAll(async () => {
     db = await createTestDb();
+    auth = createTestAuth(db).auth;
     staticDir = await mkdtemp(join(tmpdir(), 'ravocal-'));
     await writeFile(join(staticDir, 'index.html'), `<!doctype html>${INDEX_MARKER}`);
-    ({ server, base } = await listen(createApp({ db, staticDir })));
+    ({ server, base } = await listen(createApp({ db, auth, staticDir })));
   });
 
   afterAll(async () => {
@@ -152,7 +163,7 @@ describe('app over HTTP', () => {
     it('answers 503 when the database is closed', async () => {
       const closedDb = await createTestDb();
       await closeTestDb(closedDb);
-      const closed = await listen(createApp({ db: closedDb }));
+      const closed = await listen(createApp({ db: closedDb, auth: createTestAuth(closedDb).auth }));
       try {
         const response = await fetch(`${closed.base}/healthz`);
         expect(response.status).toBe(HttpStatus.ServiceUnavailable);
@@ -269,7 +280,7 @@ describe('app over HTTP', () => {
     it('masks an unexpected error, and logs its cause with the [graphql] tag', async () => {
       const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
       const userId = await createUser(db, 'alice@example.com');
-      const token = await signSessionToken({ id: userId, email: 'alice@example.com' });
+      const token = await createSessionToken(auth, userId);
       // Postgres refuses an id that is not a uuid, which no resolver expects.
       const body = await query('{ group(id: "not-a-uuid") { id } }', { authorization: `Bearer ${token}` });
       expect(body.errors[0]).toMatchObject({ message: MASKED_MESSAGE, extensions: { code: INTERNAL_SERVER_ERROR } });

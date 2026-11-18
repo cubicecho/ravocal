@@ -8,5 +8,9 @@ export const MS_PER_SECOND = 1000;
 export const MS_PER_MINUTE = 60_000;
 /** Milliseconds in one day. */
 export const MS_PER_DAY = 86_400_000;
+/** Seconds in one minute. */
+export const SECONDS_PER_MINUTE = 60;
+/** Seconds in one day. */
+export const SECONDS_PER_DAY = 86_400;
 /** What a ratio is multiplied by to read as a percentage. */
 export const PERCENT = 100;

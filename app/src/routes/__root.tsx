@@ -1,9 +1,6 @@
 import { createRootRoute, Outlet, redirect } from '@tanstack/react-router';
 import { useThemePreference } from '@/components/ui/theme-preference';
-import { isSignedIn, rememberAfterSignIn } from '@/lib/auth';
-
-/** The pages a signed-out reader may open: the sign-in form, and the magic link it sends. */
-const PUBLIC_PATHS = new Set(['/login', '/login/verify']);
+import { isSignedIn, LOGIN_PATH, PUBLIC_PATHS, rememberAfterSignIn } from '@/lib/auth';
 
 export const Route = createRootRoute({
   // Before any page loads, so a signed-out reader never sees one flash before the redirect, and
@@ -15,7 +12,7 @@ export const Route = createRootRoute({
     if (location.pathname !== '/') {
       rememberAfterSignIn(location.href);
     }
-    throw redirect({ to: '/login' });
+    throw redirect({ to: LOGIN_PATH });
   },
   component: Root,
 });
