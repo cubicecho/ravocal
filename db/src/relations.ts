@@ -9,14 +9,18 @@ import * as schema from './schema.ts';
  */
 export const relations = defineRelations(schema, (relate) => ({
   users: {
-    magicLinks: relate.many.magicLinks(),
+    sessions: relate.many.sessions(),
+    accounts: relate.many.accounts(),
     groupMemberships: relate.many.groupMembers(),
     ownedGroups: relate.many.groups(),
     timeBlocks: relate.many.timeBlocks(),
     voteRankings: relate.many.voteRankings(),
   },
-  magicLinks: {
-    user: relate.one.users({ from: relate.magicLinks.userId, to: relate.users.id, optional: false }),
+  sessions: {
+    user: relate.one.users({ from: relate.sessions.userId, to: relate.users.id, optional: false }),
+  },
+  accounts: {
+    user: relate.one.users({ from: relate.accounts.userId, to: relate.users.id, optional: false }),
   },
   groups: {
     owner: relate.one.users({ from: relate.groups.ownerId, to: relate.users.id, optional: false }),

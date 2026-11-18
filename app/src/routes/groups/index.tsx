@@ -1,4 +1,4 @@
-import { useApolloClient, useQuery } from '@apollo/client';
+import { useApolloClient, useMutation, useQuery } from '@apollo/client';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { graphql } from '@/__generated__/index.js';
 import { Users } from '@/components/domain/app-icons';
@@ -11,11 +11,19 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Plus } from '@/components/ui/icons';
 import { asQuery } from '@/lib/as-query';
-import { signOut } from '@/lib/auth';
+import { clearToken, LOGIN_PATH } from '@/lib/auth';
 
 export const Route = createFileRoute('/groups/')({
   component: GroupsPage,
 });
+
+const SIGN_OUT = graphql(`
+  mutation SignOut {
+    signOut {
+      success
+    }
+  }
+`);
 
 const MY_GROUPS = graphql(`
   query MyGroups {
@@ -40,11 +48,18 @@ function GroupsPage() {
   const client = useApolloClient();
   const navigate = useNavigate();
 
+  const [signOut] = useMutation(SIGN_OUT, {
+    // Signed out on this device whether or not the server could be told: the token is dropped below either way.
+    onError: () => {},
+  });
+
   const leave = async () => {
-    signOut();
+    // Ends the session on the server, so its token stops working anywhere it was copied.
+    await signOut();
+    clearToken();
     // Nothing the last account fetched may show to the next one.
     await client.clearStore();
-    await navigate({ to: '/login' });
+    await navigate({ to: LOGIN_PATH });
   };
 
   return (

@@ -1,7 +1,8 @@
 import type { CodegenConfig } from '@graphql-codegen/cli';
 
 const config: CodegenConfig = {
-  schema: './server/src/schema.graphql',
+  // The served schema, printed by server/src/schema/write-schema.ts, so better-auth's operations are typed too.
+  schema: './server/src/__generated__/schema.graphql',
   documents: ['./app/src/**/*.ts', './app/src/**/*.tsx'],
   ignoreNoDocuments: true,
   generates: {

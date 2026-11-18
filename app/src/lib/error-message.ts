@@ -1,3 +1,5 @@
+import { ErrorCode, hasErrorCode } from "@/lib/error-codes";
+
 export function messageOf(error: unknown): string | undefined {
   if (error == null) {
     return undefined;
@@ -54,7 +56,8 @@ export function describeError(error: unknown): string {
   if (NETWORK_FAILURE.test(message)) {
     return "Could not reach the server. Check your connection and try again.";
   }
-  if (message.includes("Not authenticated")) {
+  // By the server's code, not its wording.
+  if (hasErrorCode(error, ErrorCode.Unauthenticated)) {
     return "Your session has expired. Please sign in again.";
   }
   return message || UNEXPECTED;

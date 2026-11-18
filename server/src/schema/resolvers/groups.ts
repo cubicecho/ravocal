@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { groupInvites, groupMembers, groups, users } from '@cubicecho/ravocal-db/schema';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
@@ -6,10 +7,9 @@ import { GROUP_DEFAULTS } from '../../core/defaults.ts';
 import { badInput, forbidden, notFound, requireAuth } from '../../core/errors.ts';
 import { parseOrThrow } from '../../core/validation.ts';
 import { MS_PER_DAY, PERCENT } from '../../core/wire.ts';
-import { randomToken } from '../../services/auth.ts';
 import { sendGroupInviteEmail } from '../../services/email.ts';
 
-const { maxNameLength } = GROUP_DEFAULTS;
+const { maxNameLength, inviteTokenBytes } = GROUP_DEFAULTS;
 const THRESHOLD_RANGE = `The overlap threshold must be a whole number from 0 to ${PERCENT}.`;
 
 const nameSchema = z
@@ -151,7 +151,7 @@ export function applyGroupResolvers(queryFields: Record<string, unknown>, mutati
       throw forbidden('Forbidden');
     }
 
-    const token = randomToken();
+    const token = randomBytes(inviteTokenBytes).toString('hex');
     const expiresAt = new Date(Date.now() + GROUP_DEFAULTS.inviteTtlDays * MS_PER_DAY);
     const [invite] = await ctx.db
       .insert(groupInvites)

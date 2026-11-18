@@ -1,6 +1,7 @@
 /**
- * The signed-in session, as the browser keeps it: the JWT from a magic link, and the page a
- * signed-out reader was on their way to when they were sent to sign in.
+ * The signed-in session, as the browser keeps it: the bearer token a sign-in link was spent for, and the page a
+ * signed-out reader was on their way to when they were sent to sign in. The session itself lives on the server,
+ * which ends it on `signOut`.
  */
 
 const TOKEN_KEY = 'ravocal_token';
@@ -8,6 +9,13 @@ const AFTER_SIGN_IN_KEY = 'ravocal_after_sign_in';
 
 /** Where a reader lands after signing in when they were not on their way anywhere. */
 export const HOME_PATH = '/groups' as const;
+/** Where a reader signs in. */
+export const LOGIN_PATH = '/login' as const;
+/** Where a sign-in link from an email lands. The server builds the link with this path. */
+export const VERIFY_PATH = '/auth/verify' as const;
+
+/** The pages a signed-out reader may open: the sign-in form, and the page its link opens. */
+export const PUBLIC_PATHS: ReadonlySet<string> = new Set([LOGIN_PATH, VERIFY_PATH]);
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
@@ -17,11 +25,13 @@ export function isSignedIn(): boolean {
   return getToken() !== null;
 }
 
-export function signIn(token: string): void {
+/** Keeps the session token `magicLinkVerify` answered with. */
+export function storeToken(token: string): void {
   localStorage.setItem(TOKEN_KEY, token);
 }
 
-export function signOut(): void {
+/** Forgets the session token. The server's session is ended by the `signOut` mutation. */
+export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 

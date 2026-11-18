@@ -1,9 +1,13 @@
 import { GraphQLError } from 'graphql';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createRateLimiter, type RateLimiter } from '../../auth/rate-limit.ts';
 import { RATE_LIMIT_DEFAULTS } from '../../core/defaults.ts';
 import { ErrorCode } from '../../core/errors.ts';
 import { MS_PER_SECOND, SECONDS_PER_MINUTE } from '../../core/wire.ts';
+import { closeTestDb, createClient, createTestDb, resetTestDb, TEST_IP, type TestDb } from '../helpers.ts';
+
+const REQUEST = 'mutation ($email: String!) { signInMagicLink(email: $email) { status } }';
+const VERIFY = 'mutation ($token: String!) { magicLinkVerify(token: $token) { token } }';
 
 const SETTINGS = { maxAttempts: 2, windowMinutes: 1 };
 const WINDOW_SECONDS = SETTINGS.windowMinutes * SECONDS_PER_MINUTE;
@@ -94,5 +98,64 @@ describe('createRateLimiter', () => {
       defaults.hit('k');
     }
     expect(() => defaults.hit('k')).toThrow();
+  });
+});
+
+describe('sign-in throttling', () => {
+  const { maxAttempts } = RATE_LIMIT_DEFAULTS;
+  let db: TestDb;
+  let addresses = 0;
+  const nextEmail = () => `throttled${++addresses}@example.com`;
+  /** A distinct address for each attempt, from the documentation range. */
+  const ipFor = (attempt: number) => `198.51.100.${attempt + 1}`;
+
+  beforeAll(async () => {
+    db = await createTestDb();
+  });
+
+  afterAll(() => closeTestDb(db));
+
+  beforeEach(async () => {
+    await resetTestDb(db);
+  });
+
+  it(`refuses the attempt after the ${maxAttempts}th from one address, whichever email it names`, async () => {
+    const throttled = createRateLimiter();
+    const client = createClient(db, null, { limiter: throttled, ip: TEST_IP });
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      await client.expectOk(REQUEST, { email: nextEmail() });
+    }
+    const { code, extensions } = await client.expectError(REQUEST, { email: nextEmail() });
+    expect(code).toBe(ErrorCode.TooManyRequests);
+    expect(extensions.retryAfter).toBe(RATE_LIMIT_DEFAULTS.windowMinutes * SECONDS_PER_MINUTE);
+  });
+
+  it(`refuses the attempt after the ${maxAttempts}th for one email, whichever address asks`, async () => {
+    const throttled = createRateLimiter();
+    const email = nextEmail();
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      // One account in several spellings, so normalizing is what makes them one key.
+      const spelling = attempt % 2 === 0 ? email : ` ${email.toUpperCase()} `;
+      await createClient(db, null, { limiter: throttled, ip: ipFor(attempt) }).expectOk(REQUEST, { email: spelling });
+    }
+    const last = createClient(db, null, { limiter: throttled, ip: ipFor(maxAttempts) });
+    const { code } = await last.expectError(REQUEST, { email });
+    expect(code).toBe(ErrorCode.TooManyRequests);
+  });
+
+  it('limits verifying a link, valid or not, by address', async () => {
+    const client = createClient(db, null, { limiter });
+    expect((await client.expectError(VERIFY, { token: 'not-a-token' })).code).toBe(ErrorCode.BadUserInput);
+    expect((await client.expectError(VERIFY, { token: 'nor-this' })).code).toBe(ErrorCode.BadUserInput);
+    const { code } = await client.expectError(VERIFY, { token: 'a-third' });
+    expect(code).toBe(ErrorCode.TooManyRequests);
+  });
+
+  it('gives requesting and verifying a budget each', async () => {
+    const client = createClient(db, null, { limiter });
+    await client.expectOk(REQUEST, { email: nextEmail() });
+    await client.expectOk(REQUEST, { email: nextEmail() });
+    const { code } = await client.expectError(VERIFY, { token: 'not-a-token' });
+    expect(code).toBe(ErrorCode.BadUserInput);
   });
 });

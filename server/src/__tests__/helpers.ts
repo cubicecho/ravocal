@@ -6,6 +6,8 @@ import { getTableName, is, sql, Table } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { type ExecutionResult, type GraphQLSchema, graphql } from 'graphql';
 import { inject } from 'vitest';
+import { type Auth, createAuth, type MagicLink } from '../auth/better-auth.ts';
+import { createRateLimiter, type RateLimiter } from '../auth/rate-limit.ts';
 import type { Context } from '../core/context.ts';
 import { buildSchema } from '../schema/index.ts';
 
@@ -33,13 +35,77 @@ declare module 'vitest' {
   }
 }
 
-/** The address a client's requests come from. */
+/** The address a client's requests come from unless a test says otherwise. */
 export const TEST_IP = '127.0.0.1';
+/** Signing secret for test auth instances. Long enough to pass `AUTH_DEFAULTS.minSecretLength`, like production's. */
+export const TEST_SECRET = 'test-secret-0123456789abcdef0123456789';
 
 /** Every table in the schema, quoted for one statement that empties them all. */
 const TABLE_LIST = Object.values(dbSchema)
   .flatMap((value) => (is(value, Table) ? [`"${getTableName(value)}"`] : []))
   .join(', ');
+
+/** One schema per database: building it is most of what a client costs, and only `db` shapes it. */
+const schemas = new WeakMap<object, GraphQLSchema>();
+/** One auth instance per database, for the clients that do not bring their own. */
+const auths = new WeakMap<object, Auth>();
+
+/** A test auth instance and the magic links it captured. */
+export interface TestAuth {
+  auth: Auth;
+  /** Captured links, newest last. */
+  links: MagicLink[];
+}
+
+/**
+ * Builds better-auth over the test db, with magic links captured instead of sent.
+ *
+ * @param testDb - Test db.
+ * @returns The auth instance and the captured links.
+ */
+export function createTestAuth(testDb: TestDb): TestAuth {
+  const links: MagicLink[] = [];
+  const auth = createAuth(testDb, {
+    secret: TEST_SECRET,
+    sendMagicLink: async (link) => {
+      links.push(link);
+    },
+  });
+  return { auth, links };
+}
+
+/**
+ * Builds better-auth with no way to deliver a link, as an instance without SMTP_URL has.
+ *
+ * @param testDb - Test db.
+ * @returns The auth instance.
+ */
+export function createLinklessAuth(testDb: TestDb): Auth {
+  return createAuth(testDb, { secret: TEST_SECRET });
+}
+
+/**
+ * Starts a real better-auth session for a user, without a link.
+ *
+ * @param auth - The auth instance the session is made on.
+ * @param userId - The user to sign in.
+ * @returns The session token, to send as `Authorization: Bearer`.
+ */
+export async function createSessionToken(auth: Auth, userId: string): Promise<string> {
+  const { internalAdapter } = await auth.$context;
+  const session = await internalAdapter.createSession(userId);
+  return session.token;
+}
+
+/**
+ * Builds the headers of a request that carries a session.
+ *
+ * @param token - The session token.
+ * @returns The headers, with `Authorization: Bearer`.
+ */
+export function bearer(token: string): Headers {
+  return new Headers({ authorization: `Bearer ${token}` });
+}
 
 /**
  * Builds a fresh in-memory Postgres with the models' schema in it.
@@ -80,11 +146,11 @@ export async function closeTestDb(testDb: TestDb): Promise<void> {
  * Inserts a user straight through Drizzle. Sign-in isn't under test.
  *
  * @param testDb - Test db.
- * @param email - The user's email.
+ * @param email - The user's email. Also their name.
  * @returns The user id.
  */
 export async function createUser(testDb: TestDb, email: string): Promise<string> {
-  const [user] = await testDb.insert(dbSchema.users).values({ email }).returning();
+  const [user] = await testDb.insert(dbSchema.users).values({ email, name: email }).returning();
   return user.id;
 }
 
@@ -121,6 +187,8 @@ export interface RefusedOperation {
   message: string;
   /** `extensions.code`, to compare with `ErrorCode`. */
   code: unknown;
+  /** Every extension, `retryAfter` among them. */
+  extensions: Record<string, unknown>;
 }
 
 /** A GraphQL client bound to one caller. */
@@ -133,21 +201,48 @@ export interface TestClient {
   expectError: (query: string, variables?: Variables) => Promise<RefusedOperation>;
 }
 
-let cachedSchema: GraphQLSchema | undefined;
+/** Collaborators a client shares with other clients, or swaps for its own. */
+export interface ClientDeps {
+  /**
+   * Pass one to read the links it captured, or to share sessions across clients.
+   * @defaultValue One `createTestAuth(db).auth` per database
+   */
+  auth?: Auth;
+  /**
+   * Pass a small one to reach the budget.
+   * @defaultValue `createRateLimiter()`
+   */
+  limiter?: RateLimiter;
+  /**
+   * The address the limiter keys on.
+   * @defaultValue `TEST_IP`
+   */
+  ip?: string;
+  /**
+   * The request's headers, for an operation that reads the session itself (`signOut`, `getSession`).
+   * @defaultValue None
+   */
+  headers?: Headers;
+}
 
 /**
  * Builds a client that runs operations against the real schema as one caller.
  *
  * @param testDb - Test db.
  * @param userId - The caller, or null for anonymous.
+ * @param [deps] - Collaborators to share with other clients.
  * @returns The client.
  */
-export function createClient(testDb: TestDb, userId: string | null): TestClient {
-  cachedSchema ??= buildSchema();
-  const schemaForRun = cachedSchema;
+export function createClient(testDb: TestDb, userId: string | null, deps: ClientDeps = {}): TestClient {
+  const { limiter = createRateLimiter(), ip = TEST_IP, headers = new Headers() } = deps;
+  const schemaForRun = schemas.get(testDb) ?? buildSchema(testDb);
+  schemas.set(testDb, schemaForRun);
+  const sharedAuth = auths.get(testDb) ?? createTestAuth(testDb).auth;
+  auths.set(testDb, sharedAuth);
+  const auth = deps.auth ?? sharedAuth;
 
   const run: TestClient['run'] = (query, variables) => {
-    const contextValue: Context = { db: testDb, userId, ip: TEST_IP, headers: new Headers() };
+    const contextValue: Context = { db: testDb, auth, limiter, userId, ip, headers };
     return graphql({
       schema: schemaForRun,
       source: query,
@@ -171,7 +266,7 @@ export function createClient(testDb: TestDb, userId: string | null): TestClient 
     if (first === undefined) {
       throw new Error('Expected an error, got a successful result.');
     }
-    return { message: first.message, code: first.extensions.code };
+    return { message: first.message, code: first.extensions.code, extensions: first.extensions };
   };
 
   return { run, expectOk, expectError };

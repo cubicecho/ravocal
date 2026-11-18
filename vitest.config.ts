@@ -15,8 +15,10 @@ export default defineConfig({
     env: {
       // A test that forgets its throwaway db fails loudly instead of writing to the developer's Postgres.
       DATABASE_URL: '',
-      // No SMTP host, so the email service logs instead of sending.
-      SMTP_HOST: '',
+      // No SMTP, so invite and vote emails are printed, and tests capture sign-in links (createTestAuth).
+      SMTP_URL: '',
+      // Sign-in sends links unless a test turns this on itself.
+      SECURE_LOCAL_NET: '',
     },
     // Threads share one process, where a fork per file each loads its own copy of everything.
     pool: 'threads',

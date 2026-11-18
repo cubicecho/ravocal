@@ -66,12 +66,10 @@ export const RATE_LIMIT_DEFAULTS: Readonly<RateLimitSettings> = Object.freeze({
 
 /** Sign-in and credential settings. */
 export interface AuthSettings {
-  /** How long a session token works after sign-in. Long: there is no password to fall back on. */
+  /** How long a session lasts after it was last used. Long: there is no password to fall back on. */
   sessionTtlDays: number;
   /** How long an emailed sign-in link works. Short: it travels by mail. */
   magicLinkTtlMinutes: number;
-  /** Random bytes in a sign-in or invite token. */
-  tokenBytes: number;
   /** Shortest signing secret production accepts, in characters. `openssl rand -hex 32` gives twice this. */
   minSecretLength: number;
 }
@@ -79,7 +77,6 @@ export interface AuthSettings {
 export const AUTH_DEFAULTS: Readonly<AuthSettings> = Object.freeze({
   sessionTtlDays: 30,
   magicLinkTtlMinutes: 15,
-  tokenBytes: 32,
   minSecretLength: 32,
 });
 
@@ -89,11 +86,14 @@ export interface GroupSettings {
   maxNameLength: number;
   /** How long an emailed invite works. */
   inviteTtlDays: number;
+  /** Random bytes in an invite's token. */
+  inviteTokenBytes: number;
 }
 
 export const GROUP_DEFAULTS: Readonly<GroupSettings> = Object.freeze({
   maxNameLength: 100,
   inviteTtlDays: 7,
+  inviteTokenBytes: 32,
 });
 
 /** How free time is cut into slots. */
@@ -104,17 +104,4 @@ export interface ScheduleSettings {
 
 export const SCHEDULE_DEFAULTS: Readonly<ScheduleSettings> = Object.freeze({
   slotMinutes: 30,
-});
-
-/** Outgoing email. */
-export interface EmailSettings {
-  /** The SMTP port when `SMTP_PORT` is unset. */
-  smtpPort: number;
-  /** The From address when `EMAIL_FROM` is unset. */
-  from: string;
-}
-
-export const EMAIL_DEFAULTS: Readonly<EmailSettings> = Object.freeze({
-  smtpPort: 587,
-  from: 'noreply@localhost',
 });

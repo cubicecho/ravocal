@@ -79,11 +79,6 @@ type VoteRanking {
   rank: Int!
 }
 
-type AuthPayload {
-  token: String!
-  user: User!
-}
-
 input RankingInput {
   slotId: ID!
   rank: Int!
@@ -95,11 +90,9 @@ type Query {
   group(id: ID!): Group
 }
 
+# Signing in and out (signInMagicLink, magicLinkVerify, signOut, …) and authConfig are added to these
+# by server/src/auth/, from better-auth's own endpoints.
 type Mutation {
-  # Auth — public
-  requestMagicLink(email: String!): Boolean!
-  verifyMagicLink(token: String!): AuthPayload!
-
   # Profile
   updateMyProfile(name: String!): User!
 

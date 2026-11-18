@@ -1,5 +1,5 @@
-// Runs before anything connects or signs a token, so a misconfigured instance fails with a sentence, not a stack trace.
-import { configuredJwtSecret, describeWeakSecret, isProduction } from './config.ts';
+// Runs before anything connects or signs a session, so a misconfigured instance fails with a sentence, not a stack trace.
+import { configuredAuthSecret, describeWeakSecret, isProduction } from './config.ts';
 
 /**
  * Logs and exits 1.
@@ -19,8 +19,8 @@ if (databaseUrl === '') {
 
 if (isProduction()) {
   // A known or guessable secret means anyone can forge a session for any account.
-  const weakness = describeWeakSecret(configuredJwtSecret());
+  const weakness = describeWeakSecret(configuredAuthSecret());
   if (weakness !== undefined) {
-    fatal(`JWT_SECRET ${weakness}. Set a strong random value: generate one with \`openssl rand -hex 32\`.`);
+    fatal(`BETTER_AUTH_SECRET ${weakness}. Set a strong random value: generate one with \`openssl rand -hex 32\`.`);
   }
 }
