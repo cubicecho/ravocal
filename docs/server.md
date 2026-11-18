@@ -4,60 +4,60 @@ graphql-yoga 5 on Express 5, running TypeScript directly (Node 26 strips types w
 
 ## Folders
 
-| Folder | Holds |
-| ------ | ----- |
-| `core/` | What every folder reads, about no one concept: config, defaults, wire constants, errors, validation, the context type, preflight |
-| `http/` | The Express app and the process around it: `createApp`, `/healthz`, a provider's sign-in redirects, the SPA, shutdown |
-| `auth/` | Who the caller is, and how they sign in: better-auth and the host that rebuilds it, Google, Facebook and the OIDC provider, its endpoints as GraphQL, `authConfig`, the sign-in throttle, the admin |
-| `sso/` | The instance's OIDC provider: where it comes from (the environment, or a pairing), pairing by setup URL, and `ssoSetup`, `pairSso`, `unpairSso` |
-| `graphql/` | The served schema, and the rules every operation obeys: `createSchema`, tenancy, permissions, the write guards, the Yoga handler and context factory, the logger, the operation limits |
-| `groups/` | A group and its members: `createGroup`, `removeMember`, the update hook, the loaders hand-written resolvers reach a group through |
-| `invites/` | Joining by link: `inviteToGroup`, `acceptGroupInvite`, `cancelInvite`, and the invite email |
-| `time-blocks/` | Free time: the generated writes' hooks (membership, the 30-minute grid in UTC) |
-| `votes/` | Ranked-choice votes: `startVote`, `forceStartVote`, `submitRankings`, `closeVote`, the pure `tally.ts`, and the vote emails |
-| `users/` | A user's own row: the update hook (the name only) |
+| Folder         | Holds                                                                                                                                                                                               |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `core/`        | What every folder reads, about no one concept: config, defaults, wire constants, errors, validation, the context type, preflight                                                                    |
+| `http/`        | The Express app and the process around it: `createApp`, `/healthz`, a provider's sign-in redirects, the SPA, shutdown                                                                               |
+| `auth/`        | Who the caller is, and how they sign in: better-auth and the host that rebuilds it, Google, Facebook and the OIDC provider, its endpoints as GraphQL, `authConfig`, the sign-in throttle, the admin |
+| `sso/`         | The instance's OIDC provider: where it comes from (the environment, or a pairing), pairing by setup URL, and `ssoSetup`, `pairSso`, `unpairSso`                                                     |
+| `graphql/`     | The served schema, and the rules every operation obeys: `createSchema`, tenancy, permissions, the write guards, the Yoga handler and context factory, the logger, the operation limits              |
+| `groups/`      | A group and its members: `createGroup`, `removeMember`, the update hook, the loaders hand-written resolvers reach a group through                                                                   |
+| `invites/`     | Joining by link: `inviteToGroup`, `acceptGroupInvite`, `cancelInvite`, and the invite email                                                                                                         |
+| `time-blocks/` | Free time: the generated writes' hooks (membership, the 30-minute grid in UTC)                                                                                                                      |
+| `votes/`       | Ranked-choice votes: `startVote`, `forceStartVote`, `submitRankings`, `closeVote`, the pure `tally.ts`, and the vote emails                                                                         |
+| `users/`       | A user's own row: the update hook (the name only)                                                                                                                                                   |
 
-| File | What it is |
-| ---- | ---------- |
-| `core/config.ts` | Typed getters over `process.env`. No other module reads the environment, except preflight and the db package |
-| `core/defaults.ts` | Every tunable value as `<CONCEPT>_DEFAULTS` groups: `HTTP_DEFAULTS`, `OPERATION_LIMIT_DEFAULTS`, `RATE_LIMIT_DEFAULTS`, `AUTH_DEFAULTS`, `USER_DEFAULTS`, `GROUP_DEFAULTS`, `SCHEDULE_DEFAULTS` |
-| `core/wire.ts` | `HttpStatus`, and the unit conversions (`MS_PER_MINUTE`, `SECONDS_PER_DAY`, `PERCENT`, …) |
-| `core/errors.ts` | `ErrorCode`, `badInput` / `notFound` / `forbidden` / `conflict` / `unauthenticated` / `rateLimited` / `tooComplex`, `requireAuth`, `errorMessage` |
-| `core/validation.ts` | `parseOrThrow`: a zod failure as `BAD_USER_INPUT` |
-| `core/context.ts` | The `Context` interface |
-| `core/preflight.ts` | The first import of index.ts: refuses a bad configuration with a sentence |
-| `http/app.ts` | `createApp({ db, authHost, limiter?, mailer?, staticDir? })`: the Express app, with no listen and no side effects |
-| `http/sso.ts` | `mountSso(app, authHost)`: `GET /sso/:provider` and better-auth's `GET /api/auth/callback/:provider`, the two browser legs of a provider's sign-in; `signInUrl(id)` |
-| `http/health.ts` | `checkHealth(db)` for `GET /healthz` |
-| `http/static.ts` | The built app from `app/dist`, and `index.html` for every other page |
-| `http/shutdown.ts` | `stopOnSignals`: drain, close the database, exit |
-| `graphql/build-schema.ts` | `createSchema(db)`: drizzle-graphql's `buildSchema`, NOT_FOUND for a single-row write that matched nothing, the extension chain, then the permissions |
-| `graphql/tenancy.ts` | `scope`, `contextValues`, `features`, `exclude`, `AUTH_TABLES`, `SERVER_TABLES` |
-| `graphql/permissions.ts` | `permissionsFor(schema)` and `applyAppPermissions`: graphql-casl's abilities, `createCan`, and the `PermissionsMap` |
-| `graphql/drizzle-filters.ts` | `drizzleFilters`: the casl adapter that writes an ability's conditions as a generated `where` |
-| `graphql/write-guards.ts` | `writtenRows`, `assertWritableColumns`, `assertMemberOfGroups`: what every table's hooks share |
-| `graphql/read-back.ts` | `readRow`, `readRows`: a hand-written mutation's result, read as the generated query would |
-| `graphql/object-type.ts` | `objectType(schema, name)`: a type whose fields are about to get resolvers |
-| `graphql/write-schema.ts` | Prints the served schema for codegen |
-| `graphql/handler.ts` | `createGraphQLHandler` (Yoga) and `createContextFactory` |
-| `graphql/logger.ts` | `graphqlLogger`: Yoga's logger with the `[graphql]` tag |
-| `graphql/operation-limits.ts` | `useOperationLimits`: tokens, depth, aliases and cost |
-| `auth/better-auth.ts` | `createAuth(db, opts)`: better-auth on Drizzle with the `bearer`, `oneTimeToken`, providers and `magicLink` plugins, and the account-linking rules; `sendsMagicLinks`, `nonSessionCookies`, `sessionUserId` |
-| `auth/auth-host.ts` | `createAuthHost(db, opts)` and `fixedAuthHost(auth, providers)`: the current auth instance, which providers it offers (`currentProviders(db)`: the environment's, then the OIDC provider), and `rebuild()` |
-| `auth/admin.ts` | `claimFirstAdmin`, `isAdmin`, `hasUsers`: who runs the instance |
-| `auth/unproven-access.ts` | `revokeUnprovenAccess`: the database hooks that end an account's unproven sessions and provider links when its address is first proven |
-| `auth/providers.ts` | `providersPlugin`: Google, Facebook and the OIDC provider through better-auth's `genericOAuth`, and `PROVIDER_ENDPOINTS`, where Google and Facebook are reached |
-| `auth/endpoints.ts` | `applyBetterAuthExtension`: better-auth's endpoints (`BETTER_AUTH_OPERATIONS`) as GraphQL fields, with Ravocal's `around`s |
-| `auth/resolvers.ts` | `applyAuthExtension`: `authConfig` |
-| `auth/throttle.ts` | `AuthFlow`, `throttle(ctx, flow, email?)`: what every sign-in step calls first |
-| `auth/rate-limit.ts` | `createRateLimiter`: the in-process sliding window behind `ctx.limiter` |
-| `auth/email.ts` | The mail transport: `sendMail` (the default `Mailer`), `sendEach` (sends what a committed write announces, logging a failure), `sendMagicLinkEmail` |
-| `sso/settings.ts` | `effectiveOidc(db)`: the one place that decides the OIDC provider (the environment, else the `oidc_settings` row, else none) and its `SsoSource`; reading, saving and clearing the row |
-| `sso/pairing.ts` | `parseSetupUrl`, `pair(db, setupUrl)`, `unpair(db)`, `PairingError` and its `PairingFailure` reasons |
-| `sso/resolvers.ts` | `applySsoExtension`: `ssoSetup`, `pairSso`, `unpairSso`, and `canPairSso` |
-| `<domain>/resolvers.ts` | `apply<Domain>Extension(schema)`: the domain's hand-written SDL and resolvers |
-| `<domain>/input.ts` | The zod schemas its writes are parsed with |
-| `<domain>/hooks.ts` | Its table's `onWrite` hooks, merged in build-schema.ts |
+| File                          | What it is                                                                                                                                                                                                  |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `core/config.ts`              | Typed getters over `process.env`. No other module reads the environment, except preflight and the db package                                                                                                |
+| `core/defaults.ts`            | Every tunable value as `<CONCEPT>_DEFAULTS` groups: `HTTP_DEFAULTS`, `OPERATION_LIMIT_DEFAULTS`, `RATE_LIMIT_DEFAULTS`, `AUTH_DEFAULTS`, `USER_DEFAULTS`, `GROUP_DEFAULTS`, `SCHEDULE_DEFAULTS`             |
+| `core/wire.ts`                | `HttpStatus`, and the unit conversions (`MS_PER_MINUTE`, `SECONDS_PER_DAY`, `PERCENT`, …)                                                                                                                   |
+| `core/errors.ts`              | `ErrorCode`, `badInput` / `notFound` / `forbidden` / `conflict` / `unauthenticated` / `rateLimited` / `tooComplex`, `requireAuth`, `errorMessage`                                                           |
+| `core/validation.ts`          | `parseOrThrow`: a zod failure as `BAD_USER_INPUT`                                                                                                                                                           |
+| `core/context.ts`             | The `Context` interface                                                                                                                                                                                     |
+| `core/preflight.ts`           | The first import of index.ts: refuses a bad configuration with a sentence                                                                                                                                   |
+| `http/app.ts`                 | `createApp({ db, authHost, limiter?, mailer?, staticDir? })`: the Express app, with no listen and no side effects                                                                                           |
+| `http/sso.ts`                 | `mountSso(app, authHost)`: `GET /sso/:provider` and better-auth's `GET /api/auth/callback/:provider`, the two browser legs of a provider's sign-in; `signInUrl(id)`                                         |
+| `http/health.ts`              | `checkHealth(db)` for `GET /healthz`                                                                                                                                                                        |
+| `http/static.ts`              | The built app from `app/dist`, and `index.html` for every other page                                                                                                                                        |
+| `http/shutdown.ts`            | `stopOnSignals`: drain, close the database, exit                                                                                                                                                            |
+| `graphql/build-schema.ts`     | `createSchema(db)`: drizzle-graphql's `buildSchema`, NOT_FOUND for a single-row write that matched nothing, the extension chain, then the permissions                                                       |
+| `graphql/tenancy.ts`          | `scope`, `contextValues`, `features`, `exclude`, `AUTH_TABLES`, `SERVER_TABLES`                                                                                                                             |
+| `graphql/permissions.ts`      | `permissionsFor(schema)` and `applyAppPermissions`: graphql-casl's abilities, `createCan`, and the `PermissionsMap`                                                                                         |
+| `graphql/drizzle-filters.ts`  | `drizzleFilters`: the casl adapter that writes an ability's conditions as a generated `where`                                                                                                               |
+| `graphql/write-guards.ts`     | `writtenRows`, `assertWritableColumns`, `assertMemberOfGroups`: what every table's hooks share                                                                                                              |
+| `graphql/read-back.ts`        | `readRow`, `readRows`: a hand-written mutation's result, read as the generated query would                                                                                                                  |
+| `graphql/object-type.ts`      | `objectType(schema, name)`: a type whose fields are about to get resolvers                                                                                                                                  |
+| `graphql/write-schema.ts`     | Prints the served schema for codegen                                                                                                                                                                        |
+| `graphql/handler.ts`          | `createGraphQLHandler` (Yoga) and `createContextFactory`                                                                                                                                                    |
+| `graphql/logger.ts`           | `graphqlLogger`: Yoga's logger with the `[graphql]` tag                                                                                                                                                     |
+| `graphql/operation-limits.ts` | `useOperationLimits`: tokens, depth, aliases and cost                                                                                                                                                       |
+| `auth/better-auth.ts`         | `createAuth(db, opts)`: better-auth on Drizzle with the `bearer`, `oneTimeToken`, providers and `magicLink` plugins, and the account-linking rules; `sendsMagicLinks`, `nonSessionCookies`, `sessionUserId` |
+| `auth/auth-host.ts`           | `createAuthHost(db, opts)` and `fixedAuthHost(auth, providers)`: the current auth instance, which providers it offers (`currentProviders(db)`: the environment's, then the OIDC provider), and `rebuild()`  |
+| `auth/admin.ts`               | `claimFirstAdmin`, `isAdmin`, `hasUsers`: who runs the instance                                                                                                                                             |
+| `auth/unproven-access.ts`     | `revokeUnprovenAccess`: the database hooks that end an account's unproven sessions and provider links when its address is first proven                                                                      |
+| `auth/providers.ts`           | `providersPlugin`: Google, Facebook and the OIDC provider through better-auth's `genericOAuth`, and `PROVIDER_ENDPOINTS`, where Google and Facebook are reached                                             |
+| `auth/endpoints.ts`           | `applyBetterAuthExtension`: better-auth's endpoints (`BETTER_AUTH_OPERATIONS`) as GraphQL fields, with Ravocal's `around`s                                                                                  |
+| `auth/resolvers.ts`           | `applyAuthExtension`: `authConfig`                                                                                                                                                                          |
+| `auth/throttle.ts`            | `AuthFlow`, `throttle(ctx, flow, email?)`: what every sign-in step calls first                                                                                                                              |
+| `auth/rate-limit.ts`          | `createRateLimiter`: the in-process sliding window behind `ctx.limiter`                                                                                                                                     |
+| `auth/email.ts`               | The mail transport: `sendMail` (the default `Mailer`), `sendEach` (sends what a committed write announces, logging a failure), `sendMagicLinkEmail`                                                         |
+| `sso/settings.ts`             | `effectiveOidc(db)`: the one place that decides the OIDC provider (the environment, else the `oidc_settings` row, else none) and its `SsoSource`; reading, saving and clearing the row                      |
+| `sso/pairing.ts`              | `parseSetupUrl`, `pair(db, setupUrl)`, `unpair(db)`, `PairingError` and its `PairingFailure` reasons                                                                                                        |
+| `sso/resolvers.ts`            | `applySsoExtension`: `ssoSetup`, `pairSso`, `unpairSso`, and `canPairSso`                                                                                                                                   |
+| `<domain>/resolvers.ts`       | `apply<Domain>Extension(schema)`: the domain's hand-written SDL and resolvers                                                                                                                               |
+| `<domain>/input.ts`           | The zod schemas its writes are parsed with                                                                                                                                                                  |
+| `<domain>/hooks.ts`           | Its table's `onWrite` hooks, merged in build-schema.ts                                                                                                                                                      |
 
 ## Boot
 
@@ -73,13 +73,13 @@ Every log line carries a `[subsystem]` tag: `[preflight]`, `[db]`, `[server]`, `
 
 ## HTTP
 
-| Route | What answers |
-| ----- | ------------ |
-| `/graphql` | Yoga, behind `express.json({ limit: HTTP_DEFAULTS.bodyLimit })` (1 MB; over it is 413). GraphiQL outside production |
-| `GET /healthz` | `{ ok, version }`, or 503 with `error` when Postgres doesn't answer |
-| `GET /sso/:provider` | Starts a sign-in with Google, Facebook or the OIDC provider (`oidc`): a 302 to the provider, with better-auth's state cookie |
-| `GET /api/auth/callback/:provider` | Where the provider sends the browser back: better-auth's own callback, then a 302 to the app |
-| everything else | The SPA: a file from `app/dist`, or `index.html` |
+| Route                              | What answers                                                                                                                 |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `/graphql`                         | Yoga, behind `express.json({ limit: HTTP_DEFAULTS.bodyLimit })` (1 MB; over it is 413). GraphiQL outside production          |
+| `GET /healthz`                     | `{ ok, version }`, or 503 with `error` when Postgres doesn't answer                                                          |
+| `GET /sso/:provider`               | Starts a sign-in with Google, Facebook or the OIDC provider (`oidc`): a 302 to the provider, with better-auth's state cookie |
+| `GET /api/auth/callback/:provider` | Where the provider sends the browser back: better-auth's own callback, then a 302 to the app                                 |
+| everything else                    | The SPA: a file from `app/dist`, or `index.html`                                                                             |
 
 No CORS headers are sent: Yoga's `cors` is off. Production serves the app and the API from one origin, and in development the app reaches the API through Vite's proxy (`app/vite.config.ts`), which forwards `/graphql`, `/sso/` and `/api/auth/`. So `SERVER_URL` defaults to `APP_URL` in both, and a provider's state cookie comes back to the origin that set it.
 
@@ -150,15 +150,15 @@ Auth: `Authorization: Bearer <token>` → `sessionUserId(auth, headers)` (`auth/
 
 Yoga masks every error that is not a `GraphQLError` as `Unexpected error.` (`INTERNAL_SERVER_ERROR`) and logs the original, with its cause, under `[graphql]`. So every failure a client should read is thrown with a helper from `core/errors.ts`, which sets `extensions.code`:
 
-| Code | Helper | When |
-| ---- | ------ | ---- |
-| `UNAUTHENTICATED` | `requireAuth(ctx)`, `unauthenticated()` | No session. The app drops its token on this code, so a bad sign-in link is never this |
-| `NOT_FOUND` | `notFound(message)` | The row doesn't exist, **or the caller can't reach it**: another group's, a member's block they didn't make, an owner-only action by someone else. One code, so ids can't be probed |
-| `FORBIDDEN` | the permission map's `fallbackError`, `forbidden(message)` | A mutation off the allow-list, or changing the instance's sign-in without being allowed to (`sso/resolvers.ts`): a role refusal, never a row |
-| `CONFLICT` | `conflict(message)` | The instance has to change first: pairing a provider over one already paired |
-| `BAD_USER_INPUT` | `badInput(message)`, `parseOrThrow` | Arguments the caller can fix, a spent or expired link or invite, accepting an invite while already a member, a vote in the wrong state, a pairing the provider refused (with `extensions.reason`) |
-| `TOO_MANY_REQUESTS` | `rateLimited(message, retryAfter)` | The sign-in throttle, with `extensions.retryAfter` in seconds; and a provider rate-limiting a pairing (`extensions.reason: RATE_LIMITED`) |
-| `QUERY_TOO_COMPLEX` | `tooComplex(message)` | Only `operation-limits.ts` |
+| Code                | Helper                                                     | When                                                                                                                                                                                              |
+| ------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `UNAUTHENTICATED`   | `requireAuth(ctx)`, `unauthenticated()`                    | No session. The app drops its token on this code, so a bad sign-in link is never this                                                                                                             |
+| `NOT_FOUND`         | `notFound(message)`                                        | The row doesn't exist, **or the caller can't reach it**: another group's, a member's block they didn't make, an owner-only action by someone else. One code, so ids can't be probed               |
+| `FORBIDDEN`         | the permission map's `fallbackError`, `forbidden(message)` | A mutation off the allow-list, or changing the instance's sign-in without being allowed to (`sso/resolvers.ts`): a role refusal, never a row                                                      |
+| `CONFLICT`          | `conflict(message)`                                        | The instance has to change first: pairing a provider over one already paired                                                                                                                      |
+| `BAD_USER_INPUT`    | `badInput(message)`, `parseOrThrow`                        | Arguments the caller can fix, a spent or expired link or invite, accepting an invite while already a member, a vote in the wrong state, a pairing the provider refused (with `extensions.reason`) |
+| `TOO_MANY_REQUESTS` | `rateLimited(message, retryAfter)`                         | The sign-in throttle, with `extensions.retryAfter` in seconds; and a provider rate-limiting a pairing (`extensions.reason: RATE_LIMITED`)                                                         |
+| `QUERY_TOO_COMPLEX` | `tooComplex(message)`                                      | Only `operation-limits.ts`                                                                                                                                                                        |
 
 drizzle-graphql's own errors keep their `DRIZZLE_*` codes (`DRIZZLE_LIMIT_EXCEEDED`, `DRIZZLE_MULTI_ROW_MATCH`, …). Its `onError` hands every other error on to Yoga, which masks it and logs its innermost cause; the library's own sanitizer would have answered it as a coded error and left nothing in the log.
 
@@ -236,14 +236,14 @@ Where it comes from is decided only by `sso/settings.ts` `effectiveOidc(db)`:
 
 Every call goes through one `call()` with `AbortSignal.timeout(AUTH_DEFAULTS.oidcPairingTimeoutMs)` (10 s). The setup token is never stored or logged, and no message carries it. A failure is a `PairingError`, answered with its `reason` in `extensions.reason`:
 
-| reason | when | code |
-|---|---|---|
-| `BAD_URL` | not a URL, not http(s), or no `setup` | `BAD_USER_INPUT` |
-| `NOT_A_PROVIDER` | unreachable, no discovery, another issuer, no `client_id`, or an unexpected status | `BAD_USER_INPUT` |
-| `NO_REGISTRATION` | no `registration_endpoint`: register by hand and use `OIDC_ISSUER`/`OIDC_CLIENT_ID` | `BAD_USER_INPUT` |
-| `EXPIRED` | 401, or `invalid_token` | `BAD_USER_INPUT` |
-| `REFUSED` | 400, with the provider's `error_description` | `BAD_USER_INPUT` |
-| `RATE_LIMITED` | 429 | `TOO_MANY_REQUESTS` |
+| reason            | when                                                                                | code                |
+| ----------------- | ----------------------------------------------------------------------------------- | ------------------- |
+| `BAD_URL`         | not a URL, not http(s), or no `setup`                                               | `BAD_USER_INPUT`    |
+| `NOT_A_PROVIDER`  | unreachable, no discovery, another issuer, no `client_id`, or an unexpected status  | `BAD_USER_INPUT`    |
+| `NO_REGISTRATION` | no `registration_endpoint`: register by hand and use `OIDC_ISSUER`/`OIDC_CLIENT_ID` | `BAD_USER_INPUT`    |
+| `EXPIRED`         | 401, or `invalid_token`                                                             | `BAD_USER_INPUT`    |
+| `REFUSED`         | 400, with the provider's `error_description`                                        | `BAD_USER_INPUT`    |
+| `RATE_LIMITED`    | 429                                                                                 | `TOO_MANY_REQUESTS` |
 
 `unpair(db)` sends an RFC 7592 `DELETE` to the registration client URI with the registration access token (a 2xx, 401 or 404 counts as gone), then forgets the row whatever the answer, warning under `[auth]` when it could not confirm.
 

@@ -45,6 +45,7 @@ Instant-runoff voting (IRV) over the candidate slots:
 ## Starting a Vote
 
 **Normal vote** (`startVote`):
+
 - Requires the caller to own the group (`NOT_FOUND` otherwise, as for a group that doesn't exist).
 - Refuses while the group already has an open vote (`BAD_USER_INPUT`). The database holds it too: `uq_votes_group_id_active` allows one `active` vote per group.
 - Calls `computeVoteSlots` with the group's `overlapThreshold`.
@@ -53,6 +54,7 @@ Instant-runoff voting (IRV) over the candidate slots:
 - Once that commits, emails every member that the vote has started.
 
 **Forced vote** (`forceStartVote`):
+
 - Same as above but passes `threshold = 0` and `isForced = true`.
 - Slots sorted so owner-free slots appear first, and that order is what `position` stores. `Vote.slots` comes back in `position` order unless the request names another, so the owner-first order survives a reload.
 - Throws only if there are zero time blocks in the group.
@@ -62,6 +64,7 @@ Instant-runoff voting (IRV) over the candidate slots:
 ## Closing a Vote
 
 `closeVote`:
+
 - Requires the caller to own the vote's group (`NOT_FOUND` otherwise).
 - Fetches all slots and rankings for the vote.
 - Runs `tallyRankedChoice`.
