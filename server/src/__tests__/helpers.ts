@@ -1,16 +1,9 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { type DB, db, groupMembers, groups, schema, users } from "@ravocal/db";
+import { PGlite } from "@electric-sql/pglite";
+import { type DB, db, groupMembers, groups, migrateDb, schema, users } from "@ravocal/db";
 import { getTableName, is, sql, Table } from "drizzle-orm";
-import { migrate } from "drizzle-orm/pglite/migrator";
 import { type ExecutionResult, type GraphQLSchema, graphql } from "graphql";
 import type { Context } from "../context.ts";
 import { buildSchema } from "../schema/index.ts";
-
-const MIGRATIONS_FOLDER = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../../../db/drizzle",
-);
 
 /** Every table in the schema, quoted for one statement that empties them all. */
 const TABLE_LIST = Object.values(schema)
@@ -38,7 +31,7 @@ export async function openTestDb(): Promise<DB> {
   if (process.env.DATABASE_URL !== "memory://") {
     throw new Error("Tests need DATABASE_URL=memory:// (see vitest.config.ts).");
   }
-  await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+  await migrateDb();
   return db;
 }
 
@@ -55,9 +48,15 @@ export async function resetTestDb(testDb: DB): Promise<void> {
  * Shuts the db down at the end of a file.
  *
  * @param testDb - The db from `openTestDb`.
+ * @throws If the db is not PGlite, which `openTestDb` rules out.
  */
 export async function closeTestDb(testDb: DB): Promise<void> {
-  await testDb.$client.close();
+  // `DB` covers both drivers, so the PGlite client behind it isn't on the type.
+  const client: unknown = Reflect.get(testDb, "$client");
+  if (!(client instanceof PGlite)) {
+    throw new Error("Expected the in-memory PGlite test db.");
+  }
+  await client.close();
 }
 
 /**
