@@ -53,7 +53,8 @@ export async function resetTestDb(testDb: DB): Promise<void> {
 export async function closeTestDb(testDb: DB): Promise<void> {
   // `DB` covers both drivers, so the PGlite client behind it isn't on the type.
   const client: unknown = Reflect.get(testDb, '$client');
-  if (!(client instanceof PGlite)) {
+  const isPglite = client instanceof PGlite;
+  if (isPglite === false) {
     throw new Error('Expected the in-memory PGlite test db.');
   }
   await client.close();

@@ -72,7 +72,7 @@ export function applyGroupResolvers(queryFields: Record<string, unknown>, mutati
       throw new Error(`Group ${args.id} not found`);
     }
     const isMember = group.members.some((m) => m.userId === ctx.userId);
-    if (!isMember) {
+    if (isMember === false) {
       throw new Error('Forbidden');
     }
     return shapeGroup(group);

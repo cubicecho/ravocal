@@ -14,7 +14,12 @@ declare module '@tanstack/react-router' {
   }
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+const rootElement = document.getElementById('root');
+if (rootElement === null) {
+  throw new Error('index.html has no #root element to render into.');
+}
+
+ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <ApolloProvider client={apolloClient}>
       <RouterProvider router={router} />

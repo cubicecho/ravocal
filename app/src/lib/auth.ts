@@ -39,5 +39,6 @@ export function takeAfterSignIn(): string {
   const href = localStorage.getItem(AFTER_SIGN_IN_KEY);
   localStorage.removeItem(AFTER_SIGN_IN_KEY);
   // Only a path on this site: never `//elsewhere.example` or a full URL.
-  return href?.startsWith('/') && !href.startsWith('//') ? href : HOME_PATH;
+  const isSitePath = href?.startsWith('/') === true && href.startsWith('//') === false;
+  return isSitePath ? href : HOME_PATH;
 }

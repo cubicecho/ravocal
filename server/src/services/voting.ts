@@ -34,10 +34,9 @@ export function computeVoteSlots(
     const end = block.endsAt.getTime();
     while (t + windowMs <= end) {
       const key = String(t);
-      if (!windowMap.has(key)) {
-        windowMap.set(key, new Set());
-      }
-      windowMap.get(key)!.add(block.userId);
+      const free = windowMap.get(key) ?? new Set<string>();
+      free.add(block.userId);
+      windowMap.set(key, free);
       t += windowMs;
     }
   }
@@ -49,7 +48,8 @@ export function computeVoteSlots(
     // overlapCount / memberCount >= thresholdPct / 100, in integers: the float
     // form drops exact matches (7 of 25 at 28% computes 7.000000000000001).
     const meetsThreshold = overlapCount * 100 >= thresholdPct * memberCount;
-    if (!isForced && !meetsThreshold) {
+    const isBelowThreshold = isForced === false && meetsThreshold === false;
+    if (isBelowThreshold) {
       continue;
     }
     const startsAt = new Date(Number(tsStr));

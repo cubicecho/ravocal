@@ -13,7 +13,8 @@ export { PUBLIC_MUTATIONS };
 
 export async function createContext(req: Request, db: DB): Promise<Context> {
   const auth = req.headers.authorization;
-  if (!auth?.startsWith('Bearer ')) {
+  const hasBearer = auth?.startsWith('Bearer ') === true;
+  if (hasBearer === false) {
     return { userId: null, db };
   }
 
