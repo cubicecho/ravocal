@@ -6,8 +6,9 @@ import type { Context } from "../../context.ts";
 const AddTimeBlockInput = z
   .object({
     groupId: z.string().uuid(),
-    startsAt: z.string().datetime(),
-    endsAt: z.string().datetime(),
+    // The DateTime scalar has already parsed these into Dates by the time a resolver sees them.
+    startsAt: z.date(),
+    endsAt: z.date(),
   })
   .refine(
     (d) => {
@@ -26,7 +27,7 @@ export function applyTimeBlockResolvers(
 ) {
   mutationFields.addTimeBlock = async (
     _: unknown,
-    args: { groupId: string; startsAt: string; endsAt: string },
+    args: { groupId: string; startsAt: Date; endsAt: Date },
     ctx: Context,
   ) => {
     if (!ctx.userId) throw new Error("Not authenticated");

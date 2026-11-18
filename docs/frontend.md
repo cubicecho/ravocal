@@ -13,11 +13,22 @@ Vite proxies `/graphql` to `http://localhost:3001` so no CORS issues in developm
 
 ## Auth
 
-JWT stored in `localStorage.ravocal_token`. Apollo Client's `authLink` reads it and injects `Authorization: Bearer <token>` on every request.
+JWT stored in `localStorage.ravocal_token`, read and written only through `app/src/lib/auth.ts`
+(`getToken`, `isSignedIn`, `signIn`, `signOut`). Apollo Client's `authLink` reads it and injects
+`Authorization: Bearer <token>` on every request.
 
-Auth guard in `app/src/routes/__root.tsx`: if no token, redirect to `/login`. The `/login` route skips the guard.
+Auth guard: the root route's `beforeLoad` (`app/src/routes/__root.tsx`) redirects a signed-out
+reader to `/login`, except on `/login` and `/login/verify`. It first remembers where they were going
+(`rememberAfterSignIn`), so an invite link or a group link opened while signed out finishes there
+once the magic link is followed; `/login/verify` sends them on with `takeAfterSignIn`. `/login`
+redirects a signed-in reader to `/groups` in its own `beforeLoad`.
 
-Sign-out: delete `localStorage.ravocal_token` and navigate to `/login`.
+A link from an email (`/login/verify`, `/invite`) spends a single-use token, so its page sends the
+mutation once (a ref guard, because StrictMode runs effects twice) and reports a failure through
+the mutation's `error`, with `onError` set so the promise never rejects unhandled.
+
+Sign-out: `signOut()`, clear Apollo's store, and navigate to `/login` (the Sign out button on
+`/groups`).
 
 ## Routing
 
@@ -27,7 +38,7 @@ TanStack Router with file-based routes. The Vite plugin generates `app/src/route
 |-------|------|---------|
 | `/` | `routes/index.tsx` | Redirect → `/groups` or `/login` |
 | `/login` | `routes/login.tsx` | Magic link request form |
-| `/login/verify` | `routes/login.verify.tsx` | Consume magic link token |
+| `/login/verify` | `routes/login_.verify.tsx` | Consume magic link token (the `_` keeps it out of `/login`'s layout) |
 | `/invite` | `routes/invite.tsx` | Accept group invite via token |
 | `/groups` | `routes/groups/index.tsx` | List user's groups |
 | `/groups/new` | `routes/groups/new.tsx` | Create group form |

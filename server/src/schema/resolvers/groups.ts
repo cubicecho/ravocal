@@ -15,6 +15,31 @@ const UpdateGroupInput = z.object({
   overlapThreshold: z.number().int().min(0).max(100).optional(),
 });
 
+/** Everything a `Group` resolves to, loaded in one relational query. */
+const GROUP_WITH = {
+  owner: true,
+  members: { with: { user: true } },
+  invites: true,
+  timeBlocks: { with: { user: true } },
+  // A vote's slots and the viewer's rankings come from the Vote field resolvers (votes.ts).
+  votes: true,
+} as const;
+
+/** What `shapeGroup` reads off a group loaded with `GROUP_WITH`. */
+interface LoadedGroup {
+  invites: Array<{ acceptedAt: Date | null }>;
+  votes: Array<{ status: string }>;
+}
+
+/** A group loaded with `GROUP_WITH`, in the `Group` type's shape. */
+function shapeGroup<G extends LoadedGroup>(group: G) {
+  return {
+    ...group,
+    pendingInvites: group.invites.filter((i) => !i.acceptedAt),
+    activeVote: group.votes.find((v) => v.status === "active") ?? null,
+  };
+}
+
 export function applyGroupResolvers(
   queryFields: Record<string, unknown>,
   mutationFields: Record<string, unknown>,
@@ -25,34 +50,25 @@ export function applyGroupResolvers(
   };
 
   queryFields.myGroups = async (_: unknown, __: unknown, ctx: Context) => {
-    if (!ctx.userId) throw new Error("Not authenticated");
+    const userId = ctx.userId;
+    if (!userId) throw new Error("Not authenticated");
     const memberships = await ctx.db.query.groupMembers.findMany({
-      where: eq(groupMembers.userId, ctx.userId),
-      with: { group: true },
+      where: eq(groupMembers.userId, userId),
+      with: { group: { with: GROUP_WITH } },
     });
-    return memberships.map((m) => m.group);
+    return memberships.map((m) => shapeGroup(m.group));
   };
 
   queryFields.group = async (_: unknown, args: { id: string }, ctx: Context) => {
     if (!ctx.userId) throw new Error("Not authenticated");
     const group = await ctx.db.query.groups.findFirst({
       where: eq(groups.id, args.id),
-      with: {
-        owner: true,
-        members: { with: { user: true } },
-        invites: true,
-        timeBlocks: { with: { user: true } },
-        votes: true,
-      },
+      with: GROUP_WITH,
     });
     if (!group) throw new Error(`Group ${args.id} not found`);
     const isMember = group.members.some((m) => m.userId === ctx.userId);
     if (!isMember) throw new Error("Forbidden");
-    return {
-      ...group,
-      pendingInvites: group.invites.filter((i) => !i.acceptedAt),
-      activeVote: group.votes.find((v) => v.status === "active") ?? null,
-    };
+    return shapeGroup(group);
   };
 
   mutationFields.updateMyProfile = async (_: unknown, args: { name: string }, ctx: Context) => {
