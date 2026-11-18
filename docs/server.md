@@ -1,14 +1,16 @@
 # Server — Ravocal
 
-Express + Apollo Server 4, running TypeScript directly (Node 26 strips types without a flag). No build step needed for development.
+Express + Apollo Server 4, running TypeScript directly (Node 26 strips types without a flag). There is no build step: the container runs `node server/src/index.ts` too.
 
 ## Entry Point
 
 `server/src/index.ts`:
-1. Runs DB migrations on startup
-2. Calls `buildSchema()` to assemble the GraphQL schema
-3. Starts Apollo Server, mounts at `/graphql`
-4. Serves the built Vite app from `app/dist/` for all other routes
+1. Waits for Postgres (`waitForDatabase` from `@cubicecho/ravocal-db/wait`), exiting with a sentence if it never answers
+2. Runs the migrations in `db/drizzle`
+3. Calls `buildSchema()` to assemble the GraphQL schema
+4. Starts Apollo Server, mounts at `/graphql`
+5. Serves the built Vite app from `app/dist/` for all other routes
+6. On SIGTERM or SIGINT: stops taking requests, stops Apollo, closes the database (`closeDatabase`) and exits
 
 ## Schema Pipeline
 
@@ -43,7 +45,7 @@ Guard clause order — always auth → existence → ownership:
 
 ```typescript
 if (!ctx.userId) throw new Error("Not authenticated");
-const group = await ctx.db.query.groups.findFirst({ where: eq(groups.id, args.id) });
+const group = await ctx.db.query.groups.findFirst({ where: { id: args.id } });
 if (!group) throw new Error(`Group ${args.id} not found`);
 if (group.ownerId !== ctx.userId) throw new Error("Forbidden");
 ```
