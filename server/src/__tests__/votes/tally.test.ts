@@ -173,6 +173,7 @@ function slot(id: string): VoteSlot {
   return {
     id,
     voteId: 'vote',
+    position: 0,
     startsAt: at(0),
     endsAt: at(1),
     overlapCount: 1,

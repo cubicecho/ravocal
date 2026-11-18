@@ -1,0 +1,168 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "f72d71d7-5fef-4b0e-9c0c-af2915199cda",
+  "prevIds": [
+    "ccca9d12-0d75-4e6b-acf3-fc0522e9237c"
+  ],
+  "footprints": [
+    {
+      "statementType": "drop_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "vote_slots",
+        "idx_vote_slots_vote_id"
+      ],
+      "writes": [
+        "s|idx|public.idx_vote_slots_vote_id",
+        "n|idx|public.idx_vote_slots_vote_id",
+        "e|idx|public.idx_vote_slots_vote_id",
+        "n|rel|public.idx_vote_slots_vote_id"
+      ],
+      "reads": [
+        "e|tbl|public.vote_slots",
+        "n|sch|public",
+        "e|col|public.vote_slots.vote_id"
+      ],
+      "sharedWrites": []
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "vote_slots",
+        "position"
+      ],
+      "writes": [
+        "s|col|public.vote_slots.position",
+        "n|col|public.vote_slots.position",
+        "e|col|public.vote_slots.position"
+      ],
+      "reads": [
+        "n|tbl|public.vote_slots",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "vote_slots",
+        "uq_vote_slots_vote_id_position"
+      ],
+      "writes": [
+        "s|idx|public.uq_vote_slots_vote_id_position",
+        "n|idx|public.uq_vote_slots_vote_id_position",
+        "e|idx|public.uq_vote_slots_vote_id_position",
+        "n|rel|public.uq_vote_slots_vote_id_position"
+      ],
+      "reads": [
+        "n|tbl|public.vote_slots",
+        "n|sch|public",
+        "n|col|public.vote_slots.vote_id",
+        "n|col|public.vote_slots.position"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "votes",
+        "uq_votes_group_id_active"
+      ],
+      "writes": [
+        "s|idx|public.uq_votes_group_id_active",
+        "n|idx|public.uq_votes_group_id_active",
+        "e|idx|public.uq_votes_group_id_active",
+        "n|rel|public.uq_votes_group_id_active"
+      ],
+      "reads": [
+        "n|tbl|public.votes",
+        "n|sch|public",
+        "n|col|public.votes.group_id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vote_slots",
+        "name": "position",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "vote_slots",
+        "name": "uq_vote_slots_vote_id_position",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "vote_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "position",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": true,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "votes",
+        "name": "uq_votes_group_id_active",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "group_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": true,
+        "where": "\"status\" = 'active'",
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "drop",
+      "key": "indexes\u0000[\"public\",\"idx_vote_slots_vote_id\"]"
+    }
+  ]
+}
