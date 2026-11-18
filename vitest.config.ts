@@ -49,6 +49,16 @@ export default defineConfig({
           include: ['db/**/*.test.ts', 'server/**/*.test.ts'],
         },
       },
+      {
+        extends: true,
+        test: {
+          name: 'app',
+          environment: 'node',
+          // The app's pure helpers. A fork per file, because their tests move the process's time zone (TZ).
+          pool: 'forks',
+          include: ['app/**/*.test.ts'],
+        },
+      },
     ],
   },
 });
