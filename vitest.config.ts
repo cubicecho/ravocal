@@ -19,6 +19,12 @@ export default defineConfig({
       SMTP_URL: '',
       // Sign-in sends links unless a test turns this on itself.
       SECURE_LOCAL_NET: '',
+      // No provider, and none from the developer's shell: a test that wants one names it.
+      GOOGLE_CLIENT_ID: '',
+      GOOGLE_CLIENT_SECRET: '',
+      FACEBOOK_CLIENT_ID: '',
+      FACEBOOK_CLIENT_SECRET: '',
+      SERVER_URL: '',
     },
     // Threads share one process, where a fork per file each loads its own copy of everything.
     pool: 'threads',

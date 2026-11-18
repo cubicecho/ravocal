@@ -5,6 +5,7 @@ import {
   appUrl,
   configuredAuthSecret,
   describeWeakSecret,
+  halfSetProviders,
   isProduction,
   secureLocalNet,
 } from './config.ts';
@@ -41,4 +42,18 @@ if (secureLocalNet()) {
       `SECURE_LOCAL_NET is on but APP_URL (${appUrl()}) is not a private address. Turn it off, or set I_KNOW_SECURE_LOCAL_NET_IS_PUBLIC=true if nothing hostile can reach this port.`,
     );
   }
+}
+
+// Half a provider's client leaves the login page without its button, and nothing says why.
+const [halfSet] = halfSetProviders();
+if (halfSet !== undefined) {
+  fatal(halfSet);
+}
+
+// Every redirect URI a provider is given is built from it.
+const configuredServerUrl = process.env.SERVER_URL ?? '';
+if (configuredServerUrl !== '' && URL.canParse(configuredServerUrl) === false) {
+  fatal(
+    `SERVER_URL (${configuredServerUrl}) is not a URL. Set it to where a browser reaches this server, or unset it.`,
+  );
 }

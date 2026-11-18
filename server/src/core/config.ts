@@ -72,6 +72,18 @@ export const port = (): number => envNumber(process.env.PORT, HTTP_DEFAULTS.port
 export const appUrl = (): string => envString(process.env.APP_URL) ?? `http://localhost:${port()}`;
 
 /**
+ * Where a browser reaches this server: the provider sign-in's start and callback, and so the redirect URIs registered
+ * with each provider.
+ *
+ * @remarks
+ * In production the server serves the app, and in development Vite proxies `/sso` and `/api/auth` to it, so both are
+ * `APP_URL` unless the server is reached some other way.
+ *
+ * @returns `SERVER_URL`, or `appUrl()`.
+ */
+export const serverUrl = (): string => envString(process.env.SERVER_URL) ?? appUrl();
+
+/**
  * Whether this is a production run. Preflight is stricter and GraphiQL is off.
  *
  * @returns True when `NODE_ENV` is "production".
@@ -201,3 +213,86 @@ export const smtpConfigured = (): boolean => smtpUrl() !== undefined;
  */
 export const smtpFrom = (): string =>
   envString(process.env.SMTP_FROM) ?? `${DEFAULT_FROM_LOCAL_PART}@${new URL(appUrl()).hostname}`;
+
+/** Where better-auth's routes sit: its default base path. Only the provider callback under it is served. */
+export const AUTH_BASE_PATH = '/api/auth';
+
+/** The providers a reader can sign in with besides an email link, by the id better-auth registers each under. */
+export const ProviderId = { Google: 'google', Facebook: 'facebook' } as const;
+export type ProviderId = (typeof ProviderId)[keyof typeof ProviderId];
+
+/** A provider this instance has an OAuth client with. */
+export interface ProviderConfig {
+  id: ProviderId;
+  /** What the login page's button calls it: "Continue with Google". */
+  name: string;
+  clientId: string;
+  clientSecret: string;
+}
+
+/** What a provider is called, and the variables its client is read from. */
+interface ProviderVariables {
+  name: string;
+  clientId: string;
+  clientSecret: string;
+}
+
+const PROVIDER_VARIABLES: Readonly<Record<ProviderId, ProviderVariables>> = Object.freeze({
+  [ProviderId.Google]: { name: 'Google', clientId: 'GOOGLE_CLIENT_ID', clientSecret: 'GOOGLE_CLIENT_SECRET' },
+  [ProviderId.Facebook]: { name: 'Facebook', clientId: 'FACEBOOK_CLIENT_ID', clientSecret: 'FACEBOOK_CLIENT_SECRET' },
+});
+
+/**
+ * Reads one provider's client from the environment.
+ *
+ * @param variables - The provider's name and variables.
+ * @returns The client id and secret as set, each trimmed, and undefined when unset or blank.
+ */
+function providerClient(variables: ProviderVariables): { clientId?: string; clientSecret?: string } {
+  return {
+    clientId: envString(process.env[variables.clientId]?.trim()),
+    clientSecret: envString(process.env[variables.clientSecret]?.trim()),
+  };
+}
+
+/**
+ * The providers sign-in offers. A provider is on when both its client id and its secret are set.
+ *
+ * @returns Each provider with a whole client, in the order the login page lists them.
+ */
+export function providerConfigs(): ProviderConfig[] {
+  return Object.values(ProviderId).flatMap((id) => {
+    const variables = PROVIDER_VARIABLES[id];
+    const { clientId, clientSecret } = providerClient(variables);
+    const isOff = clientId === undefined || clientSecret === undefined;
+    return isOff ? [] : [{ id, name: variables.name, clientId, clientSecret }];
+  });
+}
+
+/**
+ * Says which providers are half set up, for preflight to refuse: a client id without its secret, or the reverse.
+ *
+ * @returns One sentence per such provider, naming the variable that is missing.
+ */
+export function halfSetProviders(): string[] {
+  return Object.values(PROVIDER_VARIABLES).flatMap((variables) => {
+    const { clientId, clientSecret } = providerClient(variables);
+    const isHalfSet = (clientId === undefined) !== (clientSecret === undefined);
+    if (isHalfSet === false) {
+      return [];
+    }
+    const missing = clientId === undefined ? variables.clientId : variables.clientSecret;
+    const set = clientId === undefined ? variables.clientSecret : variables.clientId;
+    return [`${set} is set but ${missing} is not. Set both to offer sign-in with ${variables.name}, or neither.`];
+  });
+}
+
+/**
+ * Names the redirect URI to register with a provider.
+ *
+ * @param id - The provider.
+ * @returns better-auth's callback for it, under `serverUrl()`.
+ */
+export function providerRedirectUri(id: ProviderId): string {
+  return `${serverUrl()}${AUTH_BASE_PATH}/callback/${id}`;
+}
