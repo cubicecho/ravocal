@@ -61,8 +61,8 @@ function isOffGrid(choices: readonly TimeChoice[]): boolean {
 }
 
 /**
- * Adds or edits a block of free time: a date, a start and an end, in the reader's own time zone, every choice on the
- * server's half-hour grid in UTC (`lib/time-grid.ts`).
+ * Adds or edits a block of free time: a date, a start and an end up to a day later (past midnight too), in the reader's
+ * own time zone, every choice on the server's half-hour grid in UTC (`lib/time-grid.ts`).
  *
  * @param props - The group, the block when it is an edit, and the dialog's open state.
  * @returns The dialog.
@@ -103,8 +103,9 @@ export function TimeBlockDialog({ groupId, block, open, onOpenChange }: TimeBloc
   });
 
   const day = useStore(form.store, (state) => state.values.day);
-  const choices = useMemo(() => dayChoices(day), [day]);
-  // An edited block's end that the day doesn't offer (one longer than a day) stays a choice, so it still shows.
+  const start = useStore(form.store, (state) => state.values.start);
+  const choices = useMemo(() => dayChoices(day, start), [day, start]);
+  // An edited block's end that the start doesn't offer (one longer than a day) stays a choice, so it still shows.
   const endChoices = initial?.extraEnd && day === initial.day ? [...choices.ends, initial.extraEnd] : choices.ends;
   const offered = (list: readonly TimeChoice[], value: string) => list.some((choice) => choice.value === value);
 
@@ -172,15 +173,13 @@ export function TimeBlockDialog({ groupId, block, open, onOpenChange }: TimeBloc
                         return 'Choose when you are free until.';
                       }
                       const currentDay = fieldApi.form.getFieldValue('day');
-                      const ends = dayChoices(currentDay).ends;
-                      const isKept = initial?.extraEnd?.value === value && currentDay === initial.day;
-                      if (offered(ends, value) === false && isKept === false) {
-                        return 'Choose an end on this date.';
+                      const currentStart = fieldApi.form.getFieldValue('start');
+                      if (currentStart !== '' && Number(value) <= Number(currentStart)) {
+                        return 'The end has to be after the start.';
                       }
-                      const start = fieldApi.form.getFieldValue('start');
-                      return start !== '' && Number(value) <= Number(start)
-                        ? 'The end has to be after the start.'
-                        : undefined;
+                      const isKept = initial?.extraEnd?.value === value && currentDay === initial.day;
+                      const isOffered = offered(dayChoices(currentDay, currentStart).ends, value);
+                      return isOffered || isKept ? undefined : 'Choose an end within a day of the start.';
                     },
                   }}
                 />
