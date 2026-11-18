@@ -1,7 +1,7 @@
 import { timeBlocks } from '@cubicecho/ravocal-db/schema';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
-import type { Context } from '../../context.ts';
+import type { Context } from '../../core/context.ts';
 import { SCHEDULE_DEFAULTS } from '../../core/defaults.ts';
 import { forbidden, notFound, requireAuth } from '../../core/errors.ts';
 import { parseOrThrow } from '../../core/validation.ts';

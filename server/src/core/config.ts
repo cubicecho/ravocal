@@ -1,8 +1,14 @@
 // Getters, not constants, so a test (or a reload) sees the current environment.
+import { createRequire } from 'node:module';
 import { DATABASE_DEFAULTS } from '@cubicecho/ravocal-db/defaults';
 import { AUTH_DEFAULTS, EMAIL_DEFAULTS, HTTP_DEFAULTS } from './defaults.ts';
 
 const NODE_ENV_PRODUCTION = 'production';
+/** The TRUST_PROXY value that trusts no hop. */
+const TRUST_PROXY_OFF = 'false';
+/** A hop count: digits only. */
+const HOP_COUNT = /^\d+$/;
+const UNKNOWN_VERSION = 'unknown';
 
 /** What signs session tokens when `JWT_SECRET` is unset. Preflight refuses it in production. */
 export const DEV_SECRET = 'dev-secret-change-in-production';
@@ -60,6 +66,52 @@ export const isProduction = (): boolean => process.env.NODE_ENV === NODE_ENV_PRO
  */
 export const dbConnectTimeoutMs = (): number =>
   envNumber(process.env.DB_CONNECT_TIMEOUT_MS, DATABASE_DEFAULTS.connectTimeoutMs);
+
+/**
+ * Express `trust proxy`: which hops may set X-Forwarded-For, and so what `req.ip` is.
+ *
+ * @remarks
+ * `ctx.ip` is read from `req.ip`. Never `true` on a port the internet reaches directly: any client could then
+ * choose its own address.
+ *
+ * @returns `HTTP_DEFAULTS.trustProxy` when `TRUST_PROXY` is unset, false for "false", a hop count for digits,
+ * otherwise the value as given ("loopback", an address list).
+ */
+export const trustProxy = (): boolean | number | string => {
+  const raw = (process.env.TRUST_PROXY ?? '').trim();
+  if (raw === '') {
+    return HTTP_DEFAULTS.trustProxy;
+  }
+  if (raw === TRUST_PROXY_OFF) {
+    return false;
+  }
+  const isHopCount = HOP_COUNT.test(raw);
+  return isHopCount ? Number(raw) : raw;
+};
+
+/**
+ * Reads the version in the root package.json, which the Dockerfile copies.
+ *
+ * @returns The version, or "unknown".
+ */
+function readVersion(): string {
+  try {
+    const manifest: { version?: string } = createRequire(import.meta.url)('../../../package.json');
+    return manifest.version || UNKNOWN_VERSION;
+  } catch {
+    return UNKNOWN_VERSION;
+  }
+}
+
+/** Stamped into the build, not configured. */
+const VERSION = readVersion();
+
+/**
+ * The version this build was released as.
+ *
+ * @returns The version, or "unknown".
+ */
+export const version = (): string => VERSION;
 
 /**
  * The session-token signing secret as set. Preflight checks this one.

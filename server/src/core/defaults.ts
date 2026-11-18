@@ -4,10 +4,41 @@
 export interface HttpSettings {
   /** The port to listen on. `PORT` overrides it. The Vite dev server proxies /graphql to it. */
   port: number;
+  /** Largest JSON body /graphql accepts, as `express.json` reads it. Real operations are a few kB. */
+  bodyLimit: string;
+  /** How long shutdown lets open requests finish before it cuts them. */
+  drainSeconds: number;
+  /** How long shutdown may take in all before a hard exit. Keep it under Docker's 10 s. */
+  shutdownDeadlineSeconds: number;
+  /** Express `trust proxy`: which hops may set X-Forwarded-For. False trusts none. `TRUST_PROXY` overrides it. */
+  trustProxy: boolean | number | string;
 }
 
 export const HTTP_DEFAULTS: Readonly<HttpSettings> = Object.freeze({
   port: 3001,
+  bodyLimit: '1mb',
+  drainSeconds: 5,
+  shutdownDeadlineSeconds: 8,
+  trustProxy: false,
+});
+
+/** Bounds on one GraphQL operation. */
+export interface OperationLimitSettings {
+  /** Deepest selection accepted. Inline fragments and fragment spreads count as a level each. */
+  maxDepth: number;
+  /** Aliases per operation. */
+  maxAliases: number;
+  /** Cost per operation. */
+  maxCost: number;
+  /** What a field costs when nothing prices it. The hand-written schema prices nothing yet. */
+  defaultFieldCost: number;
+}
+
+export const OPERATION_LIMIT_DEFAULTS: Readonly<OperationLimitSettings> = Object.freeze({
+  maxDepth: 8,
+  maxAliases: 15,
+  maxCost: 10_000,
+  defaultFieldCost: 1,
 });
 
 /** Sign-in and credential settings. */

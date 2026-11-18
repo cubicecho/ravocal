@@ -1,7 +1,7 @@
 import { groupInvites, groupMembers, groups, users } from '@cubicecho/ravocal-db/schema';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
-import type { Context } from '../../context.ts';
+import type { Context } from '../../core/context.ts';
 import { GROUP_DEFAULTS } from '../../core/defaults.ts';
 import { badInput, forbidden, notFound, requireAuth } from '../../core/errors.ts';
 import { parseOrThrow } from '../../core/validation.ts';

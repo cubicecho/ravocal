@@ -1,7 +1,7 @@
 import { voteRankings, voteSlots, votes } from '@cubicecho/ravocal-db/schema';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import type { Context } from '../../context.ts';
+import type { Context } from '../../core/context.ts';
 import { badInput, forbidden, notFound, requireAuth } from '../../core/errors.ts';
 import { parseOrThrow } from '../../core/validation.ts';
 import { sendVoteResultEmail, sendVoteStartedEmail } from '../../services/email.ts';
