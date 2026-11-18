@@ -1,25 +1,28 @@
 import { timeBlocks } from '@cubicecho/ravocal-db/schema';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
-import type { Context } from '../../context.ts';
+import type { Context } from '../../core/context.ts';
+import { SCHEDULE_DEFAULTS } from '../../core/defaults.ts';
+import { forbidden, notFound, requireAuth } from '../../core/errors.ts';
+import { parseOrThrow } from '../../core/validation.ts';
+import { MS_PER_MINUTE } from '../../core/wire.ts';
+
+const { slotMinutes } = SCHEDULE_DEFAULTS;
 
 const AddTimeBlockInput = z
   .object({
-    groupId: z.string().uuid(),
+    groupId: z.uuid('That is not a valid group id.'),
     // The DateTime scalar has already parsed these into Dates by the time a resolver sees them.
     startsAt: z.date(),
     endsAt: z.date(),
   })
-  .refine(
-    (d) => {
-      const start = new Date(d.startsAt);
-      const end = new Date(d.endsAt);
-      const diffMs = end.getTime() - start.getTime();
-      const thirtyMin = 30 * 60 * 1000;
-      return diffMs >= thirtyMin && start.getMinutes() % 30 === 0 && end.getMinutes() % 30 === 0;
-    },
-    { message: 'Time blocks must be 30-minute aligned and at least 30 minutes long' },
-  );
+  .refine((d) => {
+    const start = new Date(d.startsAt);
+    const end = new Date(d.endsAt);
+    const diffMs = end.getTime() - start.getTime();
+    const slotMs = slotMinutes * MS_PER_MINUTE;
+    return diffMs >= slotMs && start.getMinutes() % slotMinutes === 0 && end.getMinutes() % slotMinutes === 0;
+  }, `Time blocks must be ${slotMinutes}-minute aligned and at least ${slotMinutes} minutes long`);
 
 export function applyTimeBlockResolvers(
   _queryFields: Record<string, unknown>,
@@ -30,23 +33,21 @@ export function applyTimeBlockResolvers(
     args: { groupId: string; startsAt: Date; endsAt: Date },
     ctx: Context,
   ) => {
-    if (!ctx.userId) {
-      throw new Error('Not authenticated');
-    }
-    const input = AddTimeBlockInput.parse(args);
+    const userId = requireAuth(ctx);
+    const input = parseOrThrow(AddTimeBlockInput, args);
 
     const membership = await ctx.db.query.groupMembers.findFirst({
-      where: { groupId: input.groupId, userId: ctx.userId },
+      where: { groupId: input.groupId, userId },
     });
     if (!membership) {
-      throw new Error('Forbidden');
+      throw forbidden('Forbidden');
     }
 
     const [block] = await ctx.db
       .insert(timeBlocks)
       .values({
         groupId: input.groupId,
-        userId: ctx.userId,
+        userId,
         startsAt: new Date(input.startsAt),
         endsAt: new Date(input.endsAt),
       })
@@ -55,17 +56,15 @@ export function applyTimeBlockResolvers(
   };
 
   mutationFields.removeTimeBlock = async (_: unknown, args: { id: string }, ctx: Context) => {
-    if (!ctx.userId) {
-      throw new Error('Not authenticated');
-    }
+    const userId = requireAuth(ctx);
     const block = await ctx.db.query.timeBlocks.findFirst({
       where: { id: args.id },
     });
     if (!block) {
-      throw new Error(`TimeBlock ${args.id} not found`);
+      throw notFound(`TimeBlock ${args.id} not found`);
     }
-    if (block.userId !== ctx.userId) {
-      throw new Error('Forbidden');
+    if (block.userId !== userId) {
+      throw forbidden('Forbidden');
     }
     await ctx.db.delete(timeBlocks).where(eq(timeBlocks.id, args.id));
     return true;

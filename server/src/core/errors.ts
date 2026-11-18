@@ -1,0 +1,100 @@
+import { GraphQLError } from 'graphql';
+
+/** The `extensions.code` values clients branch on. */
+export const ErrorCode = {
+  Unauthenticated: 'UNAUTHENTICATED',
+  NotFound: 'NOT_FOUND',
+  BadUserInput: 'BAD_USER_INPUT',
+  Forbidden: 'FORBIDDEN',
+  QueryTooComplex: 'QUERY_TOO_COMPLEX',
+} as const;
+export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
+
+/**
+ * Makes an error factory for one code.
+ *
+ * @param code - The `extensions.code` value.
+ * @returns A function from message to GraphQLError.
+ */
+const withCode =
+  (code: ErrorCode) =>
+  (message: string): GraphQLError =>
+    new GraphQLError(message, { extensions: { code } });
+
+/** Arguments the caller can fix. */
+export const badInput = withCode(ErrorCode.BadUserInput);
+/** The row is missing. */
+export const notFound = withCode(ErrorCode.NotFound);
+/** The caller may not do this. */
+export const forbidden = withCode(ErrorCode.Forbidden);
+/** The operation is too deep, too aliased or too costly. Thrown only by operation-limits.ts. */
+export const tooComplex = withCode(ErrorCode.QueryTooComplex);
+
+/**
+ * Builds the signed-out refusal.
+ *
+ * @param [message] - Client-readable message. The app matches on the default.
+ * @returns The error, for the caller to throw.
+ */
+export const unauthenticated = (message = 'Not authenticated'): GraphQLError =>
+  new GraphQLError(message, { extensions: { code: ErrorCode.Unauthenticated } });
+
+/**
+ * Reads the signed-in user's id.
+ *
+ * @param ctx - Request context.
+ * @returns The user's id.
+ * @throws UNAUTHENTICATED when nobody is signed in: the id is missing, null or empty.
+ */
+export function requireAuth(ctx: { userId?: string | null }): string {
+  const { userId } = ctx;
+  const isSignedOut = userId === undefined || userId === null || userId === '';
+  if (isSignedOut) {
+    throw unauthenticated();
+  }
+  return userId;
+}
+
+/**
+ * Reads what one error says about itself, without its causes.
+ *
+ * @param error - Anything that was thrown, or a cause.
+ * @returns Its message. An AggregateError with none speaks for its errors, and an Error with none gives its code or name.
+ */
+function ownMessage(error: unknown): string {
+  if (error instanceof AggregateError && error.message === '') {
+    const inner: unknown[] = error.errors;
+    return [...new Set(inner.map(ownMessage))].join(', ');
+  }
+  if (error instanceof Error) {
+    const code = 'code' in error && typeof error.code === 'string' ? error.code : undefined;
+    return error.message || code || error.name;
+  }
+  return String(error);
+}
+
+/**
+ * Reads the message of any caught value, with the chain of causes behind it.
+ *
+ * @remarks
+ * Drizzle wraps a failed connect as "Failed query: select 1", with postgres-js's ECONNREFUSED on `cause`, so the
+ * outer message alone hides why.
+ *
+ * @param error - Whatever was thrown.
+ * @returns Each message in the `cause` chain, outermost first, joined with ": ". A value with none is given as a string.
+ */
+export function errorMessage(error: unknown): string {
+  const messages: string[] = [];
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  while (current !== undefined && current !== null && seen.has(current) === false) {
+    seen.add(current);
+    const message = ownMessage(current);
+    const isNew = message !== '' && messages.includes(message) === false;
+    if (isNew) {
+      messages.push(message);
+    }
+    current = current instanceof Error ? current.cause : undefined;
+  }
+  return messages.length === 0 ? String(error) : messages.join(': ');
+}

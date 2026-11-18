@@ -1,3 +1,4 @@
+import type { Server } from 'node:http';
 import { relations } from '@cubicecho/ravocal-db/relations';
 import * as dbSchema from '@cubicecho/ravocal-db/schema';
 import { PGlite } from '@electric-sql/pglite';
@@ -5,7 +6,7 @@ import { getTableName, is, sql, Table } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { type ExecutionResult, type GraphQLSchema, graphql } from 'graphql';
 import { inject } from 'vitest';
-import type { Context } from '../context.ts';
+import type { Context } from '../core/context.ts';
 import { buildSchema } from '../schema/index.ts';
 
 // Never import the db package root here: it needs DATABASE_URL and connects to a real Postgres.
@@ -31,6 +32,9 @@ declare module 'vitest' {
     schemaSql: string[];
   }
 }
+
+/** The address a client's requests come from. */
+export const TEST_IP = '127.0.0.1';
 
 /** Every table in the schema, quoted for one statement that empties them all. */
 const TABLE_LIST = Object.values(dbSchema)
@@ -112,14 +116,21 @@ export async function addMember(testDb: TestDb, groupId: string, userId: string)
   await testDb.insert(dbSchema.groupMembers).values({ groupId, userId });
 }
 
+/** What `expectError` hands back. */
+export interface RefusedOperation {
+  message: string;
+  /** `extensions.code`, to compare with `ErrorCode`. */
+  code: unknown;
+}
+
 /** A GraphQL client bound to one caller. */
 export interface TestClient {
   /** Executes an operation in-process and returns the raw result. */
   run: (query: string, variables?: Variables) => Promise<ExecutionResult>;
   /** Runs and returns `data`. Throws the first error's original cause, so a failure reads as the real bug. */
   expectOk: (query: string, variables?: Variables) => Promise<AnyData>;
-  /** Runs and returns the first error's message. Throws on success. */
-  expectError: (query: string, variables?: Variables) => Promise<string>;
+  /** Runs and returns the first error. Throws on success. */
+  expectError: (query: string, variables?: Variables) => Promise<RefusedOperation>;
 }
 
 let cachedSchema: GraphQLSchema | undefined;
@@ -136,7 +147,7 @@ export function createClient(testDb: TestDb, userId: string | null): TestClient 
   const schemaForRun = cachedSchema;
 
   const run: TestClient['run'] = (query, variables) => {
-    const contextValue: Context = { db: testDb, userId };
+    const contextValue: Context = { db: testDb, userId, ip: TEST_IP, headers: new Headers() };
     return graphql({
       schema: schemaForRun,
       source: query,
@@ -160,8 +171,23 @@ export function createClient(testDb: TestDb, userId: string | null): TestClient 
     if (first === undefined) {
       throw new Error('Expected an error, got a successful result.');
     }
-    return first.message;
+    return { message: first.message, code: first.extensions.code };
   };
 
   return { run, expectOk, expectError };
+}
+
+/**
+ * Reads the port a test server was given.
+ *
+ * @param server - A server listening on port 0.
+ * @returns The port the OS picked.
+ * @throws If the server is not listening on a TCP port.
+ */
+export function portOf(server: Server): number {
+  const address = server.address();
+  if (address === null || typeof address === 'string') {
+    throw new Error('The test server is not listening on a TCP port.');
+  }
+  return address.port;
 }

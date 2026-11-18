@@ -1,5 +1,6 @@
 import { timeBlocks, votes } from '@cubicecho/ravocal-db/schema';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest';
+import { ErrorCode } from '../core/errors.ts';
 import {
   addMember,
   closeTestDb,
@@ -102,16 +103,18 @@ describe('vote resolvers', () => {
     it('refuses when no slot meets the threshold', async () => {
       await free(ownerId, 0, 1);
       await free(memberId, 1, 2);
-      const message = await owner.expectError(START, { groupId });
+      const { message, code } = await owner.expectError(START, { groupId });
       expect(message).toMatch(/forceStartVote/);
+      expect(code).toBe(ErrorCode.BadUserInput);
       expect(await db.select().from(votes)).toEqual([]);
     });
 
     it('refuses a member who is not the owner', async () => {
       await free(ownerId, 0, 1);
       await free(memberId, 0, 1);
-      const message = await member.expectError(START, { groupId });
+      const { message, code } = await member.expectError(START, { groupId });
       expect(message).toMatch(/forbidden/i);
+      expect(code).toBe(ErrorCode.Forbidden);
       expect(await db.select().from(votes)).toEqual([]);
     });
   });
@@ -129,8 +132,9 @@ describe('vote resolvers', () => {
 
     it('refuses a member who is not the owner', async () => {
       await free(memberId, 0, 1);
-      const message = await member.expectError(FORCE, { groupId });
+      const { message, code } = await member.expectError(FORCE, { groupId });
       expect(message).toMatch(/forbidden/i);
+      expect(code).toBe(ErrorCode.Forbidden);
       expect(await db.select().from(votes)).toEqual([]);
     });
   });
@@ -163,8 +167,9 @@ describe('vote resolvers', () => {
     it('refuses rankings from someone outside the group', async () => {
       const outsider = createClient(db, await createUser(db, 'outsider@example.com'));
       const rankings = [{ slotId: slots[0].id, rank: 1 }];
-      const message = await outsider.expectError(SUBMIT, { voteId, rankings });
+      const { message, code } = await outsider.expectError(SUBMIT, { voteId, rankings });
       expect(message).toMatch(/forbidden/i);
+      expect(code).toBe(ErrorCode.Forbidden);
     });
 
     it('closes with the ranked-choice winner', async () => {
@@ -177,8 +182,9 @@ describe('vote resolvers', () => {
     });
 
     it('refuses to close for a member who is not the owner', async () => {
-      const message = await member.expectError(CLOSE, { voteId });
+      const { message, code } = await member.expectError(CLOSE, { voteId });
       expect(message).toMatch(/forbidden/i);
+      expect(code).toBe(ErrorCode.Forbidden);
       const [vote] = await db.select().from(votes);
       expect(vote.status).toBe('active');
     });

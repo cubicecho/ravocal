@@ -25,7 +25,10 @@ ENV NODE_ENV=production
 ENV PORT=3001
 EXPOSE 3001
 
+HEALTHCHECK --interval=30s --timeout=3s --start-period=20s \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3001)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
 # No --preserve-symlinks: it would resolve the db workspace to its path inside
 # node_modules, and Node refuses to strip types from anything under there.
-# Exec form, so node is PID 1 and gets SIGTERM itself.
+# Exec form, so node is PID 1 and gets SIGTERM itself (stopOnSignals, server/src/http/shutdown.ts).
 CMD ["node", "server/src/index.ts"]

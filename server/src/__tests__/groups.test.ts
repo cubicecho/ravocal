@@ -1,6 +1,8 @@
 import { groupInvites, groupMembers } from '@cubicecho/ravocal-db/schema';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { GROUP_DEFAULTS } from '../core/defaults.ts';
+import { ErrorCode } from '../core/errors.ts';
 import {
   addMember,
   closeTestDb,
@@ -66,20 +68,47 @@ describe('group resolvers', () => {
     });
 
     it('refuses a user who is not a member', async () => {
-      const message = await outsider.expectError(GROUP, { id: groupId });
+      const { message, code } = await outsider.expectError(GROUP, { id: groupId });
       expect(message).toMatch(/forbidden/i);
+      expect(code).toBe(ErrorCode.Forbidden);
     });
 
     it('refuses an anonymous caller', async () => {
-      const message = await createClient(db, null).expectError(GROUP, { id: groupId });
+      const { message, code } = await createClient(db, null).expectError(GROUP, { id: groupId });
       expect(message).toMatch(/not authenticated/i);
+      expect(code).toBe(ErrorCode.Unauthenticated);
+    });
+  });
+
+  describe('createGroup', () => {
+    const CREATE = `mutation($name: String!, $overlapThreshold: Int) {
+      createGroup(name: $name, overlapThreshold: $overlapThreshold) { id overlapThreshold }
+    }`;
+
+    it('gives a group created without a threshold the default one', async () => {
+      const { createGroup } = await owner.expectOk(CREATE, { name: 'Climbers' });
+      expect(createGroup.overlapThreshold).toBe(50);
+    });
+
+    it('refuses a threshold over 100 with a sentence', async () => {
+      const { message, code } = await owner.expectError(CREATE, { name: 'Climbers', overlapThreshold: 150 });
+      expect(code).toBe(ErrorCode.BadUserInput);
+      expect(message).toBe('The overlap threshold must be a whole number from 0 to 100.');
+    });
+
+    it('refuses a name past the length limit', async () => {
+      const name = 'x'.repeat(GROUP_DEFAULTS.maxNameLength + 1);
+      const { message, code } = await owner.expectError(CREATE, { name });
+      expect(code).toBe(ErrorCode.BadUserInput);
+      expect(message).toBe(`Keep the group name to ${GROUP_DEFAULTS.maxNameLength} characters or fewer.`);
     });
   });
 
   describe('inviteToGroup', () => {
     it('refuses a member who is not the owner', async () => {
-      const message = await member.expectError(INVITE, { groupId, email: 'new@example.com' });
+      const { message, code } = await member.expectError(INVITE, { groupId, email: 'new@example.com' });
       expect(message).toMatch(/forbidden/i);
+      expect(code).toBe(ErrorCode.Forbidden);
       expect(await db.select().from(groupInvites)).toEqual([]);
     });
   });
@@ -123,21 +152,24 @@ describe('group resolvers', () => {
     it('refuses a token that was already used', async () => {
       const token = await inviteToken();
       await invitee.expectOk(ACCEPT, { token });
-      const message = await outsider.expectError(ACCEPT, { token });
+      const { message, code } = await outsider.expectError(ACCEPT, { token });
       expect(message).toMatch(/already accepted/i);
+      expect(code).toBe(ErrorCode.BadUserInput);
       expect(await isMember(outsiderId)).toBe(false);
     });
 
     it('refuses an expired token', async () => {
       await db.update(groupInvites).set({ expiresAt: new Date(Date.now() - DAY_MS) });
-      const message = await invitee.expectError(ACCEPT, { token: await inviteToken() });
+      const { message, code } = await invitee.expectError(ACCEPT, { token: await inviteToken() });
       expect(message).toMatch(/expired/i);
+      expect(code).toBe(ErrorCode.BadUserInput);
       expect(await isMember(inviteeId)).toBe(false);
     });
 
     it('refuses an unknown token', async () => {
-      const message = await invitee.expectError(ACCEPT, { token: 'not-a-token' });
+      const { message, code } = await invitee.expectError(ACCEPT, { token: 'not-a-token' });
       expect(message).toMatch(/not found/i);
+      expect(code).toBe(ErrorCode.NotFound);
     });
   });
 });

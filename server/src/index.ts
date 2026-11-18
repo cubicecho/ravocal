@@ -1,46 +1,24 @@
-import { createServer } from 'node:http';
+import './core/preflight.ts';
+
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ApolloServer } from '@apollo/server';
-import { expressMiddleware } from '@apollo/server/express4';
 import { closeDatabase, db } from '@cubicecho/ravocal-db';
 import { waitForDatabase } from '@cubicecho/ravocal-db/wait';
-import cors from 'cors';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
-import express from 'express';
-import { createContext } from './context.ts';
-import { buildSchema } from './schema/index.ts';
+import { appUrl, dbConnectTimeoutMs, port } from './core/config.ts';
+import { errorMessage } from './core/errors.ts';
+import { createApp } from './http/app.ts';
+import { stopOnSignals } from './http/shutdown.ts';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const PORT = process.env.PORT ?? 3001;
 /** Postgres's port, shown when DATABASE_URL names none. */
 const DEFAULT_POSTGRES_PORT = '5432';
-/** How long shutdown may take in all before a hard exit. Under Docker's 10 s stop grace period. */
-const SHUTDOWN_DEADLINE_MS = 8000;
+/** Every interface. The container's port mapping decides who can reach it. */
+const LISTEN_HOST = '0.0.0.0';
 
-/**
- * Reads a caught value's message.
- *
- * @param error - Anything that was thrown.
- * @returns The error's message, or the value as a string.
- */
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
-if (
-  process.env.NODE_ENV === 'production' &&
-  (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'dev-secret-change-in-production')
-) {
-  console.error('FATAL: JWT_SECRET must be set to a strong random value in production.');
-  process.exit(1);
-}
-
-// DB_CONNECT_TIMEOUT_MS, when it is a positive number of milliseconds. Otherwise DATABASE_DEFAULTS applies.
-const connectTimeoutMs = Number(process.env.DB_CONNECT_TIMEOUT_MS);
-const hasConnectTimeout = Number.isFinite(connectTimeoutMs) && connectTimeoutMs > 0;
 try {
-  await waitForDatabase(db, hasConnectTimeout ? { connectTimeoutMs } : {});
+  await waitForDatabase(db, { connectTimeoutMs: dbConnectTimeoutMs() });
 } catch (error) {
   const { hostname, port: urlPort } = new URL(process.env.DATABASE_URL ?? '');
   const dbPort = urlPort === '' ? DEFAULT_POSTGRES_PORT : urlPort;
@@ -52,70 +30,14 @@ try {
 // At boot, so a fresh database is set up by starting the server.
 await migrate(db, { migrationsFolder: join(__dirname, '../../db/drizzle') });
 
-const schema = buildSchema();
+const app = createApp({ db, staticDir: join(__dirname, '../../app/dist') });
 
-// Shutdown is handled below. Apollo's own handler re-raises the signal, which would read as a second one.
-const apolloServer = new ApolloServer({ schema, stopOnTerminationSignals: false });
-await apolloServer.start();
-
-const app = express();
-const httpServer = createServer(app);
-
-const staticDir = join(__dirname, '../../app/dist');
-
-app.use(cors());
-app.use(express.json());
-app.use(
-  '/graphql',
-  expressMiddleware(apolloServer, {
-    context: async ({ req }) => createContext(req, db),
-  }),
-);
-
-app.use(express.static(staticDir));
-app.get('*', (_req, res) => {
-  res.sendFile(join(staticDir, 'index.html'));
-});
-
-httpServer.listen(PORT, () => {
-  console.log(`Server ready at http://localhost:${PORT}/graphql`);
-  console.log(`App served at http://localhost:${PORT}`);
-});
-
-let isStopping = false;
-
-/**
- * Stops taking requests, lets the open ones finish, closes the database and exits. A second signal exits at once.
- *
- * @param signal - The signal that asked the process to stop.
- */
-function stop(signal: NodeJS.Signals): void {
-  if (isStopping) {
+const server = app.listen(port(), LISTEN_HOST, (error) => {
+  if (error !== undefined) {
+    console.error(`[server] cannot listen on port ${port()}: ${errorMessage(error)}`);
     process.exit(1);
   }
-  isStopping = true;
-  console.log(`[server] ${signal}: draining`);
-  setTimeout(() => {
-    console.error('[server] shutdown took too long, exiting');
-    process.exit(1);
-  }, SHUTDOWN_DEADLINE_MS).unref();
-  httpServer.close(() => {
-    apolloServer
-      .stop()
-      .then(closeDatabase)
-      .then(
-        () => {
-          console.log('[server] stopped');
-          process.exit(0);
-        },
-        (error: unknown) => {
-          console.error(`[server] shutdown failed: ${errorMessage(error)}`);
-          process.exit(1);
-        },
-      );
-  });
-  httpServer.closeIdleConnections();
-}
-
-process.on('SIGTERM', stop);
-process.on('SIGINT', stop);
+  console.log(`[server] ready on port ${port()}: GraphQL at /graphql, health at /healthz`);
+  console.log(`[server] links in emails point at ${appUrl()}`);
+});
+stopOnSignals(server, { after: closeDatabase });

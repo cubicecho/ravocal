@@ -14,7 +14,7 @@ The repo follows the cubicecho skills (`cubicecho_typescript`, `cubicecho_backen
 | -------- | ------------------------------------------------- |
 | Frontend | React 19, Vite, TanStack Router, Apollo Client    |
 | UI       | Tailwind CSS 4, cubeui (shadcn registry), Radix UI |
-| API      | Apollo Server 4 on Express 4, hand-written SDL     |
+| API      | graphql-yoga 5 on Express 5, hand-written SDL      |
 | Database | Drizzle ORM 1.0.0-rc.5 on Postgres (postgres-js)   |
 | Auth     | Magic-link email + JWT (jose)                      |
 | Testing  | Vitest 4, in-memory PGlite                         |
@@ -59,17 +59,35 @@ ravocal/
 │   ├── index.html
 │   ├── vite.config.ts
 │   └── components.json      # shadcn config; @cubeui points at the registry
-├── server/                  # GraphQL API (Apollo Server, port 3001)
+├── server/                  # GraphQL API (graphql-yoga on Express 5, port 3001)
 │   └── src/
-│       ├── index.ts         # Boot: wait for Postgres, migrate, listen, close on SIGTERM/SIGINT
+│       ├── index.ts         # Boot only: preflight, wait for Postgres, migrate, createApp, listen, stopOnSignals
 │       ├── schema.graphql   # The hand-written SDL
+│       ├── core/            # What every folder reads, about no one concept
+│       │   ├── config.ts    # Typed getters over process.env (the only reader besides preflight and db)
+│       │   ├── defaults.ts  # Every tunable as <CONCEPT>_DEFAULTS groups
+│       │   ├── wire.ts      # HTTP statuses and unit conversions
+│       │   ├── errors.ts    # ErrorCode, badInput/notFound/forbidden/unauthenticated, requireAuth, errorMessage
+│       │   ├── validation.ts # parseOrThrow: a zod failure as BAD_USER_INPUT
+│       │   ├── context.ts   # The Context interface
+│       │   └── preflight.ts # First import of index.ts: refuses a bad configuration
+│       ├── http/            # The Express app and the process around it
+│       │   ├── app.ts       # createApp(deps): the app, no listen, no side effects
+│       │   ├── health.ts    # checkHealth(db) for GET /healthz
+│       │   ├── static.ts    # The built SPA and its index.html fallback
+│       │   └── shutdown.ts  # stopOnSignals: drain, close, exit
+│       ├── graphql/         # The rules every operation obeys
+│       │   ├── handler.ts   # createGraphQLHandler (Yoga) and createContextFactory
+│       │   ├── logger.ts    # graphqlLogger: [graphql]-tagged, logs masked errors' causes
+│       │   └── operation-limits.ts # Depth, aliases and cost, refused as QUERY_TOO_COMPLEX
 │       ├── schema/
-│       │   ├── index.ts     # buildSchema + applyCustomResolvers
+│       │   ├── index.ts     # buildSchema: SDL + resolvers through makeExecutableSchema
 │       │   └── resolvers/   # One file per domain (auth, groups, votes, etc.)
 │       ├── services/
+│       │   ├── auth.ts      # Magic links, session tokens (sign and verify)
 │       │   ├── email.ts     # Email sending (invite, vote-start, vote-result)
 │       │   └── voting.ts    # Ranked-choice tallying, overlap computation
-│       └── __tests__/       # global-setup.ts diffs the models once; helpers.ts boots PGlite per file
+│       └── __tests__/       # The same folders as src; global-setup.ts diffs the models once; helpers.ts boots PGlite per file
 ├── db/                      # Drizzle ORM on Postgres; exports raw .ts, no build step
 │   ├── drizzle/             # Generated migrations (committed)
 │   └── src/
@@ -103,11 +121,13 @@ cp .env.example .env     # Once. DATABASE_URL points at the dev Postgres
 npm run db:up            # Start the dev Postgres (docker-compose.dev.yml, port 5436)
 npm run dev              # Start server + app concurrently
 npm run dev:app          # Vite dev server only (port 5173)
-npm run dev:server       # Apollo Server only (port 3001, watch mode)
+npm run dev:server       # The API only (port 3001, watch mode)
 npm run db:down          # Stop the dev Postgres
 ```
 
-The server waits for Postgres, applies the migrations in `db/drizzle`, then listens. With `SMTP_HOST` unset, emails (sign-in links included) are printed to the server's console. If the Docker daemon is remote (`docker context ls`), set `DEV_BIND=0.0.0.0` and put the daemon's host in `DATABASE_URL`.
+The server runs preflight (it refuses a missing `DATABASE_URL`, and in production a weak `JWT_SECRET`), waits for Postgres, applies the migrations in `db/drizzle`, then listens. `GET /healthz` answers `{ ok, version }`, or 503 when Postgres doesn't. SIGTERM drains and exits 0. With `SMTP_HOST` unset, emails (sign-in links included) are printed to the server's console. If the Docker daemon is remote (`docker context ls`), set `DEV_BIND=0.0.0.0` and put the daemon's host in `DATABASE_URL`.
+
+The app talks to the API through Vite's `/graphql` proxy in development and from the same origin in production, so the server sends no CORS headers. Every variable is described in `.env.example`; the server reads them only through `server/src/core/config.ts`.
 
 ### Building
 ```bash
@@ -187,27 +207,33 @@ npm run db:studio        # Drizzle Studio GUI
 
 ### Auth / Guard clause order
 ```typescript
-if (!ctx.userId) {
-  throw new Error('Not authenticated');
-}
+const userId = requireAuth(ctx);
 const group = await ctx.db.query.groups.findFirst({ where: { id: args.id } });
 if (!group) {
-  throw new Error(`Group ${args.id} not found`);
+  throw notFound(`Group ${args.id} not found`);
 }
-if (group.ownerId !== ctx.userId) {
-  throw new Error('Forbidden');
+if (group.ownerId !== userId) {
+  throw forbidden('Forbidden');
 }
 ```
 
 ### Error handling
+- Yoga masks every error that isn't a `GraphQLError` as `Unexpected error.`, so a failure the client should read is thrown with a coded helper from `server/src/core/errors.ts`. The app shows these messages, so keep their text
+- Input is parsed with `parseOrThrow(schema, value)` (`core/validation.ts`), and every zod rule carries a sentence
+- Read a caught value with `errorMessage(error)`, never `(error as Error).message`
 - Never swallow errors silently
 - Always surface errors to the user or log them
+- Log lines carry a `[subsystem]` tag: `[server]`, `[db]`, `[graphql]`, `[preflight]`, `[email]`
+
+### Tunables
+- Every limit, lifetime, size and timeout is a member of a `<CONCEPT>_DEFAULTS` group in `server/src/core/defaults.ts` (`DATABASE_DEFAULTS` is in the db package), and tests read the group rather than repeat its numbers
 
 ### Testing
 - Test files in `__tests__/` or as `*.test.ts`
 - Database tests run on in-memory PGlite: `createTestDb()` in `beforeAll`, `resetTestDb(db)` in `beforeEach`, `closeTestDb(db)` in `afterAll` (`server/src/__tests__/helpers.ts`)
 - `vitest.config.ts` sets `DATABASE_URL` empty, so a test that imports the db package root fails instead of touching a real Postgres
 - `describe` / `it` / `expect` from Vitest (globals enabled)
+- HTTP-level behaviour (masking, operation limits, the body cap, `/healthz`, the SPA, CORS) is tested against the real `createApp` in `server/src/__tests__/http/app.test.ts`; in-process `graphql()` skips Yoga
 - Fresh test context in `beforeEach`
 
 ## Git
@@ -224,7 +250,7 @@ Do not add `Co-Authored-By` trailers to commit messages.
 | Topic | Document |
 | ----- | -------- |
 | Database tables, migrations, Drizzle patterns | [`docs/database.md`](docs/database.md) |
-| Apollo Server, schema, resolvers | [`docs/server.md`](docs/server.md) |
+| Server folders, boot, HTTP, errors, schema, resolvers | [`docs/server.md`](docs/server.md) |
 | GraphQL queries, mutations, types | [`docs/graphql.md`](docs/graphql.md) |
 | React app, routing, Apollo Client | [`docs/frontend.md`](docs/frontend.md) |
 | Overlap algorithm, ranked-choice tallying | [`docs/voting.md`](docs/voting.md) |

@@ -1,4 +1,4 @@
-import type { Context } from '../../context.ts';
+import type { Context } from '../../core/context.ts';
 import { requestMagicLink, verifyMagicLink } from '../../services/auth.ts';
 
 export function applyAuthResolvers(_queryFields: Record<string, unknown>, mutationFields: Record<string, unknown>) {

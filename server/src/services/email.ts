@@ -1,5 +1,7 @@
 import type { VoteSlot } from '@cubicecho/ravocal-db/schema';
 import nodemailer from 'nodemailer';
+import { appUrl, emailFrom, smtpHost, smtpPass, smtpPort, smtpUser } from '../core/config.ts';
+import { AUTH_DEFAULTS, GROUP_DEFAULTS } from '../core/defaults.ts';
 
 /** One outgoing email. */
 interface MailMessage {
@@ -21,12 +23,13 @@ interface MailTransport {
  * @returns The transport to send with.
  */
 function createTransport(): MailTransport {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
-  if (SMTP_HOST) {
+  const host = smtpHost();
+  if (host !== undefined) {
+    const user = smtpUser();
     return nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: Number(SMTP_PORT ?? 587),
-      auth: SMTP_USER ? { user: SMTP_USER, pass: SMTP_PASS } : undefined,
+      host,
+      port: smtpPort(),
+      auth: user === undefined ? undefined : { user, pass: smtpPass() },
     });
   }
   // Dev: log to console instead of sending
@@ -37,37 +40,33 @@ function createTransport(): MailTransport {
   };
 }
 
-const from = process.env.EMAIL_FROM ?? 'noreply@localhost';
-
 export async function sendMagicLinkEmail(to: string, link: string): Promise<void> {
   const transport = createTransport();
   await transport.sendMail({
-    from,
+    from: emailFrom(),
     to,
     subject: 'Your Ravocal sign-in link',
-    text: `Click to sign in (expires in 15 minutes):\n\n${link}`,
+    text: `Click to sign in (expires in ${AUTH_DEFAULTS.magicLinkTtlMinutes} minutes):\n\n${link}`,
   });
 }
 
 export async function sendGroupInviteEmail(to: string, groupName: string, token: string): Promise<void> {
-  const appUrl = process.env.APP_URL ?? 'http://localhost:3001';
-  const link = `${appUrl}/invite?token=${token}`;
+  const link = `${appUrl()}/invite?token=${token}`;
   const transport = createTransport();
   await transport.sendMail({
-    from,
+    from: emailFrom(),
     to,
     subject: `You've been invited to "${groupName}" on Ravocal`,
-    text: `You've been invited to join "${groupName}" on Ravocal.\n\nAccept your invite:\n\n${link}\n\nThis link expires in 7 days.`,
+    text: `You've been invited to join "${groupName}" on Ravocal.\n\nAccept your invite:\n\n${link}\n\nThis link expires in ${GROUP_DEFAULTS.inviteTtlDays} days.`,
   });
 }
 
 export async function sendVoteStartedEmail(to: string[], groupId: string): Promise<void> {
-  const appUrl = process.env.APP_URL ?? 'http://localhost:3001';
-  const link = `${appUrl}/groups/${groupId}`;
+  const link = `${appUrl()}/groups/${groupId}`;
   const transport = createTransport();
   for (const email of to) {
     await transport.sendMail({
-      from,
+      from: emailFrom(),
       to: email,
       subject: 'A vote has started in your Ravocal group',
       text: `A ranked-choice vote has started. Cast your vote here:\n\n${link}`,
@@ -86,7 +85,7 @@ export async function sendVoteResultEmail(
   const transport = createTransport();
   for (const email of to) {
     await transport.sendMail({
-      from,
+      from: emailFrom(),
       to: email,
       subject: `Vote result for "${groupName}"`,
       text: `The vote for "${groupName}" has closed.\n\n${winnerText}`,
