@@ -12,7 +12,8 @@
       "!**/storybook-static",
       "!app/cubeui-tokens.css",
       "!app/cubeui-reset.css",
-      "!CHANGELOG.md"
+      "!CHANGELOG.md",
+      "!site"
     ]
   },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },

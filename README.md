@@ -1,5 +1,7 @@
 # Ravocal
 
+Site: <https://cubicecho.github.io/ravocal/>
+
 Group scheduling with ranked-choice voting. Create a group and invite people by email. Each member marks the blocks
 of time they are free. The owner then starts a vote over the slots enough of the group shares; members rank them, and
 the winning slot shows in the app. When too few slots overlap, the owner can force a vote that puts their own free
