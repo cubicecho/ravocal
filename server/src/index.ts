@@ -3,9 +3,8 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ApolloServer } from "@apollo/server";
 import { expressMiddleware } from "@apollo/server/express4";
-import { db } from "@ravocal/db";
+import { db, migrateDb } from "@ravocal/db";
 import cors from "cors";
-import { migrate } from "drizzle-orm/pglite/migrator";
 import express from "express";
 import { createContext } from "./context.ts";
 import { buildSchema } from "./schema/index.ts";
@@ -22,7 +21,7 @@ if (
   process.exit(1);
 }
 
-await migrate(db, { migrationsFolder: join(__dirname, "../../db/drizzle") });
+await migrateDb();
 
 const schema = buildSchema();
 
