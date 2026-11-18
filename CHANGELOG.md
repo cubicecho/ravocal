@@ -1,3 +1,19 @@
+# [1.2.0](https://github.com/cubicecho/ravocal/compare/v1.1.0...v1.2.0) (2026-11-18)
+
+### Bug Fixes
+
+* **server:** word the vote threshold refusal for people, not the API ([6a9d277](https://github.com/cubicecho/ravocal/commit/6a9d27747061dd89b72a77564769ba612ecd9b1f))
+
+### Features
+
+* **app:** add, edit and delete free time ([487d1f2](https://github.com/cubicecho/ravocal/commit/487d1f2824dc968913aa84819a13f625c2b315f5))
+* **app:** edit your display name in Settings ([3031eee](https://github.com/cubicecho/ravocal/commit/3031eee7ddf6eaced8a40634af9cdc92308bcf77))
+* **app:** free-time choices on the server's UTC half-hour grid ([fc06a0b](https://github.com/cubicecho/ravocal/commit/fc06a0b50b5a595fc078c8c2bf931bf25e00facc))
+* **app:** group settings dialog ([8d17c51](https://github.com/cubicecho/ravocal/commit/8d17c51dffe19c80010973ab78c747481684e1b5))
+* **app:** invite dialog ([959bf9e](https://github.com/cubicecho/ravocal/commit/959bf9e1eeadc5f4fbf7e558d16aa0cefb755c23))
+* **app:** invite, free time, votes and settings on the group page ([664425a](https://github.com/cubicecho/ravocal/commit/664425a8b94fb8f4fbbefd9f5cb28066a6b80483))
+* **app:** start, rank and close votes ([4b6d113](https://github.com/cubicecho/ravocal/commit/4b6d113c184f18ea8a32dfff9d35bcf3e7751174))
+
 # [1.1.0](https://github.com/cubicecho/ravocal/compare/v1.0.0...v1.1.0) (2026-11-18)
 
 ### Features
