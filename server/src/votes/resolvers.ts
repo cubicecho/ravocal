@@ -36,6 +36,11 @@ const VOTES_SDL = parse(`
     rank: Int!
   }
 
+  extend type Vote {
+    "How many people have a ballot in this vote: the ones the tally counts. People, not rankings, and never who. Select the vote's id with it."
+    rankedCount: Int!
+  }
+
   extend type Mutation {
     "Opens a vote in a group you own, over the times enough members are free for (its overlap threshold). Fails when none are: forceStartVote is the way past it."
     startVote(groupId: UUID!): Vote!
@@ -156,6 +161,24 @@ async function openVote(context: Context, info: GraphQLResolveInfo, groupId: str
 }
 
 /**
+ * Resolves `Vote.rankedCount`, batched across the request's votes.
+ *
+ * @param parent - The vote as the generated read selected it, which holds its id only when the query asked for it.
+ * @param _args - Unused.
+ * @param context - Request context.
+ * @returns How many people have a ballot in it.
+ * @throws BAD_USER_INPUT when the query left out the vote's id.
+ */
+function rankedCount(parent: { id?: unknown }, _args: unknown, context: Context): Promise<number> {
+  requireAuth(context);
+  const { id } = parent;
+  if (typeof id !== 'string') {
+    throw badInput("Select the vote's id beside rankedCount.");
+  }
+  return context.loaders.rankedCount.load(id);
+}
+
+/**
  * Replaces the caller's ballot in an open vote.
  *
  * @param _parent - Unused.
@@ -188,6 +211,7 @@ async function submitRankings(
       await tx.insert(voteRankings).values(rankings.map((ranking) => ({ ...ranking, voteId: vote.id, userId })));
     }
   });
+  context.loaders.rankedCount.clear(args.voteId);
   return readRows(info, context, { table: 'voteRankings', where: { voteId: { eq: args.voteId } } });
 }
 
@@ -220,13 +244,14 @@ async function closeVote(_parent: unknown, args: { voteId: string }, context: Co
 }
 
 /**
- * Adds starting, ranking and closing a vote.
+ * Adds starting, ranking and closing a vote, and how many have ranked one.
  *
  * @param schema - Schema to extend.
  * @returns The extended schema.
  */
 export function applyVotesExtension(schema: GraphQLSchema): GraphQLSchema {
   const extended = extendSchema(schema, VOTES_SDL);
+  objectType(extended, 'Vote').getFields().rankedCount.resolve = rankedCount;
   const mutations = objectType(extended, 'Mutation').getFields();
   mutations.startVote.resolve = (_parent: unknown, args: { groupId: string }, context: Context, info) =>
     openVote(context, info, args.groupId, false);

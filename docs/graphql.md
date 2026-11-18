@@ -75,7 +75,8 @@ query Group($id: UUID!) {
         slotId
         rank
       }
-    } # rankings: your own ballot
+      rankedCount
+    } # rankings: your own ballot; rankedCount: how many have one
   }
 }
 ```
@@ -106,6 +107,7 @@ Any other column in `values` or `set` is `BAD_USER_INPUT`.
 | `forceStartVote(groupId)`                              | mutation | the owner                                                                    | `Vote!` over every time anyone is free, the owner's first. The order is stored (`VoteSlot.position`)                                                                                                                                                                                                |
 | `submitRankings(voteId, rankings: [{ slotId, rank }])` | mutation | members                                                                      | `[VoteRanking!]!`: your ballot, replacing any earlier one. Each slot once, from this vote, while it is open. `[]` withdraws it                                                                                                                                                                      |
 | `closeVote(voteId)`                                    | mutation | the owner                                                                    | `Vote!` with `winnerSlotId` set by instant runoff (`docs/voting.md`), and emails the result                                                                                                                                                                                                         |
+| `Vote.rankedCount`                                     | field    | members (whoever can read the vote)                                          | `Int!`: how many people have a ballot in the vote, the ones the tally counts. People, not rankings, and never who. Select the vote's `id` beside it (`BAD_USER_INPUT` otherwise, unless it is the only field)                                                                                       |
 | `authConfig`                                           | query    | anyone                                                                       | `{ secureLocalNet, magicLink, providers { id name signInUrl } }`. The OIDC provider is `id: oidc`                                                                                                                                                                                                   |
 | `ssoSetup`                                             | query    | anyone                                                                       | `{ source: ENV \| PAIRED \| NONE, issuer, name, canPair, redirectUri }`. `issuer` only for a caller who may pair                                                                                                                                                                                    |
 | `pairSso(setupUrl)`                                    | mutation | the admin, or anyone while there are no accounts; nobody under `OIDC_ISSUER` | `SsoSetup!`. Registers Ravocal with the provider a setup URL names and offers its button at once. A provider refusal is `BAD_USER_INPUT` (or `TOO_MANY_REQUESTS`) with `extensions.reason`; over a pairing, `CONFLICT`; not allowed, `FORBIDDEN` (docs/server.md, "The OIDC provider, and pairing") |

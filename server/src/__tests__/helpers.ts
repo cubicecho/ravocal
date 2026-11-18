@@ -12,6 +12,7 @@ import type { MailMessage } from '../auth/email.ts';
 import { createRateLimiter, type RateLimiter } from '../auth/rate-limit.ts';
 import type { Context } from '../core/context.ts';
 import { createSchema } from '../graphql/build-schema.ts';
+import { createLoaders } from '../graphql/loaders.ts';
 
 // Never import the db package root here: it needs DATABASE_URL and connects to a real Postgres.
 
@@ -280,6 +281,7 @@ export function createClient(testDb: TestDb, userId: string | null, deps: Client
       setCookie: (cookie) => {
         cookies.push(cookie);
       },
+      loaders: createLoaders(testDb, userId),
     };
     return graphql({
       schema: schemaForRun,

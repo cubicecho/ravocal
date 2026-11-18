@@ -3,6 +3,7 @@ import type { AuthHost } from '../auth/auth-host.ts';
 import type { Auth } from '../auth/better-auth.ts';
 import type { Mailer } from '../auth/email.ts';
 import type { RateLimiter } from '../auth/rate-limit.ts';
+import type { Loaders } from '../graphql/loaders.ts';
 
 /** `Context.ip` when Express gave no address, as when a test calls `yoga.fetch`. */
 export const UNKNOWN_IP = 'unknown';
@@ -29,4 +30,6 @@ export interface Context {
    * sessions are bearer tokens, never cookies.
    */
   setCookie: (cookie: string) => void;
+  /** This request's batching for hand-written fields on list items (graphql/loaders.ts). */
+  loaders: Loaders;
 }

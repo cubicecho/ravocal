@@ -18,6 +18,7 @@
     "@vantreeseba/drizzle-graphql": "^19.0.0",
     "@vantreeseba/graphql-casl": "^1.11.0",
     "better-auth": "^1.7.25",
+    "dataloader": "^2.2.3",
     "drizzle-orm": "1.0.0-rc.5",
     "express": "^5.3.0",
     "graphql": "^16.10.0",
