@@ -80,6 +80,8 @@ const GROUP_DETAIL = graphql(`
           slotId
           rank
         }
+        # How many members have a ballot, never who.
+        rankedCount
         winnerSlotId
         closedAt
       }

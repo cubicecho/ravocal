@@ -14,7 +14,7 @@ graphql-yoga 5 on Express 5, running TypeScript directly (Node 26 strips types w
 | `groups/`      | A group and its members: `createGroup`, `removeMember`, the update hook, the loaders hand-written resolvers reach a group through                                                                   |
 | `invites/`     | Joining by link: `inviteToGroup`, `acceptGroupInvite`, `cancelInvite`, and the invite email                                                                                                         |
 | `time-blocks/` | Free time: the generated writes' hooks (membership, the 30-minute grid in UTC)                                                                                                                      |
-| `votes/`       | Ranked-choice votes: `startVote`, `forceStartVote`, `submitRankings`, `closeVote`, the pure `tally.ts`, and the vote emails                                                                         |
+| `votes/`       | Ranked-choice votes: `startVote`, `forceStartVote`, `submitRankings`, `closeVote`, `Vote.rankedCount` and its loader, the pure `tally.ts`, and the vote emails                                      |
 | `users/`       | A user's own row: the update hook (the name only)                                                                                                                                                   |
 
 | File                          | What it is                                                                                                                                                                                                  |
@@ -40,6 +40,7 @@ graphql-yoga 5 on Express 5, running TypeScript directly (Node 26 strips types w
 | `graphql/object-type.ts`      | `objectType(schema, name)`: a type whose fields are about to get resolvers                                                                                                                                  |
 | `graphql/write-schema.ts`     | Prints the served schema for codegen                                                                                                                                                                        |
 | `graphql/handler.ts`          | `createGraphQLHandler` (Yoga) and `createContextFactory`                                                                                                                                                    |
+| `graphql/loaders.ts`          | `Loaders` and `createLoaders(db, userId)`: one request's DataLoaders for hand-written fields on list items (`ctx.loaders`)                                                                                  |
 | `graphql/logger.ts`           | `graphqlLogger`: Yoga's logger with the `[graphql]` tag                                                                                                                                                     |
 | `graphql/operation-limits.ts` | `useOperationLimits`: tokens, depth, aliases and cost                                                                                                                                                       |
 | `auth/better-auth.ts`         | `createAuth(db, opts)`: better-auth on Drizzle with the `bearer`, `oneTimeToken`, providers and `magicLink` plugins, and the account-linking rules; `sendsMagicLinks`, `nonSessionCookies`, `sessionUserId` |
@@ -120,6 +121,8 @@ None has a side effect outside the database; one that needs it goes through the 
 
 A domain folder's `resolvers.ts` extends the schema with SDL and assigns resolvers. They don't inherit `scope`, so they reach a group through `groups/access.ts` (`loadMemberGroup`, `loadOwnedGroup`, both `NOT_FOUND` for a group out of reach), write in one transaction, send their emails after it commits (`sendEach(ctx.mailer, …)`), and read their result back with `graphql/read-back.ts`, so the caller's selection resolves exactly as the generated query would, through the same scope.
 
+A hand-written field on a generated type (`Vote.rankedCount`) gets its parent as drizzle-graphql read it, which holds only the columns the query selected (`id` comes along when nothing else is selected), so it refuses a parent without its `id` as `BAD_USER_INPUT`. It loads through `ctx.loaders` (`graphql/loaders.ts`), so a list of votes is one query, and its own query joins `group_members` on the caller, so it counts nothing outside their groups even when handed an id. A write that changes what a loader counted clears it (`submitRankings`, `removeMember`).
+
 Adding a table: add it to `scope` (tenancy.test.ts fails until you do), decide its generated writes in `features` and, for any to serve, put them on the permission map; then its domain folder's hooks and hand-written fields.
 
 ## Operation limits
@@ -141,6 +144,7 @@ interface Context {
   ip: string;
   headers: Headers;
   setCookie: (cookie: string) => void; // only a provider link's state cookie is ever sent
+  loaders: Loaders; // createLoaders(db, userId): batching for hand-written fields on list items
 }
 ```
 

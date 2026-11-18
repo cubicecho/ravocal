@@ -8,6 +8,7 @@ import type { RateLimiter } from '../auth/rate-limit.ts';
 import { isProduction } from '../core/config.ts';
 import { type Context, UNKNOWN_IP } from '../core/context.ts';
 import { createSchema } from './build-schema.ts';
+import { createLoaders } from './loaders.ts';
 import { graphqlLogger } from './logger.ts';
 import { useOperationLimits } from './operation-limits.ts';
 
@@ -49,16 +50,18 @@ export function createContextFactory({ db, authHost, limiter, mailer = sendMail 
   return async (headers, ip = UNKNOWN_IP, setCookie = () => {}) => {
     // Asked per request: a rebuild swaps the instance while the server runs.
     const auth = authHost.current();
+    const userId = await sessionUserId(auth, headers);
     return {
       db,
       auth,
       authHost,
       limiter,
       mailer,
-      userId: await sessionUserId(auth, headers),
+      userId,
       ip,
       headers,
       setCookie,
+      loaders: createLoaders(db, userId),
     };
   };
 }

@@ -83,6 +83,13 @@ describe('time block writes', () => {
       expect(await db.select().from(timeBlocks)).toEqual([]);
     });
 
+    it('accepts a block that runs past midnight, in UTC and where it was written', async () => {
+      expect(codeOf(await create('2026-11-21T22:00:00.000Z', '2026-11-22T01:00:00.000Z'))).toBeUndefined();
+      // 11:30 PM to 1:00 AM in India, which is one UTC day.
+      expect(codeOf(await create('2026-11-21T23:30:00+05:30', '2026-11-22T01:00:00+05:30'))).toBeUndefined();
+      expect(await db.select().from(timeBlocks)).toHaveLength(2);
+    });
+
     it('refuses a block that ends when or before it starts', async () => {
       const { message } = await member.expectError(CREATE, {
         groupId,

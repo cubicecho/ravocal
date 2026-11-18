@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { OPERATION_LIMIT_DEFAULTS, USER_DEFAULTS } from '../../core/defaults.ts';
 import { ErrorCode } from '../../core/errors.ts';
+import { createRankedCountLoader } from '../../votes/loaders.ts';
 import {
   addMember,
   closeTestDb,
@@ -341,6 +342,16 @@ describe('access rules', () => {
       expect((await alice.expectOk(VOTE, { id: voteId })).vote.rankings).toEqual([]);
       expect((await alice.expectOk(RANKINGS)).voteRankings).toEqual([]);
       expect((await carol.expectOk(RANKINGS)).voteRankings).toEqual([]);
+    });
+
+    it('tells every member how many have ranked, never who, and an outsider nothing', async () => {
+      await bob.expectOk(SUBMIT, { voteId, rankings: [{ slotId: slotIds[0], rank: 1 }] });
+      const progress = `query($id: UUID!) { vote(where: { id: { eq: $id } }) { id rankedCount } }`;
+      expect((await alice.expectOk(progress, { id: voteId })).vote).toEqual({ id: voteId, rankedCount: 1 });
+      expect((await bob.expectOk(progress, { id: voteId })).vote.rankedCount).toBe(1);
+      expect((await carol.expectOk(progress, { id: voteId })).vote).toBeNull();
+      // Even handed the id, the count is only of the caller's own groups.
+      expect(await createRankedCountLoader(db, carolId).load(voteId)).toBe(0);
     });
 
     it('refuses a ballot from outside the group as NOT_FOUND', async () => {

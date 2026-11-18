@@ -101,12 +101,13 @@ ravocal/
 │       │   ├── object-type.ts # objectType(): a type whose fields are about to get resolvers
 │       │   ├── write-schema.ts # Prints the served schema for codegen
 │       │   ├── handler.ts   # createGraphQLHandler (Yoga) and createContextFactory
+│       │   ├── loaders.ts   # createLoaders: one request's DataLoaders for hand-written fields on list items (ctx.loaders)
 │       │   ├── logger.ts    # graphqlLogger: [graphql]-tagged, logs masked errors' causes
 │       │   └── operation-limits.ts # Tokens, depth, aliases and cost, refused as QUERY_TOO_COMPLEX
 │       ├── groups/          # A group and its members: createGroup, removeMember, the update hook, access loaders
 │       ├── invites/         # Joining by link: inviteToGroup, acceptGroupInvite, cancelInvite, the invite email
 │       ├── time-blocks/     # Free time: the create and update hooks (membership, the UTC grid)
-│       ├── votes/           # Ranked-choice votes: start, force, rank, close; tally.ts (slots and the runoff); emails
+│       ├── votes/           # Ranked-choice votes: start, force, rank, close; Vote.rankedCount (loaders.ts); tally.ts (slots and the runoff); emails
 │       ├── users/           # A user's own row: the update hook (the name only)
 │       └── __tests__/       # The same folders as src; global-setup.ts diffs the models once; helpers.ts boots PGlite per file
 ├── db/                      # Drizzle ORM on Postgres; exports raw .ts, no build step
@@ -321,6 +322,8 @@ Rows are shared by **group membership**, not owned by one user. `scope` (`graphq
 | `votes`, `vote_slots` | members                                              | Hand-written only: `startVote`, `forceStartVote` (owner only; one open vote per group), `closeVote` (owner only)                                                                                                                                                                          |
 | `vote_rankings`       | your own only, in a group you are in                 | Hand-written `submitRankings` (members, open votes, the vote's own slots)                                                                                                                                                                                                                 |
 | `users`               | yourself, and anyone you share a group with          | `updateUser`, generated, your own row only (casl on `id`), the name only                                                                                                                                                                                                                  |
+
+A member learns how many people have a ballot in a vote through the hand-written `Vote.rankedCount` (distinct users, never who), rather than by reading `vote_rankings`.
 
 `sessions`, `accounts` and `verifications` (`AUTH_TABLES`), and `oidc_settings` (`SERVER_TABLES`, it holds the paired client's secret and registration token), are excluded from the schema. `users.is_admin` is readable like the other columns and never writable (the users hook). The client reads its own user through better-auth's `getSession`; there is no hand-written `me`.
 

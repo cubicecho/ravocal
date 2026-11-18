@@ -96,6 +96,8 @@ async function removeMember(
       .delete(voteRankings)
       .where(and(eq(voteRankings.userId, args.userId), inArray(voteRankings.voteId, openVotes)));
   });
+  // Their ballot no longer counts towards `Vote.rankedCount`.
+  context.loaders.rankedCount.clearAll();
   return readGroup(info, context, args.groupId);
 }
 

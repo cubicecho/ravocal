@@ -41,6 +41,12 @@ const LATEST_VOTE = `query($id: UUID!) {
   }
 }`;
 
+/** How many have ranked each of the group's votes, newest first. */
+const RANKED_COUNTS = `query($id: UUID!) {
+  group(where: { id: { eq: $id } }) { votes(orderBy: { createdAt: { direction: desc, priority: 1 } }) { id rankedCount } }
+}`;
+const REMOVE_MEMBER = `mutation($groupId: UUID!, $userId: UUID!) { removeMember(groupId: $groupId, userId: $userId) { id } }`;
+
 interface Slot {
   id: string;
   /** A Date in-process: the DateTime scalar serializes to ISO only on the wire. */
@@ -204,6 +210,63 @@ describe('votes', () => {
       await owner.expectOk(CLOSE, { voteId });
       const rankings = [{ slotId: slots[0].id, rank: 1 }];
       expect((await member.expectError(SUBMIT, { voteId, rankings })).code).toBe(ErrorCode.BadUserInput);
+    });
+
+    describe('rankedCount', () => {
+      /**
+       * Reads how many have ranked the open vote.
+       *
+       * @param client - Who reads it.
+       * @returns The count.
+       */
+      async function rankedCount(client: TestClient): Promise<number> {
+        const { group } = await client.expectOk(RANKED_COUNTS, { id: groupId });
+        return group.votes[0].rankedCount;
+      }
+
+      it('counts people with a ballot, not the times they ranked, and drops a withdrawn one', async () => {
+        expect(await rankedCount(member)).toBe(0);
+        const [first, second] = slots;
+        const both = [
+          { slotId: first.id, rank: 1 },
+          { slotId: second.id, rank: 2 },
+        ];
+        await member.expectOk(SUBMIT, { voteId, rankings: both });
+        expect(await rankedCount(owner)).toBe(1);
+        await owner.expectOk(SUBMIT, { voteId, rankings: [{ slotId: second.id, rank: 1 }] });
+        expect(await rankedCount(member)).toBe(2);
+        await member.expectOk(SUBMIT, { voteId, rankings: [] });
+        expect(await rankedCount(member)).toBe(1);
+      });
+
+      it("drops a removed member's ballot", async () => {
+        const leaverId = await createUser(db, 'leaver@example.com');
+        await addMember(db, groupId, leaverId);
+        const leaver = createClient(db, leaverId);
+        await leaver.expectOk(SUBMIT, { voteId, rankings: [{ slotId: slots[0].id, rank: 1 }] });
+        await member.expectOk(SUBMIT, { voteId, rankings: [{ slotId: slots[0].id, rank: 1 }] });
+        expect(await rankedCount(owner)).toBe(2);
+        await owner.expectOk(REMOVE_MEMBER, { groupId, userId: leaverId });
+        expect(await rankedCount(owner)).toBe(1);
+      });
+
+      it('counts each vote in a list on its own', async () => {
+        await member.expectOk(SUBMIT, { voteId, rankings: [{ slotId: slots[0].id, rank: 1 }] });
+        await owner.expectOk(CLOSE, { voteId });
+        const next = (await owner.expectOk(START, { groupId })).startVote.id;
+        const { group } = await member.expectOk(RANKED_COUNTS, { id: groupId });
+        expect(group.votes).toEqual([
+          { id: next, rankedCount: 0 },
+          { id: voteId, rankedCount: 1 },
+        ]);
+      });
+
+      it("asks for the vote's id beside it when other columns leave it out", async () => {
+        const alone = `query($id: UUID!) { group(where: { id: { eq: $id } }) { votes { rankedCount } } }`;
+        expect((await member.expectOk(alone, { id: groupId })).group.votes).toEqual([{ rankedCount: 0 }]);
+        const withoutId = `query($id: UUID!) { group(where: { id: { eq: $id } }) { votes { status rankedCount } } }`;
+        expect((await member.expectError(withoutId, { id: groupId })).code).toBe(ErrorCode.BadUserInput);
+      });
     });
 
     it('answers NOT_FOUND to a member who closes it', async () => {

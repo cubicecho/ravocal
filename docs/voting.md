@@ -61,6 +61,8 @@ Instant-runoff voting (IRV) over the candidate slots:
 
 **Ranking** (`submitRankings`): a member of the vote's group replaces their whole ballot while the vote is open. Each slot at most once, and only this vote's slots; `[]` withdraws the ballot. A member reads back only their own rankings.
 
+**Progress** (`Vote.rankedCount`): every member can read how many people have a ballot in the vote, counted once each however many times they ranked, and never who. It is the number of ballots the tally will count: a withdrawn ballot is gone, and so is a removed member's in an open vote. The group page shows it as "3 of 5 members have ranked" with a bar, beside whether the reader has, and a closed vote's card says how many ballots chose its winner.
+
 ## Closing a Vote
 
 `closeVote`:
