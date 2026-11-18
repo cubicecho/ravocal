@@ -30,7 +30,7 @@ export function applyGroupResolvers(
       where: eq(groupMembers.userId, ctx.userId),
       with: { group: true },
     });
-    return memberships.map((m: { group: unknown }) => m.group);
+    return memberships.map((m) => m.group);
   };
 
   queryFields.group = async (_: unknown, args: { id: string }, ctx: Context) => {
@@ -46,12 +46,12 @@ export function applyGroupResolvers(
       },
     });
     if (!group) throw new Error(`Group ${args.id} not found`);
-    const isMember = group.members.some((m: { userId: string }) => m.userId === ctx.userId);
+    const isMember = group.members.some((m) => m.userId === ctx.userId);
     if (!isMember) throw new Error("Forbidden");
     return {
       ...group,
-      pendingInvites: group.invites.filter((i: { acceptedAt: unknown }) => !i.acceptedAt),
-      activeVote: group.votes.find((v: { status: string }) => v.status === "active") ?? null,
+      pendingInvites: group.invites.filter((i) => !i.acceptedAt),
+      activeVote: group.votes.find((v) => v.status === "active") ?? null,
     };
   };
 

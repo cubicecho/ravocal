@@ -15,7 +15,7 @@ export function applyVoteResolvers(
     if (!ctx.userId) throw new Error("Not authenticated");
     const group = await ctx.db.query.groups.findFirst({
       where: eq(groups.id, args.groupId),
-      with: { members: true, timeBlocks: true },
+      with: { members: { with: { user: true } }, timeBlocks: true },
     });
     if (!group) throw new Error(`Group ${args.groupId} not found`);
     if (group.ownerId !== ctx.userId) throw new Error("Forbidden");
@@ -37,7 +37,7 @@ export function applyVoteResolvers(
     if (!ctx.userId) throw new Error("Not authenticated");
     const group = await ctx.db.query.groups.findFirst({
       where: eq(groups.id, args.groupId),
-      with: { members: true, timeBlocks: true },
+      with: { members: { with: { user: true } }, timeBlocks: true },
     });
     if (!group) throw new Error(`Group ${args.groupId} not found`);
     if (group.ownerId !== ctx.userId) throw new Error("Forbidden");
@@ -109,8 +109,8 @@ export function applyVoteResolvers(
       .where(eq(votes.id, args.voteId))
       .returning();
 
-    const winner = vote.slots.find((s: { id: string }) => s.id === winnerSlotId);
-    const emails = group.members.map((m: { user: { email: string } }) => m.user.email);
+    const winner = vote.slots.find((s) => s.id === winnerSlotId);
+    const emails = group.members.map((m) => m.user.email);
     await sendVoteResultEmail(emails, group.name, winner ?? null);
 
     return closed;
