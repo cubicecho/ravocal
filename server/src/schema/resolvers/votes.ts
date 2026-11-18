@@ -3,10 +3,14 @@ import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Context } from '../../context.ts';
 import { badInput, forbidden, notFound, requireAuth } from '../../core/errors.ts';
+import { parseOrThrow } from '../../core/validation.ts';
 import { sendVoteResultEmail, sendVoteStartedEmail } from '../../services/email.ts';
 import { computeVoteSlots, tallyRankedChoice } from '../../services/voting.ts';
 
-const RankingInput = z.object({ slotId: z.string().uuid(), rank: z.number().int().min(1) });
+const RankingInput = z.object({
+  slotId: z.uuid('That is not a valid slot id.'),
+  rank: z.number().int('Ranks are whole numbers.').min(1, 'Ranks start at 1.'),
+});
 
 export function applyVoteResolvers(_queryFields: Record<string, unknown>, mutationFields: Record<string, unknown>) {
   mutationFields.startVote = async (_: unknown, args: { groupId: string }, ctx: Context) => {
@@ -57,7 +61,7 @@ export function applyVoteResolvers(_queryFields: Record<string, unknown>, mutati
     ctx: Context,
   ) => {
     const userId = requireAuth(ctx);
-    const inputs = z.array(RankingInput).parse(args.rankings);
+    const inputs = parseOrThrow(z.array(RankingInput), args.rankings);
 
     const vote = await ctx.db.query.votes.findFirst({ where: { id: args.voteId } });
     if (!vote) {

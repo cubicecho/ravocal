@@ -4,12 +4,19 @@ import { z } from 'zod';
 import type { Context } from '../../context.ts';
 import { GROUP_DEFAULTS } from '../../core/defaults.ts';
 import { badInput, forbidden, notFound, requireAuth } from '../../core/errors.ts';
+import { parseOrThrow } from '../../core/validation.ts';
 import { MS_PER_DAY, PERCENT } from '../../core/wire.ts';
 import { randomToken } from '../../services/auth.ts';
 import { sendGroupInviteEmail } from '../../services/email.ts';
 
-const nameSchema = z.string().min(1).max(GROUP_DEFAULTS.maxNameLength);
-const overlapThresholdSchema = z.number().int().min(0).max(PERCENT);
+const { maxNameLength } = GROUP_DEFAULTS;
+const THRESHOLD_RANGE = `The overlap threshold must be a whole number from 0 to ${PERCENT}.`;
+
+const nameSchema = z
+  .string()
+  .min(1, 'Give the group a name.')
+  .max(maxNameLength, `Keep the group name to ${maxNameLength} characters or fewer.`);
+const overlapThresholdSchema = z.number().int(THRESHOLD_RANGE).min(0, THRESHOLD_RANGE).max(PERCENT, THRESHOLD_RANGE);
 
 // Left out, overlapThreshold takes the column's default.
 const CreateGroupInput = z.object({
@@ -88,7 +95,7 @@ export function applyGroupResolvers(queryFields: Record<string, unknown>, mutati
 
   mutationFields.createGroup = async (_: unknown, args: { name: string; overlapThreshold?: number }, ctx: Context) => {
     const userId = requireAuth(ctx);
-    const input = CreateGroupInput.parse(args);
+    const input = parseOrThrow(CreateGroupInput, args);
     const [group] = await ctx.db
       .insert(groups)
       .values({ ...input, ownerId: userId })
@@ -110,7 +117,7 @@ export function applyGroupResolvers(queryFields: Record<string, unknown>, mutati
     if (group.ownerId !== userId) {
       throw forbidden('Forbidden');
     }
-    const input = UpdateGroupInput.parse({
+    const input = parseOrThrow(UpdateGroupInput, {
       name: args.name,
       overlapThreshold: args.overlapThreshold,
     });

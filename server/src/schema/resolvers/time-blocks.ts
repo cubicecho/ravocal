@@ -4,27 +4,25 @@ import { z } from 'zod';
 import type { Context } from '../../context.ts';
 import { SCHEDULE_DEFAULTS } from '../../core/defaults.ts';
 import { forbidden, notFound, requireAuth } from '../../core/errors.ts';
+import { parseOrThrow } from '../../core/validation.ts';
 import { MS_PER_MINUTE } from '../../core/wire.ts';
 
 const { slotMinutes } = SCHEDULE_DEFAULTS;
 
 const AddTimeBlockInput = z
   .object({
-    groupId: z.string().uuid(),
+    groupId: z.uuid('That is not a valid group id.'),
     // The DateTime scalar has already parsed these into Dates by the time a resolver sees them.
     startsAt: z.date(),
     endsAt: z.date(),
   })
-  .refine(
-    (d) => {
-      const start = new Date(d.startsAt);
-      const end = new Date(d.endsAt);
-      const diffMs = end.getTime() - start.getTime();
-      const slotMs = slotMinutes * MS_PER_MINUTE;
-      return diffMs >= slotMs && start.getMinutes() % slotMinutes === 0 && end.getMinutes() % slotMinutes === 0;
-    },
-    { message: 'Time blocks must be 30-minute aligned and at least 30 minutes long' },
-  );
+  .refine((d) => {
+    const start = new Date(d.startsAt);
+    const end = new Date(d.endsAt);
+    const diffMs = end.getTime() - start.getTime();
+    const slotMs = slotMinutes * MS_PER_MINUTE;
+    return diffMs >= slotMs && start.getMinutes() % slotMinutes === 0 && end.getMinutes() % slotMinutes === 0;
+  }, `Time blocks must be ${slotMinutes}-minute aligned and at least ${slotMinutes} minutes long`);
 
 export function applyTimeBlockResolvers(
   _queryFields: Record<string, unknown>,
@@ -36,7 +34,7 @@ export function applyTimeBlockResolvers(
     ctx: Context,
   ) => {
     const userId = requireAuth(ctx);
-    const input = AddTimeBlockInput.parse(args);
+    const input = parseOrThrow(AddTimeBlockInput, args);
 
     const membership = await ctx.db.query.groupMembers.findFirst({
       where: { groupId: input.groupId, userId },
