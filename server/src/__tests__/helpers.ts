@@ -129,7 +129,12 @@ export function createClient(testDb: DB, userId: string | null): TestClient {
 
   const run: TestClient["run"] = (query, variables) => {
     const contextValue: Context = { db: testDb, userId };
-    return graphql({ schema: schemaForRun, source: query, contextValue, variableValues: variables });
+    return graphql({
+      schema: schemaForRun,
+      source: query,
+      contextValue,
+      variableValues: variables,
+    });
   };
 
   const expectOk: TestClient["expectOk"] = async (query, variables) => {
