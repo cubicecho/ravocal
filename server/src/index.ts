@@ -1,11 +1,10 @@
 import { createServer } from "node:http";
-import { join, dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ApolloServer } from "@apollo/server";
 import { expressMiddleware } from "@apollo/server/express4";
-import { db } from "@ravocal/db";
+import { db, migrateDb } from "@ravocal/db";
 import cors from "cors";
-import { migrate } from "drizzle-orm/pglite/migrator";
 import express from "express";
 import { createContext } from "./context.ts";
 import { buildSchema } from "./schema/index.ts";
@@ -15,14 +14,13 @@ const PORT = process.env.PORT ?? 3001;
 
 if (
   process.env.NODE_ENV === "production" &&
-  (!process.env.JWT_SECRET ||
-    process.env.JWT_SECRET === "dev-secret-change-in-production")
+  (!process.env.JWT_SECRET || process.env.JWT_SECRET === "dev-secret-change-in-production")
 ) {
   console.error("FATAL: JWT_SECRET must be set to a strong random value in production.");
   process.exit(1);
 }
 
-await migrate(db, { migrationsFolder: join(__dirname, "../../db/drizzle") });
+await migrateDb();
 
 const schema = buildSchema();
 
@@ -44,7 +42,7 @@ app.use(
 );
 
 app.use(express.static(staticDir));
-app.get("/{*path}", (_req, res) => {
+app.get("*", (_req, res) => {
   res.sendFile(join(staticDir, "index.html"));
 });
 

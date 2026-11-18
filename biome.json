@@ -31,7 +31,7 @@
         "noNonNullAssertion": "off"
       },
       "suspicious": {
-        "noExplicitAny": "warn"
+        "noExplicitAny": "error"
       }
     }
   },
@@ -50,6 +50,7 @@
       "**/*.css",
       "!**/dist",
       "!**/__generated__",
+      "!app/src/routeTree.gen.ts",
       "!**/drizzle",
       "!**/node_modules",
       "!app/cubeui-tokens.css",

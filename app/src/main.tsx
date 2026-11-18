@@ -1,5 +1,5 @@
 import { ApolloProvider } from "@apollo/client";
-import { RouterProvider, createRouter } from "@tanstack/react-router";
+import { createRouter, RouterProvider } from "@tanstack/react-router";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { apolloClient } from "./apollo-client.ts";

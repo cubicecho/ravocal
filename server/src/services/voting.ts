@@ -54,16 +54,10 @@ export function computeVoteSlots(
   slots.sort((a, b) => {
     if (isForced && ownerId) {
       const aHasOwner = timeBlocks.some(
-        (tb) =>
-          tb.userId === ownerId &&
-          tb.startsAt <= a.startsAt &&
-          tb.endsAt >= a.endsAt,
+        (tb) => tb.userId === ownerId && tb.startsAt <= a.startsAt && tb.endsAt >= a.endsAt,
       );
       const bHasOwner = timeBlocks.some(
-        (tb) =>
-          tb.userId === ownerId &&
-          tb.startsAt <= b.startsAt &&
-          tb.endsAt >= b.endsAt,
+        (tb) => tb.userId === ownerId && tb.startsAt <= b.startsAt && tb.endsAt >= b.endsAt,
       );
       if (aHasOwner !== bHasOwner) return aHasOwner ? -1 : 1;
     }
@@ -78,10 +72,7 @@ export function computeVoteSlots(
  * Instant-runoff ranked-choice tally.
  * Returns the winning slot ID, or null if no rankings were submitted.
  */
-export function tallyRankedChoice(
-  slots: VoteSlot[],
-  rankings: VoteRanking[],
-): string | null {
+export function tallyRankedChoice(slots: VoteSlot[], rankings: VoteRanking[]): string | null {
   if (slots.length === 0 || rankings.length === 0) return null;
 
   const voters = [...new Set(rankings.map((r) => r.userId))];
