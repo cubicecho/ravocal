@@ -10,6 +10,7 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import express from 'express';
 import { createContext } from './context.ts';
 import { dbConnectTimeoutMs, port } from './core/config.ts';
+import { errorMessage } from './core/errors.ts';
 import { buildSchema } from './schema/index.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -18,16 +19,6 @@ const PORT = port();
 const DEFAULT_POSTGRES_PORT = '5432';
 /** How long shutdown may take in all before a hard exit. Under Docker's 10 s stop grace period. */
 const SHUTDOWN_DEADLINE_MS = 8000;
-
-/**
- * Reads a caught value's message.
- *
- * @param error - Anything that was thrown.
- * @returns The error's message, or the value as a string.
- */
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 if (
   process.env.NODE_ENV === 'production' &&

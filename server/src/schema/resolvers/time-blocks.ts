@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Context } from '../../context.ts';
 import { SCHEDULE_DEFAULTS } from '../../core/defaults.ts';
+import { forbidden, notFound, requireAuth } from '../../core/errors.ts';
 import { MS_PER_MINUTE } from '../../core/wire.ts';
 
 const { slotMinutes } = SCHEDULE_DEFAULTS;
@@ -34,23 +35,21 @@ export function applyTimeBlockResolvers(
     args: { groupId: string; startsAt: Date; endsAt: Date },
     ctx: Context,
   ) => {
-    if (!ctx.userId) {
-      throw new Error('Not authenticated');
-    }
+    const userId = requireAuth(ctx);
     const input = AddTimeBlockInput.parse(args);
 
     const membership = await ctx.db.query.groupMembers.findFirst({
-      where: { groupId: input.groupId, userId: ctx.userId },
+      where: { groupId: input.groupId, userId },
     });
     if (!membership) {
-      throw new Error('Forbidden');
+      throw forbidden('Forbidden');
     }
 
     const [block] = await ctx.db
       .insert(timeBlocks)
       .values({
         groupId: input.groupId,
-        userId: ctx.userId,
+        userId,
         startsAt: new Date(input.startsAt),
         endsAt: new Date(input.endsAt),
       })
@@ -59,17 +58,15 @@ export function applyTimeBlockResolvers(
   };
 
   mutationFields.removeTimeBlock = async (_: unknown, args: { id: string }, ctx: Context) => {
-    if (!ctx.userId) {
-      throw new Error('Not authenticated');
-    }
+    const userId = requireAuth(ctx);
     const block = await ctx.db.query.timeBlocks.findFirst({
       where: { id: args.id },
     });
     if (!block) {
-      throw new Error(`TimeBlock ${args.id} not found`);
+      throw notFound(`TimeBlock ${args.id} not found`);
     }
-    if (block.userId !== ctx.userId) {
-      throw new Error('Forbidden');
+    if (block.userId !== userId) {
+      throw forbidden('Forbidden');
     }
     await ctx.db.delete(timeBlocks).where(eq(timeBlocks.id, args.id));
     return true;

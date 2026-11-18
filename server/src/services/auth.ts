@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { SignJWT } from 'jose';
 import { appUrl, jwtSecret } from '../core/config.ts';
 import { AUTH_DEFAULTS } from '../core/defaults.ts';
+import { badInput } from '../core/errors.ts';
 import { MS_PER_MINUTE } from '../core/wire.ts';
 import { sendMagicLinkEmail } from './email.ts';
 
@@ -40,13 +41,13 @@ export async function verifyMagicLink(
     with: { user: true },
   });
   if (!link) {
-    throw new Error('Invalid or expired magic link');
+    throw badInput('Invalid or expired magic link');
   }
   if (link.usedAt) {
-    throw new Error('Magic link already used');
+    throw badInput('Magic link already used');
   }
   if (link.expiresAt < new Date()) {
-    throw new Error('Magic link expired');
+    throw badInput('Magic link expired');
   }
 
   await db.update(magicLinks).set({ usedAt: new Date() }).where(eq(magicLinks.id, link.id));

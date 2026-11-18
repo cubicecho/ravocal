@@ -2,6 +2,7 @@ import { voteRankings, voteSlots, votes } from '@cubicecho/ravocal-db/schema';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Context } from '../../context.ts';
+import { badInput, forbidden, notFound, requireAuth } from '../../core/errors.ts';
 import { sendVoteResultEmail, sendVoteStartedEmail } from '../../services/email.ts';
 import { computeVoteSlots, tallyRankedChoice } from '../../services/voting.ts';
 
@@ -9,23 +10,21 @@ const RankingInput = z.object({ slotId: z.string().uuid(), rank: z.number().int(
 
 export function applyVoteResolvers(_queryFields: Record<string, unknown>, mutationFields: Record<string, unknown>) {
   mutationFields.startVote = async (_: unknown, args: { groupId: string }, ctx: Context) => {
-    if (!ctx.userId) {
-      throw new Error('Not authenticated');
-    }
+    const userId = requireAuth(ctx);
     const group = await ctx.db.query.groups.findFirst({
       where: { id: args.groupId },
       with: { members: { with: { user: true } }, timeBlocks: true },
     });
     if (!group) {
-      throw new Error(`Group ${args.groupId} not found`);
+      throw notFound(`Group ${args.groupId} not found`);
     }
-    if (group.ownerId !== ctx.userId) {
-      throw new Error('Forbidden');
+    if (group.ownerId !== userId) {
+      throw forbidden('Forbidden');
     }
 
     const slots = computeVoteSlots(group.members, group.timeBlocks, group.overlapThreshold, false);
     if (slots.length === 0) {
-      throw new Error(
+      throw badInput(
         `No slots meet the overlap threshold of ${group.overlapThreshold}%. Use forceStartVote to override.`,
       );
     }
@@ -33,23 +32,21 @@ export function applyVoteResolvers(_queryFields: Record<string, unknown>, mutati
   };
 
   mutationFields.forceStartVote = async (_: unknown, args: { groupId: string }, ctx: Context) => {
-    if (!ctx.userId) {
-      throw new Error('Not authenticated');
-    }
+    const userId = requireAuth(ctx);
     const group = await ctx.db.query.groups.findFirst({
       where: { id: args.groupId },
       with: { members: { with: { user: true } }, timeBlocks: true },
     });
     if (!group) {
-      throw new Error(`Group ${args.groupId} not found`);
+      throw notFound(`Group ${args.groupId} not found`);
     }
-    if (group.ownerId !== ctx.userId) {
-      throw new Error('Forbidden');
+    if (group.ownerId !== userId) {
+      throw forbidden('Forbidden');
     }
 
     const slots = computeVoteSlots(group.members, group.timeBlocks, 0, true, group.ownerId);
     if (slots.length === 0) {
-      throw new Error('No time blocks have been submitted yet.');
+      throw badInput('No time blocks have been submitted yet.');
     }
     return createVote(ctx, args.groupId, group, slots, true);
   };
@@ -59,33 +56,29 @@ export function applyVoteResolvers(_queryFields: Record<string, unknown>, mutati
     args: { voteId: string; rankings: Array<{ slotId: string; rank: number }> },
     ctx: Context,
   ) => {
-    if (!ctx.userId) {
-      throw new Error('Not authenticated');
-    }
+    const userId = requireAuth(ctx);
     const inputs = z.array(RankingInput).parse(args.rankings);
 
     const vote = await ctx.db.query.votes.findFirst({ where: { id: args.voteId } });
     if (!vote) {
-      throw new Error(`Vote ${args.voteId} not found`);
+      throw notFound(`Vote ${args.voteId} not found`);
     }
     if (vote.status !== 'active') {
-      throw new Error('Vote is not active');
+      throw badInput('Vote is not active');
     }
 
     const membership = await ctx.db.query.groupMembers.findFirst({
-      where: { groupId: vote.groupId, userId: ctx.userId },
+      where: { groupId: vote.groupId, userId },
     });
     if (!membership) {
-      throw new Error('Forbidden');
+      throw forbidden('Forbidden');
     }
 
-    await ctx.db
-      .delete(voteRankings)
-      .where(and(eq(voteRankings.voteId, args.voteId), eq(voteRankings.userId, ctx.userId)));
+    await ctx.db.delete(voteRankings).where(and(eq(voteRankings.voteId, args.voteId), eq(voteRankings.userId, userId)));
 
     const rows = inputs.map((r) => ({
       voteId: args.voteId,
-      userId: ctx.userId as string,
+      userId,
       slotId: r.slotId,
       rank: r.rank,
     }));
@@ -93,18 +86,16 @@ export function applyVoteResolvers(_queryFields: Record<string, unknown>, mutati
   };
 
   mutationFields.closeVote = async (_: unknown, args: { voteId: string }, ctx: Context) => {
-    if (!ctx.userId) {
-      throw new Error('Not authenticated');
-    }
+    const userId = requireAuth(ctx);
     const vote = await ctx.db.query.votes.findFirst({
       where: { id: args.voteId },
       with: { slots: true, rankings: true },
     });
     if (!vote) {
-      throw new Error(`Vote ${args.voteId} not found`);
+      throw notFound(`Vote ${args.voteId} not found`);
     }
     if (vote.status !== 'active') {
-      throw new Error('Vote is not active');
+      throw badInput('Vote is not active');
     }
 
     const group = await ctx.db.query.groups.findFirst({
@@ -112,10 +103,10 @@ export function applyVoteResolvers(_queryFields: Record<string, unknown>, mutati
       with: { members: { with: { user: true } } },
     });
     if (!group) {
-      throw new Error('Group not found');
+      throw notFound('Group not found');
     }
-    if (group.ownerId !== ctx.userId) {
-      throw new Error('Forbidden');
+    if (group.ownerId !== userId) {
+      throw forbidden('Forbidden');
     }
 
     const winnerSlotId = tallyRankedChoice(vote.slots, vote.rankings);
