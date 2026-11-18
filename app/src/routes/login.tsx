@@ -21,30 +21,36 @@ const REQUEST_MAGIC_LINK = graphql(`
 `);
 
 function LoginPage() {
-  const [sent, setSent] = useState(false);
-  const [requestMagicLink, { error }] = useMutation(REQUEST_MAGIC_LINK);
+  // The address the link went to, once it has been sent.
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [requestMagicLink, { error }] = useMutation(REQUEST_MAGIC_LINK, {
+    // The failure is drawn from `error` under the field; handling it here keeps the submit's
+    // promise from rejecting unhandled.
+    onError: () => {},
+  });
 
   const form = useAppForm({
     defaultValues: { email: "" },
     onSubmit: async ({ value }) => {
-      await requestMagicLink({ variables: { email: value.email } });
-      setSent(true);
+      const email = value.email.trim();
+      const res = await requestMagicLink({ variables: { email } });
+      if (res.data?.requestMagicLink) setSentTo(email);
     },
   });
 
-  if (sent) {
+  if (sentTo) {
     return (
       <CenteredCardLayout
         title="Check your email"
-        description="We sent you a sign-in link. Open it on this device to finish signing in."
+        description={`We sent a sign-in link to ${sentTo}. Open it in this browser to finish signing in.`}
       />
     );
   }
 
   return (
     <CenteredCardLayout
-      title="Ravocal"
-      description="Group scheduling, made easy."
+      title="Sign in to Ravocal"
+      description="We'll email you a link that signs you in. There's no password."
       wrapperSlot={(parts, { className }) => (
         <form
           className={className}
@@ -57,7 +63,7 @@ function LoginPage() {
         </form>
       )}
       contentSlot={
-        <>
+        <div className="grid gap-4">
           <InputField
             form={form}
             name="email"
@@ -71,15 +77,11 @@ function LoginPage() {
             }}
           />
           <FormError error={error} />
-        </>
+        </div>
       }
       footerActionsSlot={
         <form.AppForm>
-          <form.SubmitButton
-            createLabel="Send sign-in link"
-            loadingLabel="Sending…"
-            className="w-full"
-          />
+          <form.SubmitButton createLabel="Send sign-in link" loadingLabel="Sending…" />
         </form.AppForm>
       }
     />

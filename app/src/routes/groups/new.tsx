@@ -2,6 +2,7 @@ import { useMutation } from "@apollo/client";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { graphql } from "@/__generated__/index.js";
 import { InputField, useAppForm } from "@/components/app-form";
+import { CardLayout } from "@/components/card-layout";
 import { FormError } from "@/components/domain/form/form-error";
 import { RangeField } from "@/components/domain/form/range-field";
 import { PageLayout } from "@/components/page-layout";
@@ -23,7 +24,17 @@ const CREATE_GROUP = graphql(`
 
 function NewGroupPage() {
   const navigate = useNavigate();
-  const [createGroup, { error }] = useMutation(CREATE_GROUP);
+  const [createGroup, { error }] = useMutation(CREATE_GROUP, {
+    // The cached groups list lacks this one, and its page is not mounted to be refetched: drop it,
+    // so the page asks again when it opens.
+    update: (cache) => {
+      cache.evict({ fieldName: "myGroups" });
+      cache.gc();
+    },
+    // The failure is drawn from `error` under the fields; handling it here keeps the submit's
+    // promise from rejecting unhandled.
+    onError: () => {},
+  });
 
   const form = useAppForm({
     defaultValues: { name: "", overlapThreshold: 50 },
@@ -32,13 +43,13 @@ function NewGroupPage() {
         variables: { name: value.name.trim(), overlapThreshold: value.overlapThreshold },
       });
       const id = res.data?.createGroup.id;
-      if (id) navigate({ to: "/groups/$groupId", params: { groupId: id } });
+      if (id) await navigate({ to: "/groups/$groupId", params: { groupId: id } });
     },
   });
 
   return (
     <PageLayout
-      title="Create a Group"
+      title="New group"
       width="prose"
       backSlot={
         <Button
@@ -50,41 +61,63 @@ function NewGroupPage() {
         />
       }
       contentSlot={
-        <form
-          className="flex flex-col gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void form.handleSubmit();
-          }}
-        >
-          <InputField
-            form={form}
-            name="name"
-            label="Group name"
-            placeholder="Weekend hiking crew"
-            required
-            validators={{
-              onChange: ({ value }) => (value.trim() === "" ? "Give the group a name." : undefined),
-            }}
-          />
-          <RangeField
-            form={form}
-            name="overlapThreshold"
-            label="Overlap threshold"
-            description="Minimum percentage of members who must share a free slot to start a normal vote."
-            min={0}
-            max={100}
-            step={5}
-            format={(value) => `${value}%`}
-          />
-          <FormError error={error} />
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" linkSlot={<Link to="/groups" />} content="Cancel" />
+        <CardLayout
+          // The <form> wraps the footer too, so Create is the form's own submit button.
+          wrapperSlot={(parts, { className }) => (
             <form.AppForm>
-              <form.SubmitButton createLabel="Create Group" loadingLabel="Creating…" />
+              <form
+                className={className}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void form.handleSubmit();
+                }}
+              >
+                {parts}
+              </form>
             </form.AppForm>
-          </div>
-        </form>
+          )}
+          contentSlot={
+            <div className="grid gap-4">
+              <InputField
+                form={form}
+                name="name"
+                label="Group name"
+                placeholder="Weekend hiking crew"
+                required
+                validators={{
+                  onChange: ({ value }) => {
+                    const name = value.trim();
+                    if (name === "") return "Give the group a name.";
+                    // The server's limit.
+                    if (name.length > 100) return "Keep the name to 100 characters or fewer.";
+                    return undefined;
+                  },
+                }}
+              />
+              <RangeField
+                form={form}
+                name="overlapThreshold"
+                label="Overlap threshold"
+                description="How many of the group must be free at the same time before you can start a vote."
+                min={0}
+                max={100}
+                step={5}
+                format={(value) => `${value}%`}
+              />
+              <FormError error={error} />
+            </div>
+          }
+          footerActionsSlot={
+            <>
+              <Button variant="outline" linkSlot={<Link to="/groups" />} content="Cancel" />
+              <form.SubmitButton
+                variant="info"
+                createLabel="Create group"
+                loadingLabel="Creating…"
+              />
+            </>
+          }
+        />
       }
     />
   );

@@ -26,6 +26,12 @@ function InvitePage() {
   const { token } = Route.useSearch();
   const navigate = useNavigate();
   const [acceptInvite, { error }] = useMutation(ACCEPT_INVITE, {
+    // The cached groups list lacks the group just joined, and its page is not mounted to be
+    // refetched: drop it, so the page asks again when it opens.
+    update: (cache) => {
+      cache.evict({ fieldName: "myGroups" });
+      cache.gc();
+    },
     onCompleted: (data) => {
       void navigate({
         to: "/groups/$groupId",
