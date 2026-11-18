@@ -1,6 +1,6 @@
 # Server — Ravocal
 
-Express + Apollo Server 4, running TypeScript directly via `--experimental-strip-types` (Node 22). No build step needed for development.
+Express + Apollo Server 4, running TypeScript directly (Node 26 strips types without a flag). No build step needed for development.
 
 ## Entry Point
 

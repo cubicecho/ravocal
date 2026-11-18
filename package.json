@@ -9,6 +9,9 @@
     "server",
     "db"
   ],
+  "engines": {
+    "node": ">=26"
+  },
   "scripts": {
     "dev": "npm run build:db && concurrently \"npm run dev:server\" \"npm run dev:app\"",
     "dev:app": "npm run dev -w app",
