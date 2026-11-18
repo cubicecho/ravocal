@@ -1,7 +1,26 @@
-import nodemailer from "nodemailer";
 import type { VoteSlot } from "@ravocal/db";
+import nodemailer from "nodemailer";
 
-function createTransport() {
+/** One outgoing email. */
+interface MailMessage {
+  from: string;
+  to: string;
+  subject: string;
+  text: string;
+}
+
+/** What the senders below need from a transport: nodemailer's, or the dev logger. */
+interface MailTransport {
+  sendMail: (message: MailMessage) => Promise<unknown>;
+}
+
+/**
+ * Picks the mail transport: SMTP when `SMTP_HOST` is set, otherwise a
+ * logger that prints each message to the console.
+ *
+ * @returns The transport to send with.
+ */
+function createTransport(): MailTransport {
   const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
   if (SMTP_HOST) {
     return nodemailer.createTransport({
@@ -12,7 +31,7 @@ function createTransport() {
   }
   // Dev: log to console instead of sending
   return {
-    sendMail: async (opts: { to: string; subject: string; text: string }) => {
+    sendMail: async (opts: MailMessage) => {
       console.log("[email]", opts);
     },
   };
@@ -27,7 +46,7 @@ export async function sendMagicLinkEmail(to: string, link: string): Promise<void
     to,
     subject: "Your Ravocal sign-in link",
     text: `Click to sign in (expires in 15 minutes):\n\n${link}`,
-  } as Parameters<typeof transport.sendMail>[0]);
+  });
 }
 
 export async function sendGroupInviteEmail(
@@ -43,7 +62,7 @@ export async function sendGroupInviteEmail(
     to,
     subject: `You've been invited to "${groupName}" on Ravocal`,
     text: `You've been invited to join "${groupName}" on Ravocal.\n\nAccept your invite:\n\n${link}\n\nThis link expires in 7 days.`,
-  } as Parameters<typeof transport.sendMail>[0]);
+  });
 }
 
 export async function sendVoteStartedEmail(to: string[], groupId: string): Promise<void> {
@@ -56,7 +75,7 @@ export async function sendVoteStartedEmail(to: string[], groupId: string): Promi
       to: email,
       subject: "A vote has started in your Ravocal group",
       text: `A ranked-choice vote has started. Cast your vote here:\n\n${link}`,
-    } as Parameters<typeof transport.sendMail>[0]);
+    });
   }
 }
 
@@ -75,6 +94,6 @@ export async function sendVoteResultEmail(
       to: email,
       subject: `Vote result for "${groupName}"`,
       text: `The vote for "${groupName}" has closed.\n\n${winnerText}`,
-    } as Parameters<typeof transport.sendMail>[0]);
+    });
   }
 }

@@ -1,8 +1,8 @@
-import { and, eq } from "drizzle-orm";
 import { groupMembers, groups, voteRankings, voteSlots, votes } from "@ravocal/db";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Context } from "../../context.ts";
-import { sendVoteStartedEmail, sendVoteResultEmail } from "../../services/email.ts";
+import { sendVoteResultEmail, sendVoteStartedEmail } from "../../services/email.ts";
 import { computeVoteSlots, tallyRankedChoice } from "../../services/voting.ts";
 
 const RankingInput = z.object({ slotId: z.string().uuid(), rank: z.number().int().min(1) });
@@ -15,7 +15,7 @@ export function applyVoteResolvers(
     if (!ctx.userId) throw new Error("Not authenticated");
     const group = await ctx.db.query.groups.findFirst({
       where: eq(groups.id, args.groupId),
-      with: { members: true, timeBlocks: true },
+      with: { members: { with: { user: true } }, timeBlocks: true },
     });
     if (!group) throw new Error(`Group ${args.groupId} not found`);
     if (group.ownerId !== ctx.userId) throw new Error("Forbidden");
@@ -29,15 +29,11 @@ export function applyVoteResolvers(
     return createVote(ctx, args.groupId, group, slots, false);
   };
 
-  mutationFields.forceStartVote = async (
-    _: unknown,
-    args: { groupId: string },
-    ctx: Context,
-  ) => {
+  mutationFields.forceStartVote = async (_: unknown, args: { groupId: string }, ctx: Context) => {
     if (!ctx.userId) throw new Error("Not authenticated");
     const group = await ctx.db.query.groups.findFirst({
       where: eq(groups.id, args.groupId),
-      with: { members: true, timeBlocks: true },
+      with: { members: { with: { user: true } }, timeBlocks: true },
     });
     if (!group) throw new Error(`Group ${args.groupId} not found`);
     if (group.ownerId !== ctx.userId) throw new Error("Forbidden");
@@ -60,18 +56,13 @@ export function applyVoteResolvers(
     if (vote.status !== "active") throw new Error("Vote is not active");
 
     const membership = await ctx.db.query.groupMembers.findFirst({
-      where: and(
-        eq(groupMembers.groupId, vote.groupId),
-        eq(groupMembers.userId, ctx.userId),
-      ),
+      where: and(eq(groupMembers.groupId, vote.groupId), eq(groupMembers.userId, ctx.userId)),
     });
     if (!membership) throw new Error("Forbidden");
 
     await ctx.db
       .delete(voteRankings)
-      .where(
-        and(eq(voteRankings.voteId, args.voteId), eq(voteRankings.userId, ctx.userId)),
-      );
+      .where(and(eq(voteRankings.voteId, args.voteId), eq(voteRankings.userId, ctx.userId)));
 
     const rows = inputs.map((r) => ({
       voteId: args.voteId,
@@ -82,11 +73,7 @@ export function applyVoteResolvers(
     return ctx.db.insert(voteRankings).values(rows).returning();
   };
 
-  mutationFields.closeVote = async (
-    _: unknown,
-    args: { voteId: string },
-    ctx: Context,
-  ) => {
+  mutationFields.closeVote = async (_: unknown, args: { voteId: string }, ctx: Context) => {
     if (!ctx.userId) throw new Error("Not authenticated");
     const vote = await ctx.db.query.votes.findFirst({
       where: eq(votes.id, args.voteId),
@@ -109,8 +96,8 @@ export function applyVoteResolvers(
       .where(eq(votes.id, args.voteId))
       .returning();
 
-    const winner = vote.slots.find((s: { id: string }) => s.id === winnerSlotId);
-    const emails = group.members.map((m: { user: { email: string } }) => m.user.email);
+    const winner = vote.slots.find((s) => s.id === winnerSlotId);
+    const emails = group.members.map((m) => m.user.email);
     await sendVoteResultEmail(emails, group.name, winner ?? null);
 
     return closed;
