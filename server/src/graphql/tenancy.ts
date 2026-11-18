@@ -9,8 +9,8 @@ import { requireAuth } from '../core/errors.ts';
 /** better-auth's own tables. Never exposed: they hold session tokens and provider credentials. */
 export const AUTH_TABLES = ['sessions', 'accounts', 'verifications'] as const;
 
-/** Tables only the server reads, because they hold a secret. None yet. */
-export const SERVER_TABLES: readonly string[] = [];
+/** Tables only the server reads, because they hold a secret: the paired provider's client secret and its tokens. */
+export const SERVER_TABLES: readonly string[] = ['oidcSettings'];
 
 /** What the schema leaves out entirely. */
 export const exclude: SchemaExclusions = {

@@ -6,7 +6,7 @@ import { type GraphQLSchema, isObjectType } from 'graphql';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { BETTER_AUTH_OPERATIONS } from '../../auth/endpoints.ts';
 import { createSchema } from '../../graphql/build-schema.ts';
-import { permissionsFor } from '../../graphql/permissions.ts';
+import { permissionsFor, SSO_MUTATIONS } from '../../graphql/permissions.ts';
 import { AUTH_TABLES, SERVER_TABLES, scope } from '../../graphql/tenancy.ts';
 import { closeTestDb, createTestDb, type TestDb } from '../helpers.ts';
 
@@ -78,14 +78,22 @@ describe('tenancy configuration', () => {
     }
   });
 
-  it("lets every one of better-auth's served operations through", () => {
+  it("lets every one of better-auth's served operations through, and the sign-in setup", () => {
     const rules = resolvePermissions(schema, permissionsFor(schema));
     const roots = [schema.getQueryType(), schema.getMutationType()].filter(isObjectType);
     const served = roots.flatMap((root) =>
       BETTER_AUTH_OPERATIONS.filter((name) => name in root.getFields()).map((name) => [root.name, name] as const),
     );
     expect(served.map(([, name]) => name).sort()).toEqual([...BETTER_AUTH_OPERATIONS].sort());
-    for (const [rootName, name] of [...served, ['Query', 'authConfig'] as const]) {
+    const setup = [
+      ['Query', 'authConfig'] as const,
+      ['Query', 'ssoSetup'] as const,
+      ...SSO_MUTATIONS.map((name) => ['Mutation', name] as const),
+    ];
+    for (const [rootName, name] of [...served, ...setup]) {
+      // Served, as well as allowed.
+      const root = rootName === 'Query' ? schema.getQueryType() : schema.getMutationType();
+      expect(Object.keys(root?.getFields() ?? {})).toContain(name);
       expect(rules(rootName, name), name).toBe(accept);
     }
   });
