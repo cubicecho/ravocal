@@ -102,6 +102,14 @@ describe("computeVoteSlots", () => {
       expect(startsOf(slots)).toEqual([1]);
     });
 
+    it("keeps a window that meets the threshold exactly where floats would round over it", () => {
+      // 7 / 25 is exactly 28%, but 0.28 * 25 is 7.000000000000001 in floats.
+      const userIds = Array.from({ length: 25 }, (_, index) => `m${index}`);
+      const blocks = userIds.slice(0, 7).map((userId) => block(userId, 0, 1));
+      const slots = computeVoteSlots(membersOf(...userIds), blocks, 28, false);
+      expect(startsOf(slots)).toEqual([0]);
+    });
+
     it("orders by most members free, then earliest", () => {
       const slots = computeVoteSlots(
         membersOf(ALICE, BOB, CAROL),
