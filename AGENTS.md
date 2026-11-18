@@ -123,7 +123,7 @@ ravocal/
 │   └── voting.md            # Overlap algorithm + ranked-choice tallying
 ├── .github/
 │   ├── workflows/ci.yml     # check, postgres, boot (see CI below)
-│   ├── workflows/release.yml # semantic-release, then the image to Docker Hub and GHCR (by hand for now)
+│   ├── workflows/release.yml # On push to main: semantic-release, then the image to GHCR
 │   ├── scripts/boot-smoke.sh # What the boot job asks of a running instance
 │   └── dependabot.yml       # npm, github-actions, docker
 ├── Dockerfile               # node:26-slim, production dependencies only, USER node, HEALTHCHECK on /healthz
@@ -213,7 +213,7 @@ npm run check:data-migrations -w db  # On an EMPTY database in DATABASE_URL: dat
 
 The image (`Dockerfile`) is the only deliverable. The builder stage runs `npm ci`, codegen and the Vite build; the runtime stage is `node:26-slim` with only the db and server workspaces' production dependencies, their sources without `__tests__` or `*.test.ts`, `db/drizzle` and the built `app/dist`. It runs as `USER node` and writes nothing to disk (all data is in Postgres), so it needs no volume. `CMD` is exec form so node is PID 1 and gets SIGTERM; `HEALTHCHECK` fetches `/healthz` every 2s while booting and every 30s after. Keep `.dockerignore` in step with anything new at the root that the build doesn't need.
 
-`docker-compose.yml` is the self-host install: `vantreeseba/ravocal:latest` plus `postgres:17-alpine` with the `ravocal_pgdata` volume and a `pg_isready` healthcheck, the app waiting for a healthy Postgres. Postgres has no published port. Every server variable is passed through from `.env`, empty when unset, so the server's own defaults apply; only `BETTER_AUTH_SECRET` is required. It has no `build:`, so the file works on its own, downloaded beside a `.env`; to run a local build, `docker build -t vantreeseba/ravocal:latest .` first. Migrations run at boot, so `docker compose up` on a fresh volume is the whole install.
+`docker-compose.yml` is the self-host install: `ghcr.io/cubicecho/ravocal:latest` plus `postgres:17-alpine` with the `ravocal_pgdata` volume and a `pg_isready` healthcheck, the app waiting for a healthy Postgres. Postgres has no published port. Every server variable is passed through from `.env`, empty when unset, so the server's own defaults apply; only `BETTER_AUTH_SECRET` is required. It has no `build:`, so the file works on its own, downloaded beside a `.env`; to run a local build, `docker build -t ghcr.io/cubicecho/ravocal:latest .` first. Migrations run at boot, so `docker compose up` on a fresh volume is the whole install.
 
 `docker-compose.dev.yml` (project `ravocal-dev`) is development only: Postgres on 5436 and Mailpit on 1036/8036.
 
@@ -246,16 +246,17 @@ A new variable goes in `config.ts`, `.env.example`, `docker-compose.yml`'s `envi
 
 - **`check`**: `npm ci`, codegen, `biome ci .`, `check:types`, `npm test`, `npm run build`.
 - **`postgres`**: two `postgres:17-alpine` services. On the first, `db:migrate` from empty, `drizzle-kit check`, and `db:generate`, which must leave `db/drizzle` unchanged. On the second, `check:data-migrations` (`docs/database.md`).
-- **`boot`**: builds the image with Buildx (GHA cache) and loads it as `vantreeseba/ravocal:latest`, then `docker compose up --pull never --wait` with a generated `BETTER_AUTH_SECRET`. `.github/scripts/boot-smoke.sh` checks `/healthz`, an anonymous `{ groups { id } }` answering `UNAUTHENTICATED`, `{ authConfig { magicLink } }` and `GET /` serving the app; then `docker compose stop` must leave the server's exit code 0.
+- **`boot`**: builds the image with Buildx (GHA cache) and loads it as `ghcr.io/cubicecho/ravocal:latest`, then `docker compose up --pull never --wait` with a generated `BETTER_AUTH_SECRET`. `.github/scripts/boot-smoke.sh` checks `/healthz`, an anonymous `{ groups { id } }` answering `UNAUTHENTICATED`, `{ authConfig { magicLink } }` and `GET /` serving the app; then `docker compose stop` must leave the server's exit code 0.
 
 Run the smoke script against any instance: `.github/scripts/boot-smoke.sh http://localhost:3001`.
 
 ## Release
 
-`.github/workflows/release.yml` runs semantic-release (`.releaserc.json`): commit-analyzer, release notes, `CHANGELOG.md`, `@semantic-release/npm` with `npmPublish: false` (so the root `package.json` version, which `/healthz` reports, follows the release), the GitHub release, and a `chore(release): X.Y.Z [skip ci]` commit. A dry run first decides whether there is a version at all; only then does it build the image from the bumped tree and push `<DOCKERHUB_USERNAME>/ravocal` and `ghcr.io/<repo>`, each as `X.Y.Z` and `latest`.
+`.github/workflows/release.yml` runs semantic-release (`.releaserc.json`): commit-analyzer, release notes, `CHANGELOG.md`, `@semantic-release/npm` with `npmPublish: false` (so the root `package.json` version, which `/healthz` reports, follows the release), the GitHub release, and a `chore(release): X.Y.Z [skip ci]` commit. A dry run first decides whether there is a version at all; only then does it build the image from the bumped tree and push `ghcr.io/cubicecho/ravocal` as `X.Y.Z` and `latest`, labelled with the version and the release commit (the Dockerfile labels `org.opencontainers.image.source`, which links the package to the repo).
 
-- **Trigger:** `workflow_dispatch` only, on `main`, until the user decides releases go out on every push. The comment at the top of the workflow gives the one-line change (`push: { branches: [main] }`).
-- **Secrets:** `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`. GHCR uses `GITHUB_TOKEN` (`packages: write`).
+- **Trigger:** every push to `main`, plus `workflow_dispatch` to retry by hand. The job skips the `chore(release):` commit, which GitHub also skips for `[skip ci]` and because `GITHUB_TOKEN` pushes start no workflow.
+- **Secrets:** none. `GITHUB_TOKEN` does it all (`contents`, `issues`, `pull-requests` and `packages: write`). There is no Docker Hub image.
+- The first release is `1.0.0`. The GHCR package must be made public once in its settings, or pulls need a login.
 - Commit types decide the version: `feat` minor, `fix`/`perf` patch, `BREAKING CHANGE` major; `chore`, `docs`, `ci`, `build`, `refactor`, `test` none.
 
 ## Code Style Guidelines

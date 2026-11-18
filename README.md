@@ -30,8 +30,8 @@ anywhere else. To email sign-in links instead, drop that line and set `SMTP_URL`
 - Keep `.env`. Changing `BETTER_AUTH_SECRET` signs everyone out.
 - Your data is in the `ravocal_pgdata` volume, which survives `docker compose down` (but not `down -v`).
 - Upgrade with `docker compose pull && docker compose up -d`. Migrations run on the next boot.
-- The same image is on GitHub's registry as `ghcr.io/cubicecho/ravocal`, with the same tags. Change `image:` in
-  `docker-compose.yml` to pull from there.
+- The image is `ghcr.io/cubicecho/ravocal`, tagged with each release's version as well as `latest`. To stay on one
+  version, change `image:` in `docker-compose.yml` to that tag.
 
 ## Configuration
 
@@ -115,7 +115,7 @@ npm run build      # codegen and the app's Vite build
 own env file, since your development `.env` points at the development database and Mailpit:
 
 ```bash
-docker build -t vantreeseba/ravocal:latest .
+docker build -t ghcr.io/cubicecho/ravocal:latest .
 printf 'BETTER_AUTH_SECRET=%s\nSECURE_LOCAL_NET=true\n' "$(openssl rand -hex 32)" > .env.compose
 docker compose --env-file .env.compose up -d --wait
 ```
@@ -132,18 +132,17 @@ Every push to `main` and every pull request runs three jobs (`.github/workflows/
 
 ## Releases
 
-Releases are cut by [semantic-release](https://semantic-release.gitbook.io) from the conventional commit messages
-on `main`. A `feat:` makes a minor version, a `fix:` or `perf:` a patch, and a `BREAKING CHANGE:` footer a major.
-`chore:`, `docs:`, `ci:`, `build:`, `refactor:` and `test:` make none. The release workflow
-(`.github/workflows/release.yml`):
+Every push to `main`, a merged pull request included, runs the release workflow (`.github/workflows/release.yml`).
+[semantic-release](https://semantic-release.gitbook.io) reads the conventional commit messages since the last
+release. A `feat:` makes a minor version, a `fix:` or `perf:` a patch, and a `BREAKING CHANGE:` footer a major.
+`chore:`, `docs:`, `ci:`, `build:`, `refactor:` and `test:` make none, so a push carrying only those releases
+nothing. When there is a version, the workflow:
 
-1. Works out the next version, and stops when there isn't one.
-2. Tags `vX.Y.Z`, writes the GitHub release and `CHANGELOG.md`, and commits the changelog and the version in
-   `package.json` back to `main` (`chore(release): X.Y.Z [skip ci]`).
-3. Builds the image and pushes it to Docker Hub (`vantreeseba/ravocal`) and GHCR (`ghcr.io/cubicecho/ravocal`),
-   tagged `X.Y.Z` and `latest`.
+1. Tags `vX.Y.Z`, writes the GitHub release and `CHANGELOG.md`, and commits the changelog and the version in
+   `package.json` back to `main` (`chore(release): X.Y.Z [skip ci]`, which doesn't start another release).
+2. Builds the image and pushes it to GHCR as `ghcr.io/cubicecho/ravocal`, tagged `X.Y.Z` and `latest`.
 
-For now it runs only by hand: **Actions > Release > Run workflow** on `main`. It needs the repository secrets
-`DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` (a Docker Hub access token). GHCR uses the workflow's own token. To
-release on every push to `main`, change the workflow's trigger. The comment at the top of `release.yml` gives the
-one line.
+It needs no secrets: the workflow's own `GITHUB_TOKEN` pushes the tag, the commit and the image. The first run cuts
+`1.0.0`. After it, make the package public once, in its settings on GitHub (**Package settings > Change
+visibility**), so `docker compose pull` works without signing in. **Actions > Release > Run workflow** on `main`
+reruns it by hand.
