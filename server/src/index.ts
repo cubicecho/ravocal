@@ -1,3 +1,5 @@
+import './core/preflight.ts';
+
 import { createServer } from 'node:http';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,14 +21,6 @@ const PORT = port();
 const DEFAULT_POSTGRES_PORT = '5432';
 /** How long shutdown may take in all before a hard exit. Under Docker's 10 s stop grace period. */
 const SHUTDOWN_DEADLINE_MS = 8000;
-
-if (
-  process.env.NODE_ENV === 'production' &&
-  (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'dev-secret-change-in-production')
-) {
-  console.error('FATAL: JWT_SECRET must be set to a strong random value in production.');
-  process.exit(1);
-}
 
 try {
   await waitForDatabase(db, { connectTimeoutMs: dbConnectTimeoutMs() });

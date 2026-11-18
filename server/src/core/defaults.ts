@@ -18,12 +18,15 @@ export interface AuthSettings {
   magicLinkTtlMinutes: number;
   /** Random bytes in a sign-in or invite token. */
   tokenBytes: number;
+  /** Shortest signing secret production accepts, in characters. `openssl rand -hex 32` gives twice this. */
+  minSecretLength: number;
 }
 
 export const AUTH_DEFAULTS: Readonly<AuthSettings> = Object.freeze({
   sessionTtlDays: 30,
   magicLinkTtlMinutes: 15,
   tokenBytes: 32,
+  minSecretLength: 32,
 });
 
 /** Limits on a group and its invites. */

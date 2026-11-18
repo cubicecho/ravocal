@@ -1,11 +1,13 @@
 // Getters, not constants, so a test (or a reload) sees the current environment.
 import { DATABASE_DEFAULTS } from '@cubicecho/ravocal-db/defaults';
-import { EMAIL_DEFAULTS, HTTP_DEFAULTS } from './defaults.ts';
+import { AUTH_DEFAULTS, EMAIL_DEFAULTS, HTTP_DEFAULTS } from './defaults.ts';
 
 const NODE_ENV_PRODUCTION = 'production';
 
 /** What signs session tokens when `JWT_SECRET` is unset. Preflight refuses it in production. */
 export const DEV_SECRET = 'dev-secret-change-in-production';
+/** The value `.env.example` ships. Public, so as good as no secret at all. */
+export const PLACEHOLDER_SECRET = 'change-me-to-a-long-random-string';
 
 /**
  * Reads a positive number.
@@ -65,6 +67,25 @@ export const dbConnectTimeoutMs = (): number =>
  * @returns `JWT_SECRET`, or undefined when it is unset or empty.
  */
 export const configuredJwtSecret = (): string | undefined => envString(process.env.JWT_SECRET);
+
+/**
+ * Why `secret` must not sign production tokens, or undefined when it may.
+ *
+ * @param secret - `JWT_SECRET` as set.
+ * @returns The reason, as the end of a sentence ("is not set").
+ */
+export function describeWeakSecret(secret: string | undefined): string | undefined {
+  if (secret === undefined || secret === '') {
+    return 'is not set';
+  }
+  if (secret === DEV_SECRET || secret === PLACEHOLDER_SECRET) {
+    return 'is a published default';
+  }
+  if (secret.length < AUTH_DEFAULTS.minSecretLength) {
+    return `is shorter than ${AUTH_DEFAULTS.minSecretLength} characters`;
+  }
+  return undefined;
+}
 
 /**
  * What session tokens are signed and checked with.
