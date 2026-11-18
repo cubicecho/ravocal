@@ -15,7 +15,6 @@
     "@escape.tech/graphql-armor-max-aliases": "^2.6.2",
     "@escape.tech/graphql-armor-max-depth": "^2.4.2",
     "@escape.tech/graphql-armor-max-tokens": "^2.5.1",
-    "@graphql-tools/schema": "^10.0.7",
     "@vantreeseba/drizzle-graphql": "^19.0.0",
     "@vantreeseba/graphql-casl": "^1.11.0",
     "better-auth": "^1.7.25",
