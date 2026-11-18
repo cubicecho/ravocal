@@ -1,3 +1,13 @@
+## [1.3.1](https://github.com/cubicecho/ravocal/compare/v1.3.0...v1.3.1) (2026-11-18)
+
+### Bug Fixes
+
+* **auth:** give up on Facebook's profile after AUTH_DEFAULTS.providerTimeoutMs ([fbad51a](https://github.com/cubicecho/ravocal/commit/fbad51a428a57cad1f42f8d860142f6145de6fe2))
+* **sso:** add the one-time token only to a redirect on the app's origin ([d35e25a](https://github.com/cubicecho/ravocal/commit/d35e25a6720e54fcaae4c64a08b45789abf18a4e))
+* **sso:** follow no redirect while pairing ([b3693f2](https://github.com/cubicecho/ravocal/commit/b3693f2cffd9ee0a17ab9bb8e472b78eedd3c7be))
+* **sso:** refuse a public http:// issuer in production ([687f659](https://github.com/cubicecho/ravocal/commit/687f659a5ecfe0e3ebc1a2691e775953c606196b))
+* **sso:** throttle pairSso and unpairSso ([27fa939](https://github.com/cubicecho/ravocal/commit/27fa9396c6658dc6f49942f7704255f9603a09d0))
+
 # [1.3.0](https://github.com/cubicecho/ravocal/compare/v1.2.0...v1.3.0) (2026-11-18)
 
 ### Features
