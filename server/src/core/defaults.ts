@@ -85,6 +85,12 @@ export interface AuthSettings {
    * travels in a URL.
    */
   oneTimeTokenTtlMinutes: number;
+  /** What the login page's button calls an OIDC provider that gives no name of its own. `OIDC_NAME` overrides it. */
+  oidcName: string;
+  /** How a confidential OIDC client sends its secret when `OIDC_CLIENT_AUTH` is unset. */
+  oidcClientAuth: 'client_secret_basic' | 'client_secret_post';
+  /** How long pairing waits on each call to the provider (discovery, registration, deletion). */
+  oidcPairingTimeoutMs: number;
 }
 
 export const AUTH_DEFAULTS: Readonly<AuthSettings> = Object.freeze({
@@ -93,6 +99,9 @@ export const AUTH_DEFAULTS: Readonly<AuthSettings> = Object.freeze({
   minSecretLength: 32,
   secureLocalNet: false,
   oneTimeTokenTtlMinutes: 3,
+  oidcName: 'SSO',
+  oidcClientAuth: 'client_secret_basic',
+  oidcPairingTimeoutMs: 10_000,
 });
 
 /** Limits on what a user may call themselves. */

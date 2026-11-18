@@ -1,8 +1,9 @@
 import type { BetterAuthOptions } from 'better-auth';
 
-// An account whose address nobody has proven (made by a Facebook sign-in, or by a Google one Google had not checked)
-// may have been made by someone who does not own the address, to wait for its owner. So the first time the address is
-// proven, by a magic link or a Google sign-in that Google checked, every way in the account had before stops working:
+// An account whose address nobody has proven (made by a Facebook sign-in, or by a Google or OIDC one its provider had
+// not checked) may have been made by someone who does not own the address, to wait for its owner. So the first time the
+// address is proven, by a magic link or a provider sign-in whose provider checked it, every way in the account had
+// before stops working:
 // its sessions, and every provider account but the one proving it. A provider connected after that, from Settings, was
 // connected by a session that had proven the address, and is kept, because the address is never proven a second time.
 // SECURE_LOCAL_NET proves nothing and never sets emailVerified.

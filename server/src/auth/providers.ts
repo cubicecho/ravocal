@@ -1,10 +1,12 @@
 import { getOAuthState } from 'better-auth/api';
 import { type GenericOAuthConfig, genericOAuth } from 'better-auth/plugins';
-import { type ProviderConfig, ProviderId } from '../core/config.ts';
+import { type ClientProviderConfig, type OidcProviderConfig, type ProviderConfig, ProviderId } from '../core/config.ts';
 
 // Google and Facebook through better-auth's generic OAuth plugin rather than its built-in social providers, whose
 // endpoints are fixed: here each provider's endpoints are an argument, so the tests run the whole sign-in against a
-// stand-in on a loopback port. better-auth still runs the flow (state, PKCE, the id token, the account rows).
+// stand-in on a loopback port. better-auth still runs the flow (state, PKCE, the id token, the account rows). The
+// instance's own OIDC provider (OIDC_ISSUER, or a pairing: sso/settings.ts) goes through the same plugin, found by its
+// issuer's discovery document.
 
 /** Where each provider is reached. */
 export interface ProviderEndpoints {
@@ -54,7 +56,7 @@ async function isLinking(): Promise<boolean> {
  * @param endpoints - Where Google is.
  * @returns The plugin's configuration for Google.
  */
-function google(provider: ProviderConfig, endpoints: ProviderEndpoints): GenericOAuthConfig {
+function google(provider: ClientProviderConfig, endpoints: ProviderEndpoints): GenericOAuthConfig {
   return {
     providerId: provider.id,
     name: provider.name,
@@ -92,7 +94,7 @@ function isTrue(claim: unknown): boolean {
  * @param endpoints - Where Facebook is.
  * @returns The plugin's configuration for Facebook.
  */
-function facebook(provider: ProviderConfig, endpoints: ProviderEndpoints): GenericOAuthConfig {
+function facebook(provider: ClientProviderConfig, endpoints: ProviderEndpoints): GenericOAuthConfig {
   return {
     providerId: provider.id,
     name: provider.name,
@@ -123,13 +125,68 @@ function facebook(provider: ProviderConfig, endpoints: ProviderEndpoints): Gener
   };
 }
 
-/** How each provider is configured, by id. */
-const PROVIDER_PLUGIN_CONFIG: Readonly<
-  Record<ProviderId, (provider: ProviderConfig, endpoints: ProviderEndpoints) => GenericOAuthConfig>
-> = Object.freeze({
-  [ProviderId.Google]: google,
-  [ProviderId.Facebook]: facebook,
-});
+/**
+ * Reads a claim that should be text.
+ *
+ * @param claim - The claim as the provider sent it.
+ * @returns The text, or undefined when it is missing, blank or not a string.
+ */
+function textClaim(claim: unknown): string | undefined {
+  return typeof claim === 'string' && claim.trim() !== '' ? claim : undefined;
+}
+
+/**
+ * The instance's own OpenID Connect provider, through its issuer's discovery document. Its id token is verified
+ * against the issuer's keys, and PKCE binds the code to the sign-in.
+ *
+ * @remarks
+ * Trusted no more than Google: an address signs in to the account that has it only when the provider's own
+ * `email_verified` claim says it checked it, and a missing claim counts as unchecked.
+ *
+ * @param provider - The client: from the environment, or the one pairing registered.
+ * @returns The plugin's configuration for it.
+ */
+function oidc(provider: OidcProviderConfig): GenericOAuthConfig {
+  return {
+    providerId: provider.id,
+    name: provider.name,
+    discoveryUrl: `${provider.issuer}/.well-known/openid-configuration`,
+    requireIdTokenVerification: true,
+    clientId: provider.clientId,
+    clientSecret: provider.clientSecret,
+    // A public client has no secret to send, and proves itself with PKCE alone.
+    tokenEndpointAuth: { method: provider.clientSecret === undefined ? 'none' : provider.clientAuth },
+    pkce: true,
+    scopes: ['openid', 'profile', 'email'],
+    // A provider may release only a username, or no name at all: then the address's local part.
+    mapProfileToUser: (profile) => ({
+      name:
+        textClaim(profile.name) ??
+        textClaim(profile.preferred_username) ??
+        textClaim(profile.email)?.split('@')[0] ??
+        '',
+      emailVerified: isTrue(profile.email_verified),
+    }),
+  };
+}
+
+/**
+ * Configures one provider.
+ *
+ * @param provider - The provider.
+ * @param endpoints - Where Google and Facebook are. The OIDC provider is found by its issuer.
+ * @returns The plugin's configuration for it.
+ */
+function pluginConfig(provider: ProviderConfig, endpoints: ProviderEndpoints): GenericOAuthConfig {
+  switch (provider.id) {
+    case ProviderId.Google:
+      return google(provider, endpoints);
+    case ProviderId.Facebook:
+      return facebook(provider, endpoints);
+    case ProviderId.Oidc:
+      return oidc(provider);
+  }
+}
 
 /**
  * Registers the providers with better-auth, which then serves them through its own `signInSocial`, `linkSocialAccount`
@@ -141,6 +198,6 @@ const PROVIDER_PLUGIN_CONFIG: Readonly<
  */
 export function providersPlugin(providers: readonly ProviderConfig[], endpoints: ProviderEndpoints) {
   return genericOAuth({
-    config: providers.map((provider) => PROVIDER_PLUGIN_CONFIG[provider.id](provider, endpoints)),
+    config: providers.map((provider) => pluginConfig(provider, endpoints)),
   });
 }

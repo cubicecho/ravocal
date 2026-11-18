@@ -3,6 +3,8 @@ import {
   DEV_SECRET,
   describeWeakSecret,
   halfSetProviders,
+  oidcConfig,
+  oidcConfigProblems,
   PLACEHOLDER_SECRET,
   ProviderId,
   providerConfigs,
@@ -102,5 +104,58 @@ describe('providerConfigs', () => {
     expect(providerConfigs()).toEqual([]);
     const [problem] = halfSetProviders();
     expect(problem).toContain(`${set} is set but ${missing} is not`);
+  });
+});
+
+describe('oidcConfig', () => {
+  it('is null, and preflight finds nothing wrong, with neither OIDC_ISSUER nor OIDC_CLIENT_ID', () => {
+    expect(oidcConfig()).toBeNull();
+    expect(oidcConfigProblems()).toEqual([]);
+  });
+
+  it('reads a public client with the defaults, the issuer without its trailing slash', () => {
+    vi.stubEnv('OIDC_ISSUER', 'https://id.example.com/oidc/');
+    vi.stubEnv('OIDC_CLIENT_ID', ' ravocal ');
+    expect(oidcConfig()).toEqual({
+      issuer: 'https://id.example.com/oidc',
+      clientId: 'ravocal',
+      clientSecret: undefined,
+      clientAuth: AUTH_DEFAULTS.oidcClientAuth,
+      name: AUTH_DEFAULTS.oidcName,
+    });
+    expect(oidcConfigProblems()).toEqual([]);
+  });
+
+  it('reads a confidential client, how it sends its secret, and its name', () => {
+    vi.stubEnv('OIDC_ISSUER', 'https://id.example.com/oidc');
+    vi.stubEnv('OIDC_CLIENT_ID', 'ravocal');
+    vi.stubEnv('OIDC_CLIENT_SECRET', 'shh');
+    vi.stubEnv('OIDC_CLIENT_AUTH', 'client_secret_post');
+    vi.stubEnv('OIDC_NAME', 'Corp SSO');
+    expect(oidcConfig()).toMatchObject({ clientSecret: 'shh', clientAuth: 'client_secret_post', name: 'Corp SSO' });
+  });
+
+  it.each([
+    ['OIDC_ISSUER', 'https://id.example.com/oidc', 'OIDC_CLIENT_ID'],
+    ['OIDC_CLIENT_ID', 'ravocal', 'OIDC_ISSUER'],
+  ])('is off, and preflight names what is missing, when only %s is set', (set, value, missing) => {
+    vi.stubEnv(set, value);
+    expect(oidcConfig()).toBeNull();
+    expect(oidcConfigProblems()).toEqual([expect.stringContaining(`${set} is set but ${missing} is not`)]);
+  });
+
+  it.each(['id.example.com', 'ftp://id.example.com/oidc'])('has preflight refuse the issuer %s', (issuer) => {
+    vi.stubEnv('OIDC_ISSUER', issuer);
+    vi.stubEnv('OIDC_CLIENT_ID', 'ravocal');
+    expect(oidcConfigProblems()).toEqual([expect.stringContaining('is not an http(s) URL')]);
+  });
+
+  it('has preflight refuse a client auth it does not know', () => {
+    vi.stubEnv('OIDC_ISSUER', 'https://id.example.com/oidc');
+    vi.stubEnv('OIDC_CLIENT_ID', 'ravocal');
+    vi.stubEnv('OIDC_CLIENT_AUTH', 'private_key_jwt');
+    expect(oidcConfigProblems()).toEqual([
+      expect.stringContaining('OIDC_CLIENT_AUTH (private_key_jwt) must be one of'),
+    ]);
   });
 });
