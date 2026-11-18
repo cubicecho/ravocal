@@ -1,0 +1,28 @@
+version: 2
+updates:
+  # One lockfile at the root covers the app, server and db workspaces.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      # drizzle-orm and drizzle-kit are one release candidate together (package.json overrides), so they move as one.
+      drizzle:
+        patterns: ["drizzle-orm", "drizzle-kit"]
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  # Keeps action majors from drifting.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+
+  # node:26-slim in the Dockerfile. Node's major is the contract with CI and package.json's engines, so it moves by hand.
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
