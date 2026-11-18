@@ -48,6 +48,22 @@ export const OPERATION_LIMIT_DEFAULTS: Readonly<OperationLimitSettings> = Object
   defaultFieldCost: 1,
 });
 
+/** The sign-in throttle. */
+export interface RateLimitSettings {
+  /** Attempts allowed per key inside one window. */
+  maxAttempts: number;
+  /** How long an attempt counts against its key. */
+  windowMinutes: number;
+  /** Past this many keys, a hit sweeps out the ones whose window has passed. */
+  sweepAtKeys: number;
+}
+
+export const RATE_LIMIT_DEFAULTS: Readonly<RateLimitSettings> = Object.freeze({
+  maxAttempts: 5,
+  windowMinutes: 15,
+  sweepAtKeys: 10_000,
+});
+
 /** Sign-in and credential settings. */
 export interface AuthSettings {
   /** How long a session token works after sign-in. Long: there is no password to fall back on. */
