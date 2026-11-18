@@ -12,7 +12,7 @@ import { AUTH_DEFAULTS } from '../../core/defaults.ts';
 import { ErrorCode } from '../../core/errors.ts';
 import { MS_PER_MINUTE } from '../../core/wire.ts';
 import { createApp } from '../../http/app.ts';
-import { SsoError } from '../../http/sso.ts';
+import { appRedirect, SsoError } from '../../http/sso.ts';
 import {
   bearer,
   closeTestDb,
@@ -469,6 +469,29 @@ describe('the start and callback routes', () => {
       expect(`${location.origin}${location.pathname}`).toBe(`${appUrl}/login`);
       expect(location.searchParams.get('error')).toBe(SsoError.Off);
     }
+  });
+});
+
+describe('appRedirect', () => {
+  it.each(['/auth/sso', '/auth/sso?x=1'])('resolves %s against the app', (location) => {
+    expect(appRedirect(location)?.toString()).toBe(new URL(location, appUrl).toString());
+  });
+
+  it('keeps an absolute URL on the app', () => {
+    expect(appRedirect(`${appUrl}/auth/sso`)?.origin).toBe(appUrl);
+  });
+
+  it.each(['https://evil.example.com/auth/sso', '//evil.example.com/auth/sso', 'javascript:alert(1)'])(
+    'refuses %s, which is not on the app',
+    (location) => {
+      expect(appRedirect(location)).toBeNull();
+    },
+  );
+
+  it("refuses the app's host on another scheme or port", () => {
+    const app = new URL(appUrl);
+    expect(appRedirect(`https://${app.host}/auth/sso`)).toBeNull();
+    expect(appRedirect(`http://${app.hostname}:1/auth/sso`)).toBeNull();
   });
 });
 
