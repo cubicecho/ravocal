@@ -9,6 +9,9 @@ const config: CodegenConfig = {
         inputMaybeValue: "T | undefined",
         contextType: "../context.ts#Context",
         avoidOptionals: { field: true },
+        // verbatimModuleSyntax and erasableSyntaxOnly: type imports, and unions instead of enums.
+        useTypeImports: true,
+        enumsAsTypes: true,
         scalars: {
           DateTime: "string",
         },
