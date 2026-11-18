@@ -42,7 +42,7 @@ export function applyVoteResolvers(
     if (!group) throw new Error(`Group ${args.groupId} not found`);
     if (group.ownerId !== ctx.userId) throw new Error("Forbidden");
 
-    const slots = computeVoteSlots(group.members, group.timeBlocks, 0, true);
+    const slots = computeVoteSlots(group.members, group.timeBlocks, 0, true, group.ownerId);
     if (slots.length === 0) throw new Error("No time blocks have been submitted yet.");
     return createVote(ctx, args.groupId, group, slots, true);
   };
