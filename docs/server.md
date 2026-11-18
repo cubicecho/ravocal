@@ -32,6 +32,7 @@ graphql-yoga 5 on Express 5, running TypeScript directly (Node 26 strips types w
 | `graphql/operation-limits.ts` | `useOperationLimits`: depth, aliases and cost |
 | `auth/better-auth.ts` | `createAuth(db, opts)`: better-auth on Drizzle with the `bearer`, `oneTimeToken`, providers and `magicLink` plugins, and the account-linking rules; `sendsMagicLinks`, `nonSessionCookies`, `sessionUserId` |
 | `auth/auth-host.ts` | `createAuthHost(db, opts)` and `fixedAuthHost(auth, providers)`: the current auth instance, which providers it offers, and `rebuild()` |
+| `auth/unproven-access.ts` | `revokeUnprovenAccess`: the database hooks that end an account's unproven sessions and provider links when its address is first proven |
 | `auth/providers.ts` | `providersPlugin`: Google and Facebook through better-auth's `genericOAuth`, and `PROVIDER_ENDPOINTS`, where each is reached |
 | `auth/endpoints.ts` | `applyBetterAuthExtension`: better-auth's endpoints (`BETTER_AUTH_OPERATIONS`) as GraphQL fields, with Ravocal's `around`s |
 | `auth/resolvers.ts` | `applyAuthExtension`: `authConfig` |
@@ -170,8 +171,11 @@ Sign-in links expire in `AUTH_DEFAULTS.magicLinkTtlMinutes` (15) and work once. 
 
 Linking by address (`account.accountLinking` in `auth/better-auth.ts`):
 
-- **Google is trusted.** A Google-verified address signs in to the account that has it, even one made under `SECURE_LOCAL_NET` that nobody confirmed, and confirms it.
-- **Facebook is not.** Its profile is never counted as a checked address, so a Facebook sign-in whose address an account already has is refused as `account_not_linked`; the reader signs in by email and connects Facebook in Settings. A new address makes a new account, with the address unconfirmed. No address at all is `email_not_found`.
+- **No provider is trusted by name.** A sign-in reaches the account that has its address only when the provider says it checked the address.
+- **Google** passes its own `email_verified` claim through. A Google-checked address signs in to the account that has it, even one made under `SECURE_LOCAL_NET` that nobody confirmed, and confirms it. An unchecked one that an account already has is refused as `account_not_linked`.
+- **Facebook** never counts as checking an address, so a Facebook sign-in whose address an account already has is refused as `account_not_linked`; the reader signs in by email and connects Facebook in Settings.
+- A new address makes a new account, with the address unconfirmed. No address at all is `email_not_found`.
+- **The first proof of an address** (a magic link, or a Google sign-in Google checked; `SECURE_LOCAL_NET` proves nothing) ends every session the account had and deletes every provider account but the one proving it (`auth/unproven-access.ts`: better-auth database hooks that see the proof wherever better-auth confirms an address; the magic link also does it itself, `revokeUnprovenAccountAccess`). So whoever made an account with someone else's address keeps no way in once its owner arrives. A provider connected from Settings after the proof is kept: an address is proven only once. Group memberships are not touched.
 - **Connecting in Settings** is `linkSocialAccount(provider)` over GraphQL, as the signed-in reader. Its `around` points the provider back at `/settings`, and puts the state cookie on the GraphQL response (`ctx.setCookie`). The callback then links the provider to that reader, whatever address it has. Facebook's profile counts as checked only here, where `getOAuthState()` says the callback finishes a link, because better-auth links only trusted or checked providers.
 - **Disconnecting** is `unlinkAccount(accountId)`. It is refused as `BAD_USER_INPUT` when it would leave no provider this instance offers connected and no email way in (a confirmed address while links are sent, or `SECURE_LOCAL_NET`). better-auth also wants a session from the last day (`session.freshAge`); an older one is asked to sign in again.
 - `listUserAccounts` lists the providers connected.
@@ -190,7 +194,7 @@ Rate limit: `signInMagicLink`, `magicLinkVerify` and `verifyOneTimeToken` call `
 - `__tests__/auth/endpoints.test.ts`: sign-in, verify, bad links as `BAD_USER_INPUT`, sign-out, sessions, `SECURE_LOCAL_NET` and `authConfig`
 - `__tests__/auth/rate-limit.test.ts`: the limiter's window, and the sixth sign-in refused by address and by email
 - `__tests__/http/app.test.ts`: the real `createApp` over HTTP against PGlite: health, the body cap, the operation limits (with introspection and every document in `app/src` let through), masking, the SPA and CORS
-- `__tests__/http/sso.test.ts`: Google and Facebook sign-in through the real app over HTTP, against a stand-in for both on a loopback port (`http/fixtures/fake-provider.ts`: discovery, a JWKS from jose, a token endpoint checking the client secret and PKCE, a Graph-style `/me`). The one-time token, linking by address, connecting and disconnecting, `sso_off`, `authConfig.providers` and `AuthHost.rebuild()`
+- `__tests__/http/sso.test.ts`: Google and Facebook sign-in through the real app over HTTP, against a stand-in for both on a loopback port (`http/fixtures/fake-provider.ts`: discovery, a JWKS from jose, a token endpoint checking the client secret and PKCE, a Graph-style `/me`). The one-time token, linking by address, the first proof of an address, connecting and disconnecting, `sso_off`, `authConfig.providers` and `AuthHost.rebuild()`
 - `__tests__/http/shutdown.test.ts`: `stopOnSignals` in a child process, sent SIGTERM mid-request
 
 ## Running the Server
