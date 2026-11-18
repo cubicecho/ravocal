@@ -1,36 +1,40 @@
-# Cuts a version from the conventional commits since the last one (semantic-release: a tag, a GitHub release,
-# CHANGELOG.md and package.json's version), then pushes the image to Docker Hub and GHCR as that version and `latest`.
+# On every push to main: cuts a version from the conventional commits since the last one (semantic-release: a tag,
+# a GitHub release, CHANGELOG.md and package.json's version), then pushes the image to GHCR as that version and
+# `latest`. A push whose commits are all chore, docs, ci, build, refactor or test cuts no version and pushes nothing.
 #
-# Required repository secrets (Settings > Secrets and variables > Actions):
-#   DOCKERHUB_USERNAME  the Docker Hub account the image is pushed under (<DOCKERHUB_USERNAME>/ravocal)
-#   DOCKERHUB_TOKEN     a Docker Hub access token with read and write scope, not the account password
-# GHCR needs none: the workflow's own GITHUB_TOKEN pushes ghcr.io/<owner>/<repo>.
-#
-# For now it runs only when started by hand (Actions > Release > Run workflow, on main). To release on every
-# push to main instead, replace the `workflow_dispatch:` line under `on:` with:
-#   push: { branches: [main] }
+# No secrets to set: the workflow's own GITHUB_TOKEN pushes the tag, the release commit and ghcr.io/cubicecho/ravocal.
+# The first time it publishes, make the package public once (the package's settings on GitHub > Change visibility).
 
 name: Release
 
 on:
+  push:
+    branches: [main]
+  # To retry a release by hand (Actions > Release > Run workflow, on main).
   workflow_dispatch:
 
-# Two releases at once would both try to cut the same version.
+# Two releases at once would both try to cut the same version. The second waits for the first.
 concurrency:
   group: release
   cancel-in-progress: false
 
+env:
+  IMAGE: ghcr.io/cubicecho/ravocal
+
 jobs:
   release:
-    # semantic-release releases from main only (.releaserc.json); started on another branch, there is nothing to do.
-    if: github.ref == 'refs/heads/main'
+    # main only (.releaserc.json), and never on the release's own commit. GitHub already skips a `[skip ci]` commit and
+    # a push made with GITHUB_TOKEN; this says so where it can be read.
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      startsWith(github.event.head_commit.message, 'chore(release):') == false
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      contents: write
-      issues: write
-      pull-requests: write
-      packages: write
+      contents: write # the tag, the GitHub release and the chore(release) commit
+      issues: write # @semantic-release/github comments on the issues a release closes
+      pull-requests: write # and on the pull requests it ships
+      packages: write # the image on GHCR
 
     steps:
       - uses: actions/checkout@v7
@@ -60,6 +64,8 @@ jobs:
           if [ -n "$version" ]; then
             semantic-release
             echo "version=$version" >> "$GITHUB_OUTPUT"
+            # The release commit, which the image is built from.
+            echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
             echo "released=true" >> "$GITHUB_OUTPUT"
           else
             echo "released=false" >> "$GITHUB_OUTPUT"
@@ -68,13 +74,6 @@ jobs:
       - name: Set up Docker Buildx
         if: steps.release.outputs.released == 'true'
         uses: docker/setup-buildx-action@v4
-
-      - name: Log in to Docker Hub
-        if: steps.release.outputs.released == 'true'
-        uses: docker/login-action@v4
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Log in to GHCR
         if: steps.release.outputs.released == 'true'
@@ -85,15 +84,18 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Built from the working tree, which semantic-release has just bumped, so /healthz reports the new version.
-      # `latest` as well as the version: docker-compose.yml and the README's quickstart pull it.
-      - name: Build and push to Docker Hub and GHCR
+      # `latest` as well as the version: docker-compose.yml and the README's quickstart pull it. The Dockerfile labels
+      # the image with its source, which links the package to this repository; these add what only a release knows.
+      - name: Build and push to GHCR
         if: steps.release.outputs.released == 'true'
         uses: docker/build-push-action@v7
         with:
           context: .
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/ravocal:${{ steps.release.outputs.version }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/ravocal:latest
-            ghcr.io/${{ github.repository }}:${{ steps.release.outputs.version }}
-            ghcr.io/${{ github.repository }}:latest
+            ${{ env.IMAGE }}:${{ steps.release.outputs.version }}
+            ${{ env.IMAGE }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.release.outputs.version }}
+            org.opencontainers.image.revision=${{ steps.release.outputs.revision }}
