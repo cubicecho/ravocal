@@ -74,6 +74,11 @@ export interface AuthSettings {
   minSecretLength: number;
   /** Whether typing an email signs in, with no link. Unsafe on a public network. `SECURE_LOCAL_NET` overrides it. */
   secureLocalNet: boolean;
+  /**
+   * How long the token a provider's callback hands the app works: the hop from the callback to `/auth/sso`. Short: it
+   * travels in a URL.
+   */
+  oneTimeTokenTtlMinutes: number;
 }
 
 export const AUTH_DEFAULTS: Readonly<AuthSettings> = Object.freeze({
@@ -81,6 +86,7 @@ export const AUTH_DEFAULTS: Readonly<AuthSettings> = Object.freeze({
   magicLinkTtlMinutes: 15,
   minSecretLength: 32,
   secureLocalNet: false,
+  oneTimeTokenTtlMinutes: 3,
 });
 
 /** Limits on a group and its invites. */

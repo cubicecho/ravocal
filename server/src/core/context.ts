@@ -1,4 +1,5 @@
 import type { DB } from '@cubicecho/ravocal-db';
+import type { AuthHost } from '../auth/auth-host.ts';
 import type { Auth } from '../auth/better-auth.ts';
 import type { RateLimiter } from '../auth/rate-limit.ts';
 
@@ -8,8 +9,10 @@ export const UNKNOWN_IP = 'unknown';
 /** Per-request GraphQL context. */
 export interface Context {
   db: DB;
-  /** The better-auth instance serving this request; the auth operations call `auth.api.*` on it. */
+  /** The better-auth instance serving this request, `authHost.current()`; the auth operations call `auth.api.*`. */
   auth: Auth;
+  /** Where the auth instance comes from, and which providers it offers. */
+  authHost: AuthHost;
   /** Sign-in throttle; every sign-in operation calls it first (auth/throttle.ts). */
   limiter: RateLimiter;
   /** Signed-in user, from the request's session, or null. Resolvers call requireAuth(ctx) rather than test this. */
@@ -18,4 +21,9 @@ export interface Context {
   ip: string;
   /** Request headers, where better-auth finds the session (`Authorization: Bearer`). */
   headers: Headers;
+  /**
+   * Adds a `Set-Cookie` to the response. Only the state cookie of a provider link (`linkSocialAccount`) is sent:
+   * sessions are bearer tokens, never cookies.
+   */
+  setCookie: (cookie: string) => void;
 }

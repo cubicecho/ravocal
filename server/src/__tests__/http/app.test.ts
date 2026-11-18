@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import type { Express } from 'express';
 import { getIntrospectionQuery } from 'graphql';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fixedAuthHost } from '../../auth/auth-host.ts';
 import type { Auth } from '../../auth/better-auth.ts';
 import { version } from '../../core/config.ts';
 import { OPERATION_LIMIT_DEFAULTS } from '../../core/defaults.ts';
@@ -125,7 +126,7 @@ describe('app over HTTP', () => {
     auth = createTestAuth(db).auth;
     staticDir = await mkdtemp(join(tmpdir(), 'ravocal-'));
     await writeFile(join(staticDir, 'index.html'), `<!doctype html>${INDEX_MARKER}`);
-    ({ server, base } = await listen(createApp({ db, auth, staticDir })));
+    ({ server, base } = await listen(createApp({ db, authHost: fixedAuthHost(auth), staticDir })));
   });
 
   afterAll(async () => {
@@ -163,7 +164,7 @@ describe('app over HTTP', () => {
     it('answers 503 when the database is closed', async () => {
       const closedDb = await createTestDb();
       await closeTestDb(closedDb);
-      const closed = await listen(createApp({ db: closedDb, auth: createTestAuth(closedDb).auth }));
+      const closed = await listen(createApp({ db: closedDb, authHost: fixedAuthHost(createTestAuth(closedDb).auth) }));
       try {
         const response = await fetch(`${closed.base}/healthz`);
         expect(response.status).toBe(HttpStatus.ServiceUnavailable);

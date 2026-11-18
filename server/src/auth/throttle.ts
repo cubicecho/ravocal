@@ -4,6 +4,7 @@ import type { Context } from '../core/context.ts';
 export const AuthFlow = {
   SignInMagicLink: 'sign-in-magic-link',
   MagicLinkVerify: 'magic-link-verify',
+  VerifyOneTimeToken: 'verify-one-time-token',
 } as const;
 export type AuthFlow = (typeof AuthFlow)[keyof typeof AuthFlow];
 

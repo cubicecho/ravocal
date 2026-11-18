@@ -1,5 +1,6 @@
 import { users, verifications } from '@cubicecho/ravocal-db/schema';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fixedAuthHost } from '../../auth/auth-host.ts';
 import { type Auth, MAGIC_LINK_PATH, type MagicLink, sessionUserId } from '../../auth/better-auth.ts';
 import { createRateLimiter } from '../../auth/rate-limit.ts';
 import { ErrorCode } from '../../core/errors.ts';
@@ -208,7 +209,8 @@ describe('signOut', () => {
     const { signOut } = await client.expectOk(SIGN_OUT);
     expect(signOut).toEqual({ success: true });
 
-    const context = await createContextFactory({ db, auth, limiter: createRateLimiter() })(bearer(token));
+    const createContext = createContextFactory({ db, authHost: fixedAuthHost(auth), limiter: createRateLimiter() });
+    const context = await createContext(bearer(token));
     expect(context.userId).toBeNull();
     const { code } = await createClient(db, context.userId, { auth, headers: bearer(token) }).expectError(MY_GROUPS);
     expect(code).toBe(ErrorCode.Unauthenticated);
