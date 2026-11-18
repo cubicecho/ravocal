@@ -15,7 +15,9 @@
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
     "push": "drizzle-kit push",
-    "studio": "drizzle-kit studio"
+    "studio": "drizzle-kit studio",
+    "check": "drizzle-kit check",
+    "check:data-migrations": "node --env-file-if-exists=../.env scripts/check-data-migrations.ts"
   },
   "dependencies": {
     "drizzle-orm": "1.0.0-rc.5",

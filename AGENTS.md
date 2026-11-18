@@ -106,6 +106,7 @@ ravocal/
 │       └── __tests__/       # The same folders as src; global-setup.ts diffs the models once; helpers.ts boots PGlite per file
 ├── db/                      # Drizzle ORM on Postgres; exports raw .ts, no build step
 │   ├── drizzle/             # Generated migrations (committed)
+│   ├── scripts/check-data-migrations.ts # CI: a data migration's rewrite of existing rows, on a real Postgres
 │   └── src/
 │       ├── models/<table>.ts # One table per file
 │       ├── schema.ts        # Re-exports every model
@@ -120,7 +121,18 @@ ravocal/
 │   ├── graphql.md
 │   ├── frontend.md
 │   └── voting.md            # Overlap algorithm + ranked-choice tallying
+├── .github/
+│   ├── workflows/ci.yml     # check, postgres, boot (see CI below)
+│   ├── workflows/release.yml # On push to main: semantic-release, then the image to GHCR
+│   ├── scripts/boot-smoke.sh # What the boot job asks of a running instance
+│   └── dependabot.yml       # npm, github-actions, docker
+├── Dockerfile               # node:26-slim, production dependencies only, USER node, HEALTHCHECK on /healthz
+├── docker-compose.yml       # The self-host install: the image and Postgres
 ├── docker-compose.dev.yml   # Dev Postgres and Mailpit for `npm run db:up`
+├── .env.example             # Every variable, described once, grouped
+├── .releaserc.json          # semantic-release's plugins (CHANGELOG.md, package.json's version)
+├── README.md                # For people running it: quickstart, configuration, sign-in methods, releases
+├── CLAUDE.md -> AGENTS.md
 ├── tsconfig.base.json       # Every package's tsconfig extends it
 ├── vitest.config.ts
 ├── biome.json               # With the no-negation.grit plugin beside it
@@ -193,7 +205,59 @@ npm run db:generate      # Generate a migration after a model change; commit db/
 npm run db:migrate       # Run pending migrations (the server also does this on boot)
 npm run db:push          # Push schema directly (throwaway experiments only)
 npm run db:studio        # Drizzle Studio GUI
+npm run check -w db      # drizzle-kit check: the migration snapshots are consistent
+npm run check:data-migrations -w db  # On an EMPTY database in DATABASE_URL: data migrations rewrite rows right
 ```
+
+## Deployment
+
+The image (`Dockerfile`) is the only deliverable. The builder stage runs `npm ci`, codegen and the Vite build; the runtime stage is `node:26-slim` with only the db and server workspaces' production dependencies, their sources without `__tests__` or `*.test.ts`, `db/drizzle` and the built `app/dist`. It runs as `USER node` and writes nothing to disk (all data is in Postgres), so it needs no volume. `CMD` is exec form so node is PID 1 and gets SIGTERM; `HEALTHCHECK` fetches `/healthz` every 2s while booting and every 30s after. Keep `.dockerignore` in step with anything new at the root that the build doesn't need.
+
+`docker-compose.yml` is the self-host install: `ghcr.io/cubicecho/ravocal:latest` plus `postgres:17-alpine` with the `ravocal_pgdata` volume and a `pg_isready` healthcheck, the app waiting for a healthy Postgres. Postgres has no published port. Every server variable is passed through from `.env`, empty when unset, so the server's own defaults apply; only `BETTER_AUTH_SECRET` is required. It has no `build:`, so the file works on its own, downloaded beside a `.env`; to run a local build, `docker build -t ghcr.io/cubicecho/ravocal:latest .` first. Migrations run at boot, so `docker compose up` on a fresh volume is the whole install.
+
+`docker-compose.dev.yml` (project `ravocal-dev`) is development only: Postgres on 5436 and Mailpit on 1036/8036.
+
+### Environment
+
+Each is described in full in `.env.example`, read only through `server/src/core/config.ts` (and `DATABASE_URL` by the db package and preflight).
+
+| Variable | Default | Read by |
+|---|---|---|
+| `DATABASE_URL` | none (required) | db package, preflight. Compose builds it from `POSTGRES_PASSWORD` |
+| `BETTER_AUTH_SECRET` | dev secret; required in production (32+ chars, not the placeholder) | auth |
+| `APP_URL` | `http://localhost:3001` | links in emails, the providers' redirect URIs |
+| `SERVER_URL` | `APP_URL` | provider sign-in (`/sso/<id>`, `/api/auth/callback/<id>`) |
+| `PORT` | `3001` | the server; the host port under compose |
+| `SMTP_URL`, `SMTP_FROM` | unset; `ravocal@<APP_URL host>` | email (magic links, invites, votes) |
+| `SECURE_LOCAL_NET`, `I_KNOW_SECURE_LOCAL_NET_IS_PUBLIC` | `false`, `false` | sign-in by address alone; preflight |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | unset | `auth/providers.ts`; both or neither (preflight) |
+| `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET` | unset | as Google |
+| `TRUST_PROXY` | `false` | Express `trust proxy`, so the sign-in limiter's `ctx.ip` |
+| `DB_CONNECT_TIMEOUT_MS` | `60000` | `waitForDatabase` at boot |
+| `NODE_ENV` | unset; `production` in the image | preflight's secret check, GraphiQL off |
+| `POSTGRES_PASSWORD` | `ravocal` | `docker-compose.yml` only |
+| `POSTGRES_PORT`, `MAILPIT_SMTP_PORT`, `MAILPIT_UI_PORT`, `DEV_BIND` | `5436`, `1036`, `8036`, `127.0.0.1` | `docker-compose.dev.yml` only |
+
+A new variable goes in `config.ts`, `.env.example`, `docker-compose.yml`'s `environment` and this table.
+
+## CI
+
+`.github/workflows/ci.yml`, on push to `main` and on pull requests, Node 26 with npm caching:
+
+- **`check`**: `npm ci`, codegen, `biome ci .`, `check:types`, `npm test`, `npm run build`.
+- **`postgres`**: two `postgres:17-alpine` services. On the first, `db:migrate` from empty, `drizzle-kit check`, and `db:generate`, which must leave `db/drizzle` unchanged. On the second, `check:data-migrations` (`docs/database.md`).
+- **`boot`**: builds the image with Buildx (GHA cache) and loads it as `ghcr.io/cubicecho/ravocal:latest`, then `docker compose up --pull missing --wait` (the app image is already loaded, so only Postgres is pulled) with a generated `BETTER_AUTH_SECRET`. `.github/scripts/boot-smoke.sh` checks `/healthz`, an anonymous `{ groups { id } }` answering `UNAUTHENTICATED`, `{ authConfig { magicLink } }` and `GET /` serving the app; then `docker compose stop` must leave the server's exit code 0.
+
+Run the smoke script against any instance: `.github/scripts/boot-smoke.sh http://localhost:3001`.
+
+## Release
+
+`.github/workflows/release.yml` runs semantic-release (`.releaserc.json`): commit-analyzer, release notes, `CHANGELOG.md`, `@semantic-release/npm` with `npmPublish: false` (so the root `package.json` version, which `/healthz` reports, follows the release), the GitHub release, and a `chore(release): X.Y.Z [skip ci]` commit. A dry run first decides whether there is a version at all; only then does it build the image from the bumped tree and push `ghcr.io/cubicecho/ravocal` as `X.Y.Z` and `latest`, labelled with the version and the release commit (the Dockerfile labels `org.opencontainers.image.source`, which links the package to the repo).
+
+- **Trigger:** every push to `main`, plus `workflow_dispatch` to retry by hand. The job skips the `chore(release):` commit, which GitHub also skips for `[skip ci]` and because `GITHUB_TOKEN` pushes start no workflow.
+- **Secrets:** none. `GITHUB_TOKEN` does it all (`contents`, `issues`, `pull-requests` and `packages: write`). There is no Docker Hub image.
+- The first release is `1.0.0`. The GHCR package must be made public once in its settings, or pulls need a login.
+- Commit types decide the version: `feat` minor, `fix`/`perf` patch, `BREAKING CHANGE` major; `chore`, `docs`, `ci`, `build`, `refactor`, `test` none.
 
 ## Code Style Guidelines
 
@@ -292,6 +356,7 @@ Do not add `Co-Authored-By` trailers to commit messages.
 
 | Topic | Document |
 | ----- | -------- |
+| Running it: quickstart, configuration, sign-in methods, releases | [`README.md`](README.md) |
 | Database tables, migrations, Drizzle patterns | [`docs/database.md`](docs/database.md) |
 | Server folders, boot, HTTP, errors, schema, resolvers | [`docs/server.md`](docs/server.md) |
 | The generated API, and what is hand-written | [`docs/graphql.md`](docs/graphql.md) |

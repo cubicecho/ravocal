@@ -161,6 +161,8 @@ export type NewUser = typeof users.$inferInsert;
 npm run db:generate   # after any model change; review and commit db/drizzle
 npm run db:migrate    # apply to the database in DATABASE_URL
 npm run db:studio     # GUI explorer
+npm run check -w db   # drizzle-kit check: the snapshots chain, with no two migrations from one parent
+npm run check:data-migrations -w db   # on an EMPTY database in DATABASE_URL: see below
 ```
 
 Each migration is a folder under `db/drizzle/` (`<timestamp>_<name>/migration.sql` plus `snapshot.json`). Commit them, and never edit one that has been applied: generate a new one. The server applies pending migrations on boot with `drizzle-orm/postgres-js/migrator`. `db:push` is for throwaway experiments only.
@@ -168,6 +170,10 @@ Each migration is a folder under `db/drizzle/` (`<timestamp>_<name>/migration.sq
 The history was restarted at `20261118021722_baseline` (Phase 1 of the cubicecho move). There was no live data to preserve.
 
 `20261118050252_vote_slot_positions` is edited by hand around what drizzle-kit generated, so it applies to a database that has rows: it fills `position` for existing slots from their stored order before making the column `NOT NULL`, and closes all but each group's newest open vote before adding `uq_votes_group_id_active`. `drizzle-kit check` and a fresh `generate` still report nothing to do.
+
+A migration that rewrites rows can't be tested by the suite, whose database is built from the models. `db/scripts/check-data-migrations.ts` tests it on a real Postgres instead: it applies the migrations before `vote_slot_positions`, writes slots out of time order and two open votes in one group, applies the rest, and asserts the positions follow the order the slots were written, the older open vote is closed, and every other vote is untouched. When you hand-edit another migration to carry data, add its rows and assertions there.
+
+CI's `postgres` job (`.github/workflows/ci.yml`) runs all of this against `postgres:17-alpine`: `db:migrate` from empty, `drizzle-kit check`, a `db:generate` that must leave `db/drizzle` unchanged, and the data check on a second, empty database.
 
 ## Tests
 

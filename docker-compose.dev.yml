@@ -1,4 +1,5 @@
-# Its own project name, so it never collides with docker-compose.yml's containers.
+# Postgres and Mailpit, for running the app from source: `npm run db:up`, then `npm run dev`.
+# Its own project name, so it never collides with docker-compose.yml's containers (both have a `postgres`).
 name: ravocal-dev
 services:
   postgres:

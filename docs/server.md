@@ -238,3 +238,5 @@ npm run dev           # server + app concurrently
 ```
 
 The server listens on `PORT` (default 3001). GraphiQL is at `http://localhost:3001/graphql` outside production.
+
+In production it runs from the image (`node server/src/index.ts` as `USER node`, `NODE_ENV=production`), serving the built app from `app/dist` beside the API. `docker-compose.yml` runs it with Postgres; AGENTS.md (Deployment, CI) covers the image, the compose file and the boot job that checks both.

@@ -1,19 +1,24 @@
 name: CI
+
 on:
   push: { branches: [main] }
   pull_request:
+
+# A second push to a branch makes the first run's answer worthless.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
+
 permissions:
   contents: read
+
 jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      # Node 26, the version the Dockerfile ships.
+      # Node 26, the version the Dockerfile ships: the server runs its TypeScript directly, so the major is the contract.
       - uses: actions/setup-node@v7
         with: { node-version: 26, cache: npm }
       - run: npm ci
@@ -25,8 +30,106 @@ jobs:
         run: npx biome ci .
       - name: Typecheck
         run: npm run check:types
-      # Tests use in-memory PGlite (vitest.config.ts), so no database service is needed.
+      # Tests use in-memory PGlite (vitest.config.ts), so this job needs no database service.
       - name: Test
         run: npm test
       - name: Build
         run: npm run build
+
+  # The tests build their database from the models, so they can't catch a migration that fails on a real Postgres,
+  # one that was never generated, or one that rewrites existing rows wrongly.
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      # Where every migration is applied to an empty database.
+      postgres:
+        image: postgres:17-alpine
+        env: { POSTGRES_USER: ci, POSTGRES_PASSWORD: ci, POSTGRES_DB: ci }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      # Where the migrations are applied in two halves around rows a data migration rewrites.
+      staged:
+        image: postgres:17-alpine
+        env: { POSTGRES_USER: ci, POSTGRES_PASSWORD: ci, POSTGRES_DB: ci }
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://ci:ci@127.0.0.1:5432/ci
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: 26, cache: npm }
+      - run: npm ci
+
+      - name: Migrations apply from empty
+        run: npm run db:migrate
+
+      # Each migration's snapshot chains to the one before it, with no two branches from one parent.
+      - name: Migrations are consistent
+        run: npm run check -w db
+
+      # drizzle-kit writes nothing when the models and the migrations agree.
+      - name: Migrations match the models
+        run: |
+          npm run db:generate
+          if [ -n "$(git status --porcelain db/drizzle)" ]; then
+            git status --porcelain db/drizzle
+            echo "::error::The models changed without a migration. Run npm run db:generate and commit db/drizzle."
+            exit 1
+          fi
+
+      # vote_slot_positions numbers existing slots and closes all but each group's newest open vote.
+      - name: Data migrations rewrite existing rows right
+        run: npm run check:data-migrations -w db
+        env:
+          DATABASE_URL: postgres://ci:ci@127.0.0.1:5433/ci
+
+  # The image this commit builds, run as docker-compose.yml runs it for a self-hoster.
+  boot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+
+      # Loaded into the runner's daemon under the tag docker-compose.yml names, so `up --pull missing` runs this build and pulls only Postgres.
+      - name: Build the image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          load: true
+          tags: ghcr.io/cubicecho/ravocal:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # A fresh one per run, so no secret is in the repo. Preflight refuses a short or placeholder one in production.
+      - name: Generate BETTER_AUTH_SECRET
+        run: |
+          secret=$(openssl rand -hex 32)
+          echo "::add-mask::$secret"
+          echo "BETTER_AUTH_SECRET=$secret" >> "$GITHUB_ENV"
+
+      # A fresh volume: the server migrates it at boot. --wait returns once both healthchecks pass, the app's on /healthz.
+      - name: Start the stack
+        run: docker compose up -d --pull missing --wait --wait-timeout 180
+
+      - name: Answers as an instance should
+        run: .github/scripts/boot-smoke.sh http://127.0.0.1:3001
+
+      # SIGTERM drains and exits 0 (server/src/http/shutdown.ts), well inside compose's 10-second grace.
+      - name: Stops cleanly
+        run: |
+          docker compose stop
+          code=$(docker inspect "$(docker compose ps -aq ravocal)" --format '{{.State.ExitCode}}')
+          echo "ravocal exited $code"
+          [ "$code" = 0 ] || { echo "::error::The server exited $code on SIGTERM, not 0."; exit 1; }
+
+      - name: Logs
+        if: always()
+        run: docker compose logs
