@@ -2,6 +2,7 @@ export * from './models/accounts.ts';
 export * from './models/group-invites.ts';
 export * from './models/group-members.ts';
 export * from './models/groups.ts';
+export * from './models/oidc-settings.ts';
 export * from './models/sessions.ts';
 export * from './models/time-blocks.ts';
 export * from './models/users.ts';
