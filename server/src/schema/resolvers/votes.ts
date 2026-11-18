@@ -5,7 +5,7 @@ import type { Context } from '../../core/context.ts';
 import { badInput, forbidden, notFound, requireAuth } from '../../core/errors.ts';
 import { parseOrThrow } from '../../core/validation.ts';
 import { sendVoteResultEmail, sendVoteStartedEmail } from '../../services/email.ts';
-import { computeVoteSlots, tallyRankedChoice } from '../../services/voting.ts';
+import { computeVoteSlots, tallyRankedChoice } from '../../votes/tally.ts';
 
 const RankingInput = z.object({
   slotId: z.uuid('That is not a valid slot id.'),

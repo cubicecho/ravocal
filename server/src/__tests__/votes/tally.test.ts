@@ -1,6 +1,6 @@
 import type { TimeBlock, VoteRanking, VoteSlot } from '@cubicecho/ravocal-db/schema';
 import { describe, expect, it } from 'vitest';
-import { computeVoteSlots, tallyRankedChoice } from '../services/voting.ts';
+import { computeVoteSlots, tallyRankedChoice } from '../../votes/tally.ts';
 
 const HALF_HOUR_MS = 30 * 60 * 1000;
 /** A Monday morning, so every window in these tests is a plain offset from it. */
