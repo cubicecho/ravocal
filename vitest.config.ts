@@ -16,11 +16,18 @@ export default defineConfig({
     },
   },
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./app/src"),
+    alias: [
+      { find: "@", replacement: path.resolve(__dirname, "./app/src") },
       // The package's main is its build output; tests run the sources, so they
       // don't need `npm run build -w db` first.
-      "@ravocal/db": path.resolve(__dirname, "./db/src/index.ts"),
-    },
+      { find: "@ravocal/db", replacement: path.resolve(__dirname, "./db/src/index.ts") },
+      // graphql ships no exports map: Vite follows `module` to index.mjs while
+      // Node follows `main` to index.js, and the two copies fail each other's
+      // instanceof checks.
+      {
+        find: /^graphql$/,
+        replacement: path.resolve(__dirname, "./node_modules/graphql/index.js"),
+      },
+    ],
   },
 });
