@@ -1,10 +1,11 @@
-import { ApolloClient, InMemoryCache, createHttpLink } from "@apollo/client";
+import { ApolloClient, createHttpLink, InMemoryCache } from "@apollo/client";
 import { setContext } from "@apollo/client/link/context";
+import { getToken } from "@/lib/auth";
 
 const httpLink = createHttpLink({ uri: "/graphql" });
 
 const authLink = setContext((_, { headers }) => {
-  const token = localStorage.getItem("ravocal_token");
+  const token = getToken();
   return {
     headers: {
       ...headers,

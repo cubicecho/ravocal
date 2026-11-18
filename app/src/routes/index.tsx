@@ -1,10 +1,10 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
+import { HOME_PATH } from "@/lib/auth";
 
 export const Route = createFileRoute("/")({
+  // The root route has already sent a signed-out reader to sign in.
   beforeLoad: () => {
-    const token = localStorage.getItem("ravocal_token");
-    if (!token) throw redirect({ to: "/login" });
-    throw redirect({ to: "/groups" });
+    throw redirect({ to: HOME_PATH });
   },
   component: () => null,
 });

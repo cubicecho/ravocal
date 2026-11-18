@@ -1,12 +1,16 @@
 import { useMutation } from "@apollo/client";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { graphql } from "@/__generated__/index.js";
 import { InputField, useAppForm } from "@/components/app-form";
 import { CenteredCardLayout } from "@/components/centered-card-layout";
 import { FormError } from "@/components/domain/form/form-error";
+import { HOME_PATH, isSignedIn } from "@/lib/auth";
 
 export const Route = createFileRoute("/login")({
+  beforeLoad: () => {
+    if (isSignedIn()) throw redirect({ to: HOME_PATH });
+  },
   component: LoginPage,
 });
 
@@ -17,7 +21,6 @@ const REQUEST_MAGIC_LINK = graphql(`
 `);
 
 function LoginPage() {
-  const navigate = useNavigate();
   const [sent, setSent] = useState(false);
   const [requestMagicLink, { error }] = useMutation(REQUEST_MAGIC_LINK);
 
@@ -28,12 +31,6 @@ function LoginPage() {
       setSent(true);
     },
   });
-
-  const token = localStorage.getItem("ravocal_token");
-  if (token) {
-    navigate({ to: "/groups" });
-    return null;
-  }
 
   if (sent) {
     return (
