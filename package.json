@@ -36,7 +36,7 @@
     "db:down": "docker compose -f docker-compose.dev.yml down",
     "codegen": "npm run codegen:server && npm run codegen:app && npm run codegen:routes",
     "codegen:app": "graphql-codegen --config codegen.ts",
-    "codegen:server": "node server/src/schema/write-schema.ts && graphql-codegen --config codegen.server.ts",
+    "codegen:server": "node server/src/graphql/write-schema.ts && graphql-codegen --config codegen.server.ts",
     "codegen:routes": "npm run routes -w app"
   },
   "overrides": {

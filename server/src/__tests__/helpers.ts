@@ -8,9 +8,10 @@ import { type ExecutionResult, type GraphQLSchema, graphql } from 'graphql';
 import { inject } from 'vitest';
 import { type AuthHost, fixedAuthHost } from '../auth/auth-host.ts';
 import { type Auth, type AuthOptions, createAuth, type MagicLink } from '../auth/better-auth.ts';
+import type { MailMessage } from '../auth/email.ts';
 import { createRateLimiter, type RateLimiter } from '../auth/rate-limit.ts';
 import type { Context } from '../core/context.ts';
-import { buildSchema } from '../schema/index.ts';
+import { createSchema } from '../graphql/build-schema.ts';
 
 // Never import the db package root here: it needs DATABASE_URL and connects to a real Postgres.
 
@@ -240,6 +241,11 @@ export interface ClientDeps {
    * @defaultValue None
    */
   cookies?: string[];
+  /**
+   * Collects the emails an operation sends: invites, and a vote's opening and result.
+   * @defaultValue None
+   */
+  mail?: MailMessage[];
 }
 
 /**
@@ -252,12 +258,12 @@ export interface ClientDeps {
  */
 export function createClient(testDb: TestDb, userId: string | null, deps: ClientDeps = {}): TestClient {
   const { limiter = createRateLimiter(), ip = TEST_IP, headers = new Headers() } = deps;
-  const schemaForRun = schemas.get(testDb) ?? buildSchema(testDb);
+  const schemaForRun = schemas.get(testDb) ?? createSchema(testDb).schema;
   schemas.set(testDb, schemaForRun);
   const sharedAuth = auths.get(testDb) ?? createTestAuth(testDb).auth;
   auths.set(testDb, sharedAuth);
   const authHost = deps.authHost ?? fixedAuthHost(deps.auth ?? sharedAuth);
-  const { cookies = [] } = deps;
+  const { cookies = [], mail = [] } = deps;
 
   const run: TestClient['run'] = (query, variables) => {
     const contextValue: Context = {
@@ -265,6 +271,9 @@ export function createClient(testDb: TestDb, userId: string | null, deps: Client
       auth: authHost.current(),
       authHost,
       limiter,
+      mailer: async (message) => {
+        mail.push(message);
+      },
       userId,
       ip,
       headers,

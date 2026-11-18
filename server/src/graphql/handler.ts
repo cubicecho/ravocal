@@ -3,10 +3,11 @@ import type { Request, Response } from 'express';
 import { createYoga } from 'graphql-yoga';
 import type { AuthHost } from '../auth/auth-host.ts';
 import { sessionUserId } from '../auth/better-auth.ts';
+import { type Mailer, sendMail } from '../auth/email.ts';
 import type { RateLimiter } from '../auth/rate-limit.ts';
 import { isProduction } from '../core/config.ts';
 import { type Context, UNKNOWN_IP } from '../core/context.ts';
-import { buildSchema } from '../schema/index.ts';
+import { createSchema } from './build-schema.ts';
 import { graphqlLogger } from './logger.ts';
 import { useOperationLimits } from './operation-limits.ts';
 
@@ -25,6 +26,11 @@ export interface ContextDeps {
   authHost: AuthHost;
   /** Sign-in throttle the auth operations call. */
   limiter: RateLimiter;
+  /**
+   * Sends the invite and vote emails.
+   * @defaultValue `sendMail`, over `SMTP_URL`
+   */
+  mailer?: Mailer;
 }
 
 /**
@@ -36,10 +42,10 @@ export type ContextFactory = (headers: Headers, ip?: string, setCookie?: (cookie
 /**
  * Builds the context factory /graphql uses. It is the one place a request's caller is read.
  *
- * @param deps - The database, the auth host and the sign-in limiter every resolver is given.
+ * @param deps - The database, the auth host, the sign-in limiter and the mailer every resolver is given.
  * @returns The factory.
  */
-export function createContextFactory({ db, authHost, limiter }: ContextDeps): ContextFactory {
+export function createContextFactory({ db, authHost, limiter, mailer = sendMail }: ContextDeps): ContextFactory {
   return async (headers, ip = UNKNOWN_IP, setCookie = () => {}) => {
     // Asked per request: a rebuild swaps the instance while the server runs.
     const auth = authHost.current();
@@ -48,6 +54,7 @@ export function createContextFactory({ db, authHost, limiter }: ContextDeps): Co
       auth,
       authHost,
       limiter,
+      mailer,
       userId: await sessionUserId(auth, headers),
       ip,
       headers,
@@ -65,7 +72,7 @@ export function createContextFactory({ db, authHost, limiter }: ContextDeps): Co
 export function createGraphQLHandler(deps: ContextDeps) {
   const createContext = createContextFactory(deps);
   return createYoga<ServerContext, Context>({
-    schema: buildSchema(deps.db),
+    schema: createSchema(deps.db).schema,
     graphqlEndpoint: '/graphql',
     graphiql: isProduction() === false,
     // Same-origin in production, and through Vite's proxy in development. Yoga allows every origin by default.

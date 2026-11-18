@@ -1,6 +1,7 @@
 import type { DB } from '@cubicecho/ravocal-db';
 import type { AuthHost } from '../auth/auth-host.ts';
 import type { Auth } from '../auth/better-auth.ts';
+import type { Mailer } from '../auth/email.ts';
 import type { RateLimiter } from '../auth/rate-limit.ts';
 
 /** `Context.ip` when Express gave no address, as when a test calls `yoga.fetch`. */
@@ -15,6 +16,8 @@ export interface Context {
   authHost: AuthHost;
   /** Sign-in throttle; every sign-in operation calls it first (auth/throttle.ts). */
   limiter: RateLimiter;
+  /** Sends the invite and vote emails, once the write they announce has committed. */
+  mailer: Mailer;
   /** Signed-in user, from the request's session, or null. Resolvers call requireAuth(ctx) rather than test this. */
   userId: string | null;
   /** Client address, as Express reads it under `trust proxy`. Keys the sign-in throttle. Never an identity. */

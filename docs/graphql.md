@@ -1,13 +1,75 @@
 # GraphQL API — Ravocal
 
-The hand-written part of the schema lives at `server/src/schema.graphql`. `server/src/auth/` adds `authConfig` and better-auth's own endpoints to it, and `npm run codegen` prints the whole served schema to `server/src/__generated__/schema.graphql` before generating the app's and the server's types from it. After any change, run `npm run codegen`.
+Most of the API is **generated** from the Drizzle tables by `@vantreeseba/drizzle-graphql` (`server/src/graphql/build-schema.ts`). What CRUD can't express is hand-written, in the domain folders, and better-auth's endpoints are added by `server/src/auth/`. `npm run codegen` prints the whole served schema to `server/src/__generated__/schema.graphql`, then generates the app's and the server's types from it; run it after changing a model, a hand-written SDL extension, or a document in `app/src/`. The printed schema is the reference for every argument and type.
+
+Who may read and write what is in AGENTS.md ("Access"). In short: every query answers only rows in the caller's groups, a row out of reach is `NOT_FOUND` (or simply absent from a list, or `null` from a single read), and a mutation not on the allow-list is `FORBIDDEN`.
 
 ## Scalars
 
 | Scalar | Representation |
 |--------|---------------|
-| `DateTime` | ISO 8601 string (e.g. `"2025-06-01T10:00:00.000Z"`) |
+| `DateTime` | ISO 8601 string (e.g. `"2026-06-01T10:00:00.000Z"`) |
+| `UUID` | Every id |
 | `JSON` | Any JSON value. Only better-auth's types use it |
+
+## What is generated
+
+Types and single-row fields are singular, lists plural: table `time_blocks` is type `TimeBlock`, query `timeBlocks` and `timeBlock`.
+
+- **Queries**, for every exposed table: `groups(where, orderBy, limit, offset, after, distinct)`, `group(where)`, `groupsAggregate`, `groupsGroupBy`, and the same for `groupMembers`, `groupInvites`, `timeBlocks`, `votes`, `voteSlots`, `voteRankings` and `users`. Relations are fields: `group { members { user { name } } votes { slots { startsAt } rankings { rank } } }`, with the same arguments, and `<relation>Aggregate { count }`.
+- **Filters**: `where: { id: { eq: $id } }`, with `eq`, `ne`, `lt`/`lte`/`gt`/`gte`, `inArray`, `isNull`, the pattern operators on strings, `AND`/`OR`/`NOT`, and relation filters (`some`/`none`/`every` on to-many). A client filter only ever narrows what the caller may see.
+- **Ordering**: `orderBy: { startsAt: { direction: asc, priority: 1 } }`. Without one, vote slots come in ballot order (`position`), votes newest first, time blocks by start, members by when they joined.
+- **Pages**: every list, root or relation, returns `limit` rows, 50 when none is named, and refuses more than 500 with `DRIZZLE_LIMIT_EXCEEDED`. `after` takes a row's `cursor` for the next page.
+- **Writes** served: `createTimeBlock(values)`, `updateTimeBlock(where, set)`, `deleteTimeBlock(where)`, `updateGroup(where, set)` (name, overlap threshold), `deleteGroup(where)`, `updateUser(where, set)` (your name). Each targets one row and answers `NOT_FOUND` when its `where` matches none the caller may change. The plural forms the library also generates (`updateGroups`, `deleteTimeBlocks`, …) are refused as `FORBIDDEN`.
+- `vote.status` is the enum `VotesStatusEnum`: `active` or `closed`.
+
+Not in the schema at all: better-auth's `sessions`, `accounts` and `verifications`, and an invite's `token`.
+
+Common reads:
+
+```graphql
+query MyGroups { groups { id name membersAggregate { count } votes(where: { status: { eq: active } }, limit: 1) { id } } }
+
+query Group($id: UUID!) {
+  group(where: { id: { eq: $id } }) {        # null for a group you are not in
+    name ownerId
+    members { userId user { name email } }
+    invites(where: { acceptedAt: { isNull: true } }) { id email expiresAt }   # the owner's alone; [] for anyone else
+    timeBlocks { userId startsAt endsAt }
+    votes(limit: 1) { status winnerSlotId slots(limit: 500) { id startsAt overlapCount } rankings { slotId rank } }  # rankings: your own ballot
+  }
+}
+```
+
+### Generated writes, and their rules
+
+| Write | Who | Checked |
+|-------|-----|---------|
+| `createTimeBlock(values: { groupId, startsAt, endsAt })` | a member of the group | `userId` is the caller (not in the input). Both ends on the 30-minute grid **in UTC** (`:00` or `:30`, no seconds), the end after the start. A group you aren't in is `NOT_FOUND` |
+| `updateTimeBlock(where, set)` | whoever made the block | The same, against the row as written, so moving one end is checked against the other. Moving it into a group you aren't in is `NOT_FOUND` |
+| `deleteTimeBlock(where)` | whoever made the block | |
+| `updateGroup(where, set: { name?, overlapThreshold? })` | the owner | Name 1–100 characters, threshold 0–100. The owner can't be changed |
+| `deleteGroup(where)` | the owner | Everything in the group goes with it |
+| `updateUser(where, set: { name })` | yourself | 1–100 characters. The address and its proof are better-auth's |
+
+Any other column in `values` or `set` is `BAD_USER_INPUT`.
+
+## Hand-written
+
+| Field | Kind | Who | Answers |
+|-------|------|-----|---------|
+| `createGroup(name, overlapThreshold?)` | mutation | anyone signed in | `Group!`: the group, with the caller as owner and first member. Threshold defaults to 50 |
+| `removeMember(groupId, userId)` | mutation | the owner | `Group!`. Takes the member's time blocks in the group and their ballot in its open vote with them; a closed vote's result stays. Removing yourself is `BAD_USER_INPUT` |
+| `inviteToGroup(groupId, email)` | mutation | the owner | `GroupInvite!`, and emails `${APP_URL}/invite?token=…`. The link works once, for 7 days, for whoever opens it while signed in |
+| `acceptGroupInvite(token)` | mutation | anyone signed in | `GroupMember!`. A spent or expired link is `BAD_USER_INPUT`; a cancelled or unknown one `NOT_FOUND`; accepting while already a member is `BAD_USER_INPUT`, and leaves the link unspent |
+| `cancelInvite(id)` | mutation | the owner | `Group!`. The link stops working |
+| `startVote(groupId)` | mutation | the owner | `Vote!` over the times at least `overlapThreshold`% of members are free. None is `BAD_USER_INPUT` (use `forceStartVote`); so is a second open vote. Emails the members |
+| `forceStartVote(groupId)` | mutation | the owner | `Vote!` over every time anyone is free, the owner's first. The order is stored (`VoteSlot.position`) |
+| `submitRankings(voteId, rankings: [{ slotId, rank }])` | mutation | members | `[VoteRanking!]!`: your ballot, replacing any earlier one. Each slot once, from this vote, while it is open. `[]` withdraws it |
+| `closeVote(voteId)` | mutation | the owner | `Vote!` with `winnerSlotId` set by instant runoff (`docs/voting.md`), and emails the result |
+| `authConfig` | query | anyone | `{ secureLocalNet, magicLink, providers { id name signInUrl } }` |
+
+The owner-only and member-only refusals are `NOT_FOUND`, the same as a group or vote that doesn't exist.
 
 ## Sign-in and sessions
 
@@ -15,100 +77,23 @@ These fields are better-auth's endpoints, served by `@cubicecho/graphql-better-a
 
 | Field | Kind | Signed in? | Notes |
 |-------|------|------------|-------|
-| `authConfig` | query | no | `{ secureLocalNet, magicLink }`: which ways of signing in this instance offers |
 | `signInMagicLink(email)` | mutation | no | Emails a link to `${APP_URL}/auth/verify?token=…` and answers `{ status: true, token: null, userId: null }`. Under `SECURE_LOCAL_NET` it sends nothing and answers with a live session in `token` and `userId`. With neither SMTP nor `SECURE_LOCAL_NET` it is refused as `BAD_USER_INPUT` |
 | `magicLinkVerify(token)` | mutation | no | Spends a link for `{ token, user, session }`. A spent, expired or unknown link is `BAD_USER_INPUT` ("Invalid or expired sign-in link."), never `UNAUTHENTICATED` |
-| `getSession` | query | no | The caller's `{ user, session }`, or null |
+| `verifyOneTimeToken(token)` | mutation | no | Swaps a provider sign-in's one-time token for `{ token, userId }` |
+| `getSession` | query | no | The caller's `{ user, session }`, or null. **This is how the app reads its own user**; there is no `me` |
 | `listSessions` | query | yes | Every live session of the caller's account |
 | `signOut` | mutation | no | Ends the caller's session: `{ success: true }`, or `false` when there was none |
 | `revokeSession(token)`, `revokeSessions`, `revokeOtherSessions` | mutation | yes | End one, all, or all but this one |
+| `linkSocialAccount(provider)`, `listUserAccounts`, `unlinkAccount(accountId)` | | yes | Connecting Google or Facebook in Settings |
 
-`signInMagicLink` and `magicLinkVerify` are rate limited by `ctx.limiter` (`RATE_LIMIT_DEFAULTS`: 5 in 15 minutes): the first by client address and by email, the second by address. Past the budget they are refused as `TOO_MANY_REQUESTS`, with `extensions.retryAfter` in seconds. Every other field starts with `requireAuth(ctx)` (`UNAUTHENTICATED`), except `me`, which answers null when signed out.
-
-## Queries
-
-### `me: User`
-Returns the authenticated user, or null if not logged in.
-
-### `myGroups: [Group!]!`
-All groups the authenticated user belongs to (as owner or member).
-
-### `group(id: ID!): Group`
-Full group detail. Requires the caller to be a member.
-
-## Mutations
-
-Signing in and out are under "Sign-in and sessions" above.
-
-### Profile
-
-| Mutation | Returns |
-|----------|---------|
-| `updateMyProfile(name)` | `User!` |
-
-### Groups
-
-| Mutation | Returns | Auth |
-|----------|---------|------|
-| `createGroup(name, overlapThreshold?)` | `Group!` | any member |
-| `updateGroup(id, name?, overlapThreshold?)` | `Group!` | owner only |
-| `deleteGroup(id)` | `Boolean!` | owner only |
-
-`overlapThreshold` defaults to 50 (percent).
-
-### Invites
-
-| Mutation | Returns | Auth |
-|----------|---------|------|
-| `inviteToGroup(groupId, email)` | `GroupInvite!` | owner only |
-| `acceptGroupInvite(token)` | `GroupMember!` | any authenticated user |
-
-### Time Blocks
-
-| Mutation | Returns | Auth |
-|----------|---------|------|
-| `addTimeBlock(groupId, startsAt, endsAt)` | `TimeBlock!` | group member |
-| `removeTimeBlock(id)` | `Boolean!` | block owner |
-
-`startsAt` and `endsAt` must be 30-minute aligned ISO 8601 strings. Minimum duration: 30 minutes.
-
-### Votes
-
-| Mutation | Returns | Auth |
-|----------|---------|------|
-| `startVote(groupId)` | `Vote!` | owner only |
-| `forceStartVote(groupId)` | `Vote!` | owner only |
-| `submitRankings(voteId, rankings)` | `[VoteRanking!]!` | group member |
-| `closeVote(voteId)` | `Vote!` | owner only |
-
-`startVote` fails if no slots meet the group's `overlapThreshold`. Use `forceStartVote` to bypass.
-
-`submitRankings` replaces any existing rankings from that user for the vote. `rankings` is `[{slotId, rank}]` where rank 1 is the top choice.
-
-`closeVote` runs the ranked-choice tally, sets `winnerSlotId`, and emails all members.
-
-## Types
-
-```graphql
-type Group {
-  id, name, ownerId, owner, overlapThreshold,
-  members, pendingInvites, timeBlocks, activeVote, createdAt
-}
-
-type Vote {
-  id, groupId, status, isForced,
-  slots, myRankings, winnerSlotId, closedAt, createdAt
-}
-```
+`signInMagicLink`, `magicLinkVerify` and `verifyOneTimeToken` are rate limited by `ctx.limiter` (`RATE_LIMIT_DEFAULTS`: 5 in 15 minutes): by client address, and the first by email too. Past the budget they are refused as `TOO_MANY_REQUESTS`, with `extensions.retryAfter` in seconds.
 
 ## Codegen
 
-Run after any schema or client operation change:
-
 ```bash
 npm run codegen           # both server + app
-npm run codegen:server    # server resolver types only
+npm run codegen:server    # print the schema, then the server's resolver types
 npm run codegen:app       # app operation types only
 ```
 
-Generated files are gitignored. Use `git add -f` if you intentionally want to commit them.
+Generated files are gitignored.

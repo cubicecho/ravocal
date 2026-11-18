@@ -14,7 +14,7 @@ The repo follows the cubicecho skills (`cubicecho_typescript`, `cubicecho_backen
 | -------- | ------------------------------------------------- |
 | Frontend | React 19, Vite, TanStack Router, Apollo Client    |
 | UI       | Tailwind CSS 4, cubeui (shadcn registry), Radix UI |
-| API      | graphql-yoga 5 on Express 5, hand-written SDL      |
+| API      | graphql-yoga 5 on Express 5, drizzle-graphql 19 (generated), graphql-casl |
 | Database | Drizzle ORM 1.0.0-rc.5 on Postgres (postgres-js)   |
 | Auth     | better-auth: magic links, Google and Facebook, bearer sessions in Postgres |
 | Testing  | Vitest 4, in-memory PGlite                         |
@@ -28,10 +28,10 @@ The repo follows the cubicecho skills (`cubicecho_typescript`, `cubicecho_backen
 - **User** — identified by email; signs in via magic link (or, under `SECURE_LOCAL_NET`, by typing the address), or with Google or Facebook when the instance offers them. No passwords.
 - **Group** — has one owner (creator), a name, and a configurable overlap threshold (0–100%). Owner is the only one who can start/force votes and manage membership.
 - **GroupMember** — join table linking users to groups.
-- **GroupInvite** — pending email invitation (tokenized); converts to GroupMember on acceptance.
+- **GroupInvite** — an invite link (tokenized), emailed to an address but not tied to it: whoever opens it while signed in joins, once, before it expires. The owner can cancel it.
 - **TimeBlock** — a contiguous free-time window (30-min aligned start/end) that a group member submits to the group's shared calendar.
 - **Vote** — created by the group owner. Status: `pending → active → closed`. Can be `isForced = true` if the owner bypassed the overlap threshold.
-- **VoteSlot** — a candidate time slot attached to a vote (derived from overlapping TimeBlocks, or forced from owner's blocks).
+- **VoteSlot** — a candidate time slot attached to a vote (derived from overlapping TimeBlocks, or forced from owner's blocks), with its ballot `position`.
 - **VoteRanking** — a member's ranked-choice ranking of VoteSlots (rank 1 = top choice).
 
 ### Overlap threshold
@@ -62,7 +62,6 @@ ravocal/
 ├── server/                  # GraphQL API (graphql-yoga on Express 5, port 3001)
 │   └── src/
 │       ├── index.ts         # Boot only: preflight, wait for Postgres, migrate, createApp, listen, stopOnSignals
-│       ├── schema.graphql   # The hand-written SDL
 │       ├── core/            # What every folder reads, about no one concept
 │       │   ├── config.ts    # Typed getters over process.env (the only reader besides preflight and db)
 │       │   ├── defaults.ts  # Every tunable as <CONCEPT>_DEFAULTS groups
@@ -86,18 +85,24 @@ ravocal/
 │       │   ├── resolvers.ts # applyAuthExtension: authConfig (with its providers)
 │       │   ├── throttle.ts  # AuthFlow, throttle(): what every sign-in step calls first
 │       │   ├── rate-limit.ts # createRateLimiter: the sign-in limiter (ctx.limiter)
-│       │   └── email.ts     # sendMagicLinkEmail
-│       ├── graphql/         # The rules every operation obeys
+│       │   └── email.ts     # The mail transport (sendMail, sendEach, the Mailer on the context) and sendMagicLinkEmail
+│       ├── graphql/         # The served schema, and the rules every operation obeys
+│       │   ├── build-schema.ts # createSchema(db): drizzle-graphql's buildSchema, the extension chain, the permissions
+│       │   ├── tenancy.ts   # scope (rows shared by group membership), contextValues, features, AUTH_TABLES, SERVER_TABLES
+│       │   ├── permissions.ts # graphql-casl: who may change a row they can read, and the Mutation allow-list
+│       │   ├── drizzle-filters.ts # The casl adapter: an ability's conditions as a generated `where`
+│       │   ├── write-guards.ts # writtenRows, assertWritableColumns, assertMemberOfGroups: what every table's hooks share
+│       │   ├── read-back.ts # readRow/readRows: a hand-written mutation's result, read as the generated query would
+│       │   ├── object-type.ts # objectType(): a type whose fields are about to get resolvers
+│       │   ├── write-schema.ts # Prints the served schema for codegen
 │       │   ├── handler.ts   # createGraphQLHandler (Yoga) and createContextFactory
 │       │   ├── logger.ts    # graphqlLogger: [graphql]-tagged, logs masked errors' causes
-│       │   └── operation-limits.ts # Depth, aliases and cost, refused as QUERY_TOO_COMPLEX
-│       ├── schema/
-│       │   ├── index.ts     # buildSchema(db): SDL + resolvers through makeExecutableSchema, then auth/'s fields
-│       │   ├── write-schema.ts # Prints the served schema for codegen
-│       │   └── resolvers/   # One file per domain (groups, time blocks, votes)
-│       ├── services/
-│       │   ├── email.ts     # sendMail over SMTP_URL, and the invite and vote emails
-│       │   └── voting.ts    # Ranked-choice tallying, overlap computation
+│       │   └── operation-limits.ts # Tokens, depth, aliases and cost, refused as QUERY_TOO_COMPLEX
+│       ├── groups/          # A group and its members: createGroup, removeMember, the update hook, access loaders
+│       ├── invites/         # Joining by link: inviteToGroup, acceptGroupInvite, cancelInvite, the invite email
+│       ├── time-blocks/     # Free time: the create and update hooks (membership, the UTC grid)
+│       ├── votes/           # Ranked-choice votes: start, force, rank, close; tally.ts (slots and the runoff); emails
+│       ├── users/           # A user's own row: the update hook (the name only)
 │       └── __tests__/       # The same folders as src; global-setup.ts diffs the models once; helpers.ts boots PGlite per file
 ├── db/                      # Drizzle ORM on Postgres; exports raw .ts, no build step
 │   ├── drizzle/             # Generated migrations (committed)
@@ -162,7 +167,7 @@ npm run codegen:server   # Server resolver types (server/src/__generated__/)
 npm run codegen:routes   # TanStack route tree (app/src/routeTree.gen.ts)
 ```
 
-> Generated files are gitignored. Run `npm run codegen` after a fresh clone, after changing `server/src/schema.graphql`, after adding or changing GraphQL documents in `app/src/`, and after adding a route.
+> Generated files are gitignored. Run `npm run codegen` after a fresh clone, after changing a model or a hand-written SDL extension, after adding or changing GraphQL documents in `app/src/`, and after adding a route.
 
 ### Testing
 ```bash
@@ -222,17 +227,25 @@ npm run db:studio        # Drizzle Studio GUI
 - **DB columns**: `snake_case` in SQL, `camelCase` in Drizzle (mapped automatically)
 - **GraphQL**: `camelCase` fields, `PascalCase` types, `PascalCase` + `Input` suffix for inputs
 
-### Auth / Guard clause order
-```typescript
-const userId = requireAuth(ctx);
-const group = await ctx.db.query.groups.findFirst({ where: { id: args.id } });
-if (!group) {
-  throw notFound(`Group ${args.id} not found`);
-}
-if (group.ownerId !== userId) {
-  throw forbidden('Forbidden');
-}
-```
+### Access (key decision)
+
+Rows are shared by **group membership**, not owned by one user. `scope` (`graphql/tenancy.ts`) confines every generated read, update and delete to the caller's groups, on every path (root, single, nested, aggregates; a client `OR` can only narrow it). It can't tell a read from a write, so graphql-casl (`graphql/permissions.ts`) narrows the generated single-row writes further by ANDing the caller's conditions into their `where`. `Mutation` is an allow-list: a write a new table generates arrives refused, and so does every bulk form. better-auth's operations are on it.
+
+| Table | Read | Write |
+|---|---|---|
+| `groups` | members | `createGroup` (hand-written: the group and the owner's membership in one transaction). `updateGroup` (name, threshold) and `deleteGroup`, generated, owner only (casl on `ownerId`; `ownerId` itself is never in the input) |
+| `group_members` | members of the same group | Hand-written only: `createGroup`, `acceptGroupInvite`, `removeMember` (owner only; not themselves; takes their time blocks in the group and their ballot in its open vote, keeps a closed vote's result) |
+| `group_invites` | the group's owner only; `token` is not in the schema | Hand-written only: `inviteToGroup`, `acceptGroupInvite`, `cancelInvite` (owner only; the link stops working) |
+| `time_blocks` | members of the same group | Generated `createTimeBlock`, `updateTimeBlock`, `deleteTimeBlock`. `userId` is stamped (`contextValues`); a hook refuses a group the caller isn't in (also moving a block into one), the 30-minute grid in UTC, and an end not after the start; casl limits update and delete to your own |
+| `votes`, `vote_slots` | members | Hand-written only: `startVote`, `forceStartVote` (owner only; one open vote per group), `closeVote` (owner only) |
+| `vote_rankings` | your own only, in a group you are in | Hand-written `submitRankings` (members, open votes, the vote's own slots) |
+| `users` | yourself, and anyone you share a group with | `updateUser`, generated, your own row only (casl on `id`), the name only |
+
+`sessions`, `accounts` and `verifications` are excluded from the schema. The client reads its own user through better-auth's `getSession`; there is no hand-written `me`.
+
+**NOT_FOUND, never FORBIDDEN, for a row you can't reach.** A group you aren't in, a member's block you didn't make, an owner-only action you aren't the owner for, and an id that never existed all answer `NOT_FOUND`, so callers can't probe for other ids. A non-member's `group(where: …)` is `null`. A generated single-row update or delete that `scope` or casl filtered to nothing throws `NOT_FOUND` (`graphql/build-schema.ts`). `FORBIDDEN` is only a role refusal: a mutation off the allow-list.
+
+Hand-written resolvers don't inherit `scope`: they load their group through `groups/access.ts` (`loadMemberGroup`, `loadOwnedGroup`), which refuse with NOT_FOUND, and read their result back through the generated query (`graphql/read-back.ts`), so it is scoped like any other read.
 
 ### Auth
 - better-auth (`server/src/auth/`), following the `cubicecho_backend` skill's auth.md: sessions in Postgres (`sessions`, `accounts`, `verifications`, uuid ids), sent as `Authorization: Bearer <token>`, signed with `BETTER_AUTH_SECRET`
@@ -243,7 +256,6 @@ if (group.ownerId !== userId) {
 - **First proof of an address (key decision):** when an unconfirmed account's address is first proven (a magic link, or a Google sign-in Google checked; never `SECURE_LOCAL_NET`), its sessions end and every provider account but the one proving it is deleted (`auth/unproven-access.ts`, better-auth database hooks; the magic link also does it itself). So an account made by someone who did not own the address keeps no way in. Providers connected from Settings after the proof are kept, since an address is proven only once. Group memberships the account gained before the proof are kept
 - Every sign-in step calls `throttle(ctx, flow, email?)` first: `ctx.limiter`, keyed by client address and by email, refused as `TOO_MANY_REQUESTS`. `ctx.ip` is only the client's when `TRUST_PROXY` matches the proxies in front
 - A spent, expired or unknown link is `BAD_USER_INPUT`, never `UNAUTHENTICATED`: the app drops its token on `UNAUTHENTICATED`, and a bad link must not sign anyone out
-- `me` stays for now; the generated `users` query replaces it later
 
 ### Error handling
 - Yoga masks every error that isn't a `GraphQLError` as `Unexpected error.`, so a failure the client should read is thrown with a coded helper from `server/src/core/errors.ts`. The app branches on the code (`app/src/lib/error-codes.ts`) and shows the message
@@ -252,6 +264,7 @@ if (group.ownerId !== userId) {
 - Never swallow errors silently
 - Always surface errors to the user or log them
 - Log lines carry a `[subsystem]` tag: `[server]`, `[db]`, `[auth]`, `[graphql]`, `[preflight]`, `[email]`. Sign-in links and tokens are never logged
+- Emails a write announces (an invite, a vote opening or closing) are sent once it has committed, through `ctx.mailer`; a failed send is logged, not thrown. A side effect from an `onWrite` hook goes through `onCommit`
 
 ### Tunables
 - Every limit, lifetime, size and timeout is a member of a `<CONCEPT>_DEFAULTS` group in `server/src/core/defaults.ts` (`DATABASE_DEFAULTS` is in the db package), and tests read the group rather than repeat its numbers
@@ -260,9 +273,10 @@ if (group.ownerId !== userId) {
 - Test files in `__tests__/` or as `*.test.ts`
 - Database tests run on in-memory PGlite: `createTestDb()` in `beforeAll`, `resetTestDb(db)` in `beforeEach`, `closeTestDb(db)` in `afterAll` (`server/src/__tests__/helpers.ts`)
 - `vitest.config.ts` sets `DATABASE_URL` empty, so a test that imports the db package root fails instead of touching a real Postgres, and empties `SMTP_URL` and `SECURE_LOCAL_NET`
-- Sign-in is tested with real better-auth: `createTestAuth(db)` captures links in `links`, `createSessionToken(auth, userId)` starts a session, and `createClient(db, userId, { auth, authHost, limiter, ip, headers })` shares them. Google and Facebook are tested over HTTP against a stand-in provider on loopback (`__tests__/http/fixtures/fake-provider.ts`), never a mock
+- Sign-in is tested with real better-auth: `createTestAuth(db)` captures links in `links`, `createSessionToken(auth, userId)` starts a session, and `createClient(db, userId, { auth, authHost, limiter, ip, headers, mail })` shares them; `mail` collects what the mailer sent. Google and Facebook are tested over HTTP against a stand-in provider on loopback (`__tests__/http/fixtures/fake-provider.ts`), never a mock
 - `describe` / `it` / `expect` from Vitest (globals enabled)
 - HTTP-level behaviour (masking, operation limits, the body cap, `/healthz`, the SPA, CORS) is tested against the real `createApp` in `server/src/__tests__/http/app.test.ts`; in-process `graphql()` skips Yoga
+- The access rules are tested table by table in `__tests__/graphql/access.test.ts`, and `__tests__/graphql/tenancy.test.ts` fails when an exposed table has no `scope`, a hidden table is reachable, a generated write the map doesn't name is allowed, or a served better-auth operation is denied
 - Fresh test context in `beforeEach`
 
 ## Git
@@ -280,6 +294,6 @@ Do not add `Co-Authored-By` trailers to commit messages.
 | ----- | -------- |
 | Database tables, migrations, Drizzle patterns | [`docs/database.md`](docs/database.md) |
 | Server folders, boot, HTTP, errors, schema, resolvers | [`docs/server.md`](docs/server.md) |
-| GraphQL queries, mutations, types | [`docs/graphql.md`](docs/graphql.md) |
+| The generated API, and what is hand-written | [`docs/graphql.md`](docs/graphql.md) |
 | React app, routing, Apollo Client | [`docs/frontend.md`](docs/frontend.md) |
 | Overlap algorithm, ranked-choice tallying | [`docs/voting.md`](docs/voting.md) |

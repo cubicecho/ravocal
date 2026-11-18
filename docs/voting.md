@@ -1,6 +1,8 @@
 # Voting — Ravocal
 
-Logic lives in `server/src/services/voting.ts`.
+The algorithm lives in `server/src/votes/tally.ts`: pure functions, with no database, tested in `__tests__/votes/tally.test.ts`. The mutations that use it are in `server/src/votes/resolvers.ts`.
+
+Times are instants. A time block's ends sit on the 30-minute grid **in UTC** (`:00` or `:30`, to the millisecond), checked by the `time_blocks` write hook, so a block written as 09:00 in a zone half an hour off UTC lines up, and one written in a zone a quarter hour off (Nepal, +05:45) is refused. The slots below are the same UTC grid.
 
 ## Overlap Computation (`computeVoteSlots`)
 
@@ -14,7 +16,7 @@ Given a list of members, their time blocks, the group's `overlapThreshold`, and 
    - If forced: owner's windows come first (owner is free in that slot).
    - Then by descending `overlapCount`.
    - Then by ascending `startsAt` as a tiebreaker.
-6. Return as `VoteSlot` candidates (each exactly 30 minutes).
+6. Return as `VoteSlot` candidates (each exactly 30 minutes), in that order.
 
 ### Edge cases
 
@@ -43,24 +45,29 @@ Instant-runoff voting (IRV) over the candidate slots:
 ## Starting a Vote
 
 **Normal vote** (`startVote`):
-- Requires caller to be group owner.
+- Requires the caller to own the group (`NOT_FOUND` otherwise, as for a group that doesn't exist).
+- Refuses while the group already has an open vote (`BAD_USER_INPUT`). The database holds it too: `uq_votes_group_id_active` allows one `active` vote per group.
 - Calls `computeVoteSlots` with the group's `overlapThreshold`.
 - Throws if no slots qualify → client should surface "no overlapping slots; use force vote?" UI.
-- Creates a `Vote` row + `VoteSlot` rows.
-- Sends "vote started" email to all members.
+- Creates a `Vote` row and its `VoteSlot` rows in one transaction, each slot with its `position` on the ballot (0 first): `computeVoteSlots`' order, stored rather than left to insert order.
+- Once that commits, emails every member that the vote has started.
 
 **Forced vote** (`forceStartVote`):
 - Same as above but passes `threshold = 0` and `isForced = true`.
-- Slots sorted so owner-free slots appear first.
+- Slots sorted so owner-free slots appear first, and that order is what `position` stores. `Vote.slots` comes back in `position` order unless the request names another, so the owner-first order survives a reload.
 - Throws only if there are zero time blocks in the group.
+
+**Ranking** (`submitRankings`): a member of the vote's group replaces their whole ballot while the vote is open. Each slot at most once, and only this vote's slots; `[]` withdraws the ballot. A member reads back only their own rankings.
 
 ## Closing a Vote
 
 `closeVote`:
-- Requires caller to be group owner.
+- Requires the caller to own the vote's group (`NOT_FOUND` otherwise).
 - Fetches all slots and rankings for the vote.
 - Runs `tallyRankedChoice`.
-- Sets `status = 'closed'`, `winnerSlotId`, `closedAt`.
-- Sends "vote result" email to all members with the winning slot's time range.
+- Sets `status = 'closed'`, `winnerSlotId`, `closedAt`, in one transaction.
+- Once that commits, emails every member the winning slot's time range, in UTC.
 
-The winning slot is displayed in the group detail UI. No calendar integration — users handle the actual event themselves.
+The group page shows the group's newest vote: its candidates while it is open, and the winner once it has closed. No calendar integration — users handle the actual event themselves.
+
+Removing a member (`removeMember`) deletes their rankings in the group's open vote. A closed vote's rankings and result stay as they were.

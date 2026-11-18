@@ -32,7 +32,7 @@ import { FAKE_PROVIDERS, type FakeProvider, startFakeProvider } from './fixtures
 // port (fixtures/fake-provider.ts). The test plays the browser: it follows each redirect by hand, carrying cookies.
 
 const VERIFY = 'mutation ($token: String!) { verifyOneTimeToken(token: $token) { token userId } }';
-const ME = '{ me { id email } }';
+const ME = '{ getSession { user { id email } } }';
 const CONFIG = '{ authConfig { providers { id name signInUrl } } }';
 const LINK = 'mutation ($provider: String!) { linkSocialAccount(provider: $provider) { url } }';
 const ACCOUNTS = '{ listUserAccounts { id providerId } }';
@@ -214,7 +214,7 @@ describe('signing in with Google', () => {
 
     const session = await verified(location);
     const { body } = await graphqlOverHttp(ME, {}, session.token);
-    expect(body.data.me).toEqual({ id: session.userId, email: provider.google.email });
+    expect(body.data.getSession.user).toEqual({ id: session.userId, email: provider.google.email });
     expect(await providersOf(session.userId)).toEqual([ProviderId.Google]);
   });
 

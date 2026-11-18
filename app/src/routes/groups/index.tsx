@@ -25,18 +25,18 @@ const SIGN_OUT = graphql(`
   }
 `);
 
+// `scope` confines `groups` to the reader's own, so this is "my groups" without saying so.
 const MY_GROUPS = graphql(`
   query MyGroups {
-    myGroups {
+    groups {
       id
       name
       overlapThreshold
-      members {
-        id
+      membersAggregate {
+        count
       }
-      activeVote {
+      votes(where: { status: { eq: active } }, limit: 1) {
         id
-        status
       }
     }
   }
@@ -44,7 +44,7 @@ const MY_GROUPS = graphql(`
 
 function GroupsPage() {
   const result = useQuery(MY_GROUPS);
-  const groups = result.data?.myGroups ?? [];
+  const groups = result.data?.groups ?? [];
   const client = useApolloClient();
   const navigate = useNavigate();
 
@@ -105,9 +105,9 @@ function GroupsPage() {
               <ListItem
                 key={group.id}
                 title={group.name}
-                description={`${group.members.length} ${group.members.length === 1 ? 'member' : 'members'}`}
+                description={`${group.membersAggregate.count} ${group.membersAggregate.count === 1 ? 'member' : 'members'}`}
                 linkSlot={<Link to="/groups/$groupId" params={{ groupId: group.id }} />}
-                meta={group.activeVote ? <Badge variant="info-soft">Vote active</Badge> : undefined}
+                meta={group.votes.length > 0 ? <Badge variant="info-soft">Vote active</Badge> : undefined}
               />
             ))}
           />
