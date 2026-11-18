@@ -13,11 +13,10 @@
     "node": ">=26"
   },
   "scripts": {
-    "dev": "npm run build:db && concurrently \"npm run dev:server\" \"npm run dev:app\"",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:app\"",
     "dev:app": "npm run dev -w app",
     "dev:server": "npm run dev -w server",
-    "build": "npm run build:db && npm run codegen && npm run build -w app",
-    "build:db": "npm run build -w db",
+    "build": "npm run codegen && npm run build -w app",
     "build:app": "npm run build -w app",
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",
@@ -26,7 +25,7 @@
     "check": "npm run codegen && npm run check:biome && npm run check:types",
     "check:biome": "biome check --write .",
     "check:fix": "biome check --write .",
-    "check:types": "npm run build:db && tsc -p server --noEmit && tsc -p db --noEmit && tsc -p app --noEmit",
+    "check:types": "tsc -p server --noEmit && tsc -p db --noEmit && tsc -p app --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "npm run generate -w db",
@@ -39,7 +38,11 @@
     "codegen:routes": "npm run routes -w app"
   },
   "overrides": {
-    "graphql": "16.10.0"
+    "graphql": "16.13.2",
+    "drizzle-orm": "1.0.0-rc.5"
+  },
+  "dependencies": {
+    "drizzle-orm": "1.0.0-rc.5"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.11",

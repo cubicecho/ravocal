@@ -1,4 +1,4 @@
-import type { VoteSlot } from '@cubicecho/ravocal-db';
+import type { VoteSlot } from '@cubicecho/ravocal-db/schema';
 import nodemailer from 'nodemailer';
 
 /** One outgoing email. */

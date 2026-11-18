@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
-import { type DB, magicLinks, users } from '@cubicecho/ravocal-db';
+import type { DB } from '@cubicecho/ravocal-db';
+import { magicLinks, users } from '@cubicecho/ravocal-db/schema';
 import { eq } from 'drizzle-orm';
 import { SignJWT } from 'jose';
 import { sendMagicLinkEmail } from './email.ts';
@@ -12,7 +13,7 @@ export async function requestMagicLink(email: string, db: DB): Promise<void> {
   const normalizedEmail = email.toLowerCase().trim();
   const appUrl = process.env.APP_URL ?? 'http://localhost:3001';
 
-  let user = await db.query.users.findFirst({ where: eq(users.email, normalizedEmail) });
+  let user = await db.query.users.findFirst({ where: { email: normalizedEmail } });
   if (!user) {
     [user] = await db.insert(users).values({ email: normalizedEmail }).returning();
   }
@@ -33,7 +34,7 @@ export async function verifyMagicLink(
   user: { id: string; email: string; name: string | null; createdAt: string };
 }> {
   const link = await db.query.magicLinks.findFirst({
-    where: eq(magicLinks.token, token),
+    where: { token },
     with: { user: true },
   });
   if (!link) {

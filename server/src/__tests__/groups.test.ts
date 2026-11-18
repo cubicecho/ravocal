@@ -1,4 +1,4 @@
-import { type DB, groupInvites, groupMembers } from '@cubicecho/ravocal-db';
+import { groupInvites, groupMembers } from '@cubicecho/ravocal-db/schema';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -6,10 +6,11 @@ import {
   closeTestDb,
   createClient,
   createGroup,
+  createTestDb,
   createUser,
-  openTestDb,
   resetTestDb,
   type TestClient,
+  type TestDb,
 } from './helpers.ts';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -23,7 +24,7 @@ const INVITE = `mutation($groupId: ID!, $email: String!) {
 const ACCEPT = `mutation($token: String!) { acceptGroupInvite(token: $token) { groupId userId } }`;
 
 describe('group resolvers', () => {
-  let db: DB;
+  let db: TestDb;
   let ownerId: string;
   let memberId: string;
   let outsiderId: string;
@@ -33,7 +34,7 @@ describe('group resolvers', () => {
   let outsider: TestClient;
 
   beforeAll(async () => {
-    db = await openTestDb();
+    db = await createTestDb();
   });
 
   afterAll(() => closeTestDb(db));

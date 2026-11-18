@@ -3,8 +3,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ApolloServer } from '@apollo/server';
 import { expressMiddleware } from '@apollo/server/express4';
-import { db, migrateDb } from '@cubicecho/ravocal-db';
+import { db } from '@cubicecho/ravocal-db';
 import cors from 'cors';
+import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import express from 'express';
 import { createContext } from './context.ts';
 import { buildSchema } from './schema/index.ts';
@@ -20,7 +21,8 @@ if (
   process.exit(1);
 }
 
-await migrateDb();
+// At boot, so a fresh database is set up by starting the server.
+await migrate(db, { migrationsFolder: join(__dirname, '../../db/drizzle') });
 
 const schema = buildSchema();
 

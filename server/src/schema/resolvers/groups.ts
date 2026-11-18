@@ -1,4 +1,4 @@
-import { groupInvites, groupMembers, groups, users } from '@cubicecho/ravocal-db';
+import { groupInvites, groupMembers, groups, users } from '@cubicecho/ravocal-db/schema';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Context } from '../../context.ts';
@@ -45,7 +45,7 @@ export function applyGroupResolvers(queryFields: Record<string, unknown>, mutati
     if (!ctx.userId) {
       return null;
     }
-    return ctx.db.query.users.findFirst({ where: eq(users.id, ctx.userId) });
+    return ctx.db.query.users.findFirst({ where: { id: ctx.userId } });
   };
 
   queryFields.myGroups = async (_: unknown, __: unknown, ctx: Context) => {
@@ -54,7 +54,7 @@ export function applyGroupResolvers(queryFields: Record<string, unknown>, mutati
       throw new Error('Not authenticated');
     }
     const memberships = await ctx.db.query.groupMembers.findMany({
-      where: eq(groupMembers.userId, userId),
+      where: { userId },
       with: { group: { with: GROUP_WITH } },
     });
     return memberships.map((m) => shapeGroup(m.group));
@@ -65,7 +65,7 @@ export function applyGroupResolvers(queryFields: Record<string, unknown>, mutati
       throw new Error('Not authenticated');
     }
     const group = await ctx.db.query.groups.findFirst({
-      where: eq(groups.id, args.id),
+      where: { id: args.id },
       with: GROUP_WITH,
     });
     if (!group) {
@@ -107,7 +107,7 @@ export function applyGroupResolvers(queryFields: Record<string, unknown>, mutati
     if (!ctx.userId) {
       throw new Error('Not authenticated');
     }
-    const group = await ctx.db.query.groups.findFirst({ where: eq(groups.id, args.id) });
+    const group = await ctx.db.query.groups.findFirst({ where: { id: args.id } });
     if (!group) {
       throw new Error(`Group ${args.id} not found`);
     }
@@ -127,7 +127,7 @@ export function applyGroupResolvers(queryFields: Record<string, unknown>, mutati
     if (!ctx.userId) {
       throw new Error('Not authenticated');
     }
-    const group = await ctx.db.query.groups.findFirst({ where: eq(groups.id, args.id) });
+    const group = await ctx.db.query.groups.findFirst({ where: { id: args.id } });
     if (!group) {
       throw new Error(`Group ${args.id} not found`);
     }
@@ -143,7 +143,7 @@ export function applyGroupResolvers(queryFields: Record<string, unknown>, mutati
       throw new Error('Not authenticated');
     }
     const group = await ctx.db.query.groups.findFirst({
-      where: eq(groups.id, args.groupId),
+      where: { id: args.groupId },
     });
     if (!group) {
       throw new Error(`Group ${args.groupId} not found`);
@@ -168,7 +168,7 @@ export function applyGroupResolvers(queryFields: Record<string, unknown>, mutati
       throw new Error('Not authenticated');
     }
     const invite = await ctx.db.query.groupInvites.findFirst({
-      where: eq(groupInvites.token, args.token),
+      where: { token: args.token },
     });
     if (!invite) {
       throw new Error('Invite not found');

@@ -1,5 +1,5 @@
-import { groupMembers, timeBlocks } from '@cubicecho/ravocal-db';
-import { and, eq } from 'drizzle-orm';
+import { timeBlocks } from '@cubicecho/ravocal-db/schema';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Context } from '../../context.ts';
 
@@ -36,7 +36,7 @@ export function applyTimeBlockResolvers(
     const input = AddTimeBlockInput.parse(args);
 
     const membership = await ctx.db.query.groupMembers.findFirst({
-      where: and(eq(groupMembers.groupId, input.groupId), eq(groupMembers.userId, ctx.userId)),
+      where: { groupId: input.groupId, userId: ctx.userId },
     });
     if (!membership) {
       throw new Error('Forbidden');
@@ -59,7 +59,7 @@ export function applyTimeBlockResolvers(
       throw new Error('Not authenticated');
     }
     const block = await ctx.db.query.timeBlocks.findFirst({
-      where: eq(timeBlocks.id, args.id),
+      where: { id: args.id },
     });
     if (!block) {
       throw new Error(`TimeBlock ${args.id} not found`);

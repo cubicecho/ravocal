@@ -7,7 +7,7 @@ WORKDIR /app
 COPY . .
 
 RUN npm ci
-RUN npm run build -w db && npm run codegen && npm run build -w app
+RUN npm run codegen && npm run build -w app
 
 FROM node:22-alpine
 

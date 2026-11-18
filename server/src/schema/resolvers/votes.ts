@@ -1,4 +1,4 @@
-import { groupMembers, groups, voteRankings, voteSlots, votes } from '@cubicecho/ravocal-db';
+import { voteRankings, voteSlots, votes } from '@cubicecho/ravocal-db/schema';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Context } from '../../context.ts';
@@ -13,7 +13,7 @@ export function applyVoteResolvers(_queryFields: Record<string, unknown>, mutati
       throw new Error('Not authenticated');
     }
     const group = await ctx.db.query.groups.findFirst({
-      where: eq(groups.id, args.groupId),
+      where: { id: args.groupId },
       with: { members: { with: { user: true } }, timeBlocks: true },
     });
     if (!group) {
@@ -37,7 +37,7 @@ export function applyVoteResolvers(_queryFields: Record<string, unknown>, mutati
       throw new Error('Not authenticated');
     }
     const group = await ctx.db.query.groups.findFirst({
-      where: eq(groups.id, args.groupId),
+      where: { id: args.groupId },
       with: { members: { with: { user: true } }, timeBlocks: true },
     });
     if (!group) {
@@ -64,7 +64,7 @@ export function applyVoteResolvers(_queryFields: Record<string, unknown>, mutati
     }
     const inputs = z.array(RankingInput).parse(args.rankings);
 
-    const vote = await ctx.db.query.votes.findFirst({ where: eq(votes.id, args.voteId) });
+    const vote = await ctx.db.query.votes.findFirst({ where: { id: args.voteId } });
     if (!vote) {
       throw new Error(`Vote ${args.voteId} not found`);
     }
@@ -73,7 +73,7 @@ export function applyVoteResolvers(_queryFields: Record<string, unknown>, mutati
     }
 
     const membership = await ctx.db.query.groupMembers.findFirst({
-      where: and(eq(groupMembers.groupId, vote.groupId), eq(groupMembers.userId, ctx.userId)),
+      where: { groupId: vote.groupId, userId: ctx.userId },
     });
     if (!membership) {
       throw new Error('Forbidden');
@@ -97,7 +97,7 @@ export function applyVoteResolvers(_queryFields: Record<string, unknown>, mutati
       throw new Error('Not authenticated');
     }
     const vote = await ctx.db.query.votes.findFirst({
-      where: eq(votes.id, args.voteId),
+      where: { id: args.voteId },
       with: { slots: true, rankings: true },
     });
     if (!vote) {
@@ -108,7 +108,7 @@ export function applyVoteResolvers(_queryFields: Record<string, unknown>, mutati
     }
 
     const group = await ctx.db.query.groups.findFirst({
-      where: eq(groups.id, vote.groupId),
+      where: { id: vote.groupId },
       with: { members: { with: { user: true } } },
     });
     if (!group) {
@@ -140,13 +140,13 @@ export function applyVoteResolvers(_queryFields: Record<string, unknown>, mutati
 export const voteFields = {
   // Insertion order, which is computeVoteSlots' order (owner-free first in a forced vote).
   slots: (vote: { id: string }, _: unknown, ctx: Context) =>
-    ctx.db.query.voteSlots.findMany({ where: eq(voteSlots.voteId, vote.id) }),
+    ctx.db.query.voteSlots.findMany({ where: { voteId: vote.id } }),
   myRankings: (vote: { id: string }, _: unknown, ctx: Context) => {
     if (!ctx.userId) {
       return [];
     }
     return ctx.db.query.voteRankings.findMany({
-      where: and(eq(voteRankings.voteId, vote.id), eq(voteRankings.userId, ctx.userId)),
+      where: { voteId: vote.id, userId: ctx.userId },
     });
   },
 };

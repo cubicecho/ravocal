@@ -1,71 +1,37 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
-import type { PgliteDatabase } from 'drizzle-orm/pglite';
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import * as relations from './relations.ts';
-import * as schema from './schema.ts';
+import { DATABASE_DEFAULTS } from './defaults.ts';
+import { relations } from './relations.ts';
+import { requiresSsl } from './ssl.ts';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const projectRoot = path.resolve(__dirname, '../..');
-const migrationsFolder = path.resolve(__dirname, '../drizzle');
-
-const DATABASE_URL = process.env.DATABASE_URL ?? path.join(projectRoot, 'pgdata');
-const isPostgres = DATABASE_URL.startsWith('postgres://') || DATABASE_URL.startsWith('postgresql://');
-
-/** Tables and their relations: what `db.query` is typed and built from. */
-const fullSchema = { ...schema, ...relations };
-type FullSchema = typeof fullSchema;
-
-/** The database handle, whichever driver opened it. */
-export type DB = PgDatabase<PgQueryResultHKT, FullSchema>;
-
-/** An open database, tagged with the driver that opened it so the matching migrator runs. */
-type Connection =
-  | { driver: 'postgres'; db: PostgresJsDatabase<FullSchema> }
-  | { driver: 'pglite'; db: PgliteDatabase<FullSchema> };
-
-/**
- * Opens the database `DATABASE_URL` names: a Postgres server for a
- * `postgres://` URL, otherwise an embedded PGlite data directory.
- *
- * @returns The open database and the driver behind it.
- */
-async function connect(): Promise<Connection> {
-  if (isPostgres) {
-    const { drizzle } = await import('drizzle-orm/postgres-js');
-    const isProduction = process.env.NODE_ENV === 'production';
-    const connection = isProduction ? { url: DATABASE_URL, ssl: 'require' as const } : DATABASE_URL;
-    return { driver: 'postgres', db: drizzle({ connection, schema: fullSchema }) };
-  }
-  const { drizzle } = await import('drizzle-orm/pglite');
-  const { PGlite } = await import('@electric-sql/pglite');
-  const dataDir = DATABASE_URL.startsWith('file:') ? DATABASE_URL.slice(5) : DATABASE_URL;
-  const client = new PGlite(dataDir);
-  await client.waitReady;
-  return { driver: 'pglite', db: drizzle({ client, schema: fullSchema }) };
+const url = process.env.DATABASE_URL ?? '';
+if (url === '') {
+  throw new Error(
+    'DATABASE_URL is not set. Set it in .env, for example postgres://ravocal:ravocal@localhost:5436/ravocal.',
+  );
 }
 
-const connection = await connect();
+const isProduction = process.env.NODE_ENV === 'production';
+const mustForceSsl = isProduction && requiresSsl(url);
+const { drizzle } = await import('drizzle-orm/postgres-js');
 
-export const db: DB = connection.db;
+/** The app's Drizzle client. Doesn't connect until the first query. */
+export const db = drizzle({
+  connection: {
+    url,
+    ...(mustForceSsl ? { ssl: 'require' } : {}),
+    // Idempotent migrations emit a NOTICE on every boot.
+    onnotice: () => {},
+  },
+  relations,
+});
+/** The client's type. Every module that queries takes it. */
+export type DB = typeof db;
 
 /**
- * Applies the pending migrations in `db/drizzle` with the migrator that
- * matches the open driver.
+ * Closes the pool at shutdown, after the server has stopped taking requests.
  *
- * @returns Resolves once every migration has run.
+ * @returns Resolves once every connection is closed. Queries still running are cancelled after `closeTimeoutSeconds`.
  */
-export async function migrateDb(): Promise<void> {
-  if (connection.driver === 'postgres') {
-    const { migrate } = await import('drizzle-orm/postgres-js/migrator');
-    await migrate(connection.db, { migrationsFolder });
-    return;
-  }
-  const { migrate } = await import('drizzle-orm/pglite/migrator');
-  await migrate(connection.db, { migrationsFolder });
-}
+export const closeDatabase = (): Promise<void> => db.$client.end({ timeout: DATABASE_DEFAULTS.closeTimeoutSeconds });
 
-export * from './relations.ts';
 export * from './schema.ts';
-export { schema };
+export { relations };

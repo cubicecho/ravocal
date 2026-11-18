@@ -1,14 +1,15 @@
-import { type DB, timeBlocks, votes } from '@cubicecho/ravocal-db';
+import { timeBlocks, votes } from '@cubicecho/ravocal-db/schema';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   addMember,
   closeTestDb,
   createClient,
   createGroup,
+  createTestDb,
   createUser,
-  openTestDb,
   resetTestDb,
   type TestClient,
+  type TestDb,
 } from './helpers.ts';
 
 const HALF_HOUR_MS = 30 * 60 * 1000;
@@ -36,7 +37,7 @@ interface Slot {
 }
 
 describe('vote resolvers', () => {
-  let db: DB;
+  let db: TestDb;
   let ownerId: string;
   let memberId: string;
   let groupId: string;
@@ -66,7 +67,7 @@ describe('vote resolvers', () => {
     logged.mock.calls.filter(([tag]) => tag === '[email]').map(([, message]) => (message as { to: string }).to);
 
   beforeAll(async () => {
-    db = await openTestDb();
+    db = await createTestDb();
   });
 
   afterAll(() => closeTestDb(db));
