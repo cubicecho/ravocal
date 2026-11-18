@@ -1,5 +1,5 @@
 import { timeBlocks, votes } from '@cubicecho/ravocal-db/schema';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest';
 import {
   addMember,
   closeTestDb,
@@ -43,7 +43,7 @@ describe('vote resolvers', () => {
   let groupId: string;
   let owner: TestClient;
   let member: TestClient;
-  let logged: ReturnType<typeof vi.spyOn>;
+  let logged: MockInstance<typeof console.log>;
 
   /**
    * Marks a member free from half hour `from` up to half hour `to`.
