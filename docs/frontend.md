@@ -157,8 +157,10 @@ invite) are drawn only for the owner; the server refuses them anyway. The sectio
   ranks it in `ranking-dialog.tsx`: an ordered list with move up, move down and take-off buttons (focus follows the
   time that moved, and a live region says where it went), and the times left out with Add. Saving sends the whole
   ballot to `submitRankings`, top choice rank 1; a member may leave times out, and an empty ballot withdraws a saved
-  one. Before a first save the ballot starts as every candidate in ballot order. The owner closes it (`closeVote`,
-  a `ConfirmButton`), and a closed vote shows its winner on a card of its own over every candidate.
+  one. Before a first save the ballot starts as every candidate in ballot order. Above the reader's ballot, a line and
+  a `Progress` bar say how many of the members have ranked (`Vote.rankedCount`) and whether the reader is one of them;
+  a save refetches `GroupDetail`, so it moves at once. The owner closes it (`closeVote`, a `ConfirmButton`), and a
+  closed vote shows its winner on a card of its own, with how many ballots chose it, over every candidate.
 - **Free time** (`free-time-section.tsx`, `time-block-dialog.tsx`). Blocks grouped by member, the reader's first, with
   Edit and Delete on the reader's own. The dialog takes a date and a start and an end from selects built by
   `lib/time-grid.ts`: the starts are every **UTC** half hour inside the chosen local day, labelled in local time, so

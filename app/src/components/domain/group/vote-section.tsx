@@ -12,6 +12,7 @@ import { Section } from '@/components/section';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { ErrorCode, hasErrorCode } from '@/lib/error-codes';
 import { describeError } from '@/lib/error-message';
 import { formatDay, formatWindow } from '@/lib/time-window';
@@ -56,6 +57,29 @@ function plural(count: number, one: string, many: string): string {
 const REFETCH = { refetchQueries: ['GroupDetail'], awaitRefetchQueries: true, onError: () => {} };
 
 /**
+ * How many of the group have ranked an open vote, and whether the reader is one of them. Never who the others are.
+ */
+function RankingProgress({ vote, memberCount, hasRanked }: { vote: Vote; memberCount: number; hasRanked: boolean }) {
+  const ranked = vote.rankedCount;
+  const counted = `${ranked} of ${plural(memberCount, 'member', 'members')} ${ranked === 1 ? 'has' : 'have'} ranked`;
+  const summary = () => {
+    if (ranked === 0) {
+      return 'Nobody has ranked the times yet.';
+    }
+    if (ranked >= memberCount) {
+      return 'Everyone has ranked the times.';
+    }
+    return hasRanked ? `${counted}, you among them.` : `${counted}. You haven't yet.`;
+  };
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm text-foreground/70">{summary()}</p>
+      <Progress value={ranked} max={memberCount} label="Members who have ranked" valueLabel={counted} />
+    </div>
+  );
+}
+
+/**
  * The reader's ballot in an open vote: saved, in their order, or not yet, with the button that opens the form.
  */
 function YourBallot({ vote, memberCount }: { vote: Vote; memberCount: number }) {
@@ -70,6 +94,7 @@ function YourBallot({ vote, memberCount }: { vote: Vote; memberCount: number }) 
 
   return (
     <>
+      <RankingProgress vote={vote} memberCount={memberCount} hasRanked={hasSaved} />
       <Alert
         variant={hasSaved ? 'info' : 'warning'}
         title={hasSaved ? 'Your ranking is saved' : "You haven't ranked the times yet"}
@@ -146,7 +171,7 @@ function VoteResult({ vote }: { vote: Vote }) {
           level={3}
           iconSlot={<Trophy />}
           title="Winning time"
-          description={`${closed} Chosen by instant runoff from ${plural(vote.slots.length, 'candidate time', 'candidate times')}.`}
+          description={`${closed} Chosen by instant runoff from ${plural(vote.rankedCount, 'ballot', 'ballots')} over ${plural(vote.slots.length, 'candidate time', 'candidate times')}.`}
           contentSlot={
             <p className="text-xl font-semibold text-balance sm:text-2xl">
               {formatWindow(winner.startsAt, winner.endsAt)}
