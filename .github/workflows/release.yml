@@ -1,0 +1,99 @@
+# Cuts a version from the conventional commits since the last one (semantic-release: a tag, a GitHub release,
+# CHANGELOG.md and package.json's version), then pushes the image to Docker Hub and GHCR as that version and `latest`.
+#
+# Required repository secrets (Settings > Secrets and variables > Actions):
+#   DOCKERHUB_USERNAME  the Docker Hub account the image is pushed under (<DOCKERHUB_USERNAME>/ravocal)
+#   DOCKERHUB_TOKEN     a Docker Hub access token with read and write scope, not the account password
+# GHCR needs none: the workflow's own GITHUB_TOKEN pushes ghcr.io/<owner>/<repo>.
+#
+# For now it runs only when started by hand (Actions > Release > Run workflow, on main). To release on every
+# push to main instead, replace the `workflow_dispatch:` line under `on:` with:
+#   push: { branches: [main] }
+
+name: Release
+
+on:
+  workflow_dispatch:
+
+# Two releases at once would both try to cut the same version.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # semantic-release releases from main only (.releaserc.json); started on another branch, there is nothing to do.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # semantic-release reads the whole history to find the last release and the commits since.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+
+      - name: Install semantic-release
+        run: >-
+          npm install -g semantic-release @semantic-release/commit-analyzer @semantic-release/release-notes-generator
+          @semantic-release/changelog @semantic-release/npm @semantic-release/git @semantic-release/github
+
+      # A dry run first: when every commit since the last release is a chore, docs, ci or build, no version is cut,
+      # and the image steps must not run.
+      - name: Release
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          output=$(semantic-release --dry-run 2>&1)
+          echo "$output"
+          version=$(echo "$output" | grep -oP 'next release version is \K[0-9]+\.[0-9]+\.[0-9]+' || true)
+          if [ -n "$version" ]; then
+            semantic-release
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+            echo "released=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "released=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.release.outputs.released == 'true'
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker Hub
+        if: steps.release.outputs.released == 'true'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to GHCR
+        if: steps.release.outputs.released == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Built from the working tree, which semantic-release has just bumped, so /healthz reports the new version.
+      # `latest` as well as the version: docker-compose.yml and the README's quickstart pull it.
+      - name: Build and push to Docker Hub and GHCR
+        if: steps.release.outputs.released == 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/ravocal:${{ steps.release.outputs.version }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/ravocal:latest
+            ghcr.io/${{ github.repository }}:${{ steps.release.outputs.version }}
+            ghcr.io/${{ github.repository }}:latest
