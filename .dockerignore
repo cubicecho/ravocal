@@ -1,7 +1,28 @@
+# Installed or generated inside the image, never copied in from the host.
 **/node_modules
 **/dist
 **/__generated__
 app/src/routeTree.gen.ts
+*.tsbuildinfo
+coverage
+
+# Secrets and local state.
 .env
+.env.*
+pgdata
+*.db
+*.db-journal
+*.log
+
+# Not part of the build.
 .git
+.github
 .claude
+.codebase-memory
+.vscode
+.idea
+docs
+*.md
+Dockerfile
+.dockerignore
+docker-compose*.yml
