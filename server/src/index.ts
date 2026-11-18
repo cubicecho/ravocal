@@ -9,10 +9,11 @@ import cors from 'cors';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import express from 'express';
 import { createContext } from './context.ts';
+import { dbConnectTimeoutMs, port } from './core/config.ts';
 import { buildSchema } from './schema/index.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const PORT = process.env.PORT ?? 3001;
+const PORT = port();
 /** Postgres's port, shown when DATABASE_URL names none. */
 const DEFAULT_POSTGRES_PORT = '5432';
 /** How long shutdown may take in all before a hard exit. Under Docker's 10 s stop grace period. */
@@ -36,11 +37,8 @@ if (
   process.exit(1);
 }
 
-// DB_CONNECT_TIMEOUT_MS, when it is a positive number of milliseconds. Otherwise DATABASE_DEFAULTS applies.
-const connectTimeoutMs = Number(process.env.DB_CONNECT_TIMEOUT_MS);
-const hasConnectTimeout = Number.isFinite(connectTimeoutMs) && connectTimeoutMs > 0;
 try {
-  await waitForDatabase(db, hasConnectTimeout ? { connectTimeoutMs } : {});
+  await waitForDatabase(db, { connectTimeoutMs: dbConnectTimeoutMs() });
 } catch (error) {
   const { hostname, port: urlPort } = new URL(process.env.DATABASE_URL ?? '');
   const dbPort = urlPort === '' ? DEFAULT_POSTGRES_PORT : urlPort;

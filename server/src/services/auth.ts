@@ -3,15 +3,17 @@ import type { DB } from '@cubicecho/ravocal-db';
 import { magicLinks, users } from '@cubicecho/ravocal-db/schema';
 import { eq } from 'drizzle-orm';
 import { SignJWT } from 'jose';
+import { appUrl, jwtSecret } from '../core/config.ts';
+import { AUTH_DEFAULTS } from '../core/defaults.ts';
+import { MS_PER_MINUTE } from '../core/wire.ts';
 import { sendMagicLinkEmail } from './email.ts';
 
 export function randomToken(): string {
-  return randomBytes(32).toString('hex');
+  return randomBytes(AUTH_DEFAULTS.tokenBytes).toString('hex');
 }
 
 export async function requestMagicLink(email: string, db: DB): Promise<void> {
   const normalizedEmail = email.toLowerCase().trim();
-  const appUrl = process.env.APP_URL ?? 'http://localhost:3001';
 
   let user = await db.query.users.findFirst({ where: { email: normalizedEmail } });
   if (!user) {
@@ -19,10 +21,10 @@ export async function requestMagicLink(email: string, db: DB): Promise<void> {
   }
 
   const token = randomToken();
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + AUTH_DEFAULTS.magicLinkTtlMinutes * MS_PER_MINUTE);
   await db.insert(magicLinks).values({ userId: user.id, token, expiresAt });
 
-  const link = `${appUrl}/login/verify?token=${token}`;
+  const link = `${appUrl()}/login/verify?token=${token}`;
   await sendMagicLinkEmail(normalizedEmail, link);
 }
 
@@ -49,11 +51,11 @@ export async function verifyMagicLink(
 
   await db.update(magicLinks).set({ usedAt: new Date() }).where(eq(magicLinks.id, link.id));
 
-  const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? 'dev-secret-change-in-production');
+  const secret = new TextEncoder().encode(jwtSecret());
   const jwt = await new SignJWT({ sub: link.user.id, email: link.user.email })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('30d')
+    .setExpirationTime(`${AUTH_DEFAULTS.sessionTtlDays}d`)
     .sign(secret);
 
   return {

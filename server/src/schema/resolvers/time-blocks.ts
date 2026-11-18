@@ -2,6 +2,10 @@ import { timeBlocks } from '@cubicecho/ravocal-db/schema';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Context } from '../../context.ts';
+import { SCHEDULE_DEFAULTS } from '../../core/defaults.ts';
+import { MS_PER_MINUTE } from '../../core/wire.ts';
+
+const { slotMinutes } = SCHEDULE_DEFAULTS;
 
 const AddTimeBlockInput = z
   .object({
@@ -15,8 +19,8 @@ const AddTimeBlockInput = z
       const start = new Date(d.startsAt);
       const end = new Date(d.endsAt);
       const diffMs = end.getTime() - start.getTime();
-      const thirtyMin = 30 * 60 * 1000;
-      return diffMs >= thirtyMin && start.getMinutes() % 30 === 0 && end.getMinutes() % 30 === 0;
+      const slotMs = slotMinutes * MS_PER_MINUTE;
+      return diffMs >= slotMs && start.getMinutes() % slotMinutes === 0 && end.getMinutes() % slotMinutes === 0;
     },
     { message: 'Time blocks must be 30-minute aligned and at least 30 minutes long' },
   );

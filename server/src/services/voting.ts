@@ -1,4 +1,6 @@
 import type { TimeBlock, VoteRanking, VoteSlot } from '@cubicecho/ravocal-db/schema';
+import { SCHEDULE_DEFAULTS } from '../core/defaults.ts';
+import { MS_PER_MINUTE, PERCENT } from '../core/wire.ts';
 
 type Member = { userId: string };
 type SlotCandidate = { startsAt: Date; endsAt: Date; overlapCount: number };
@@ -25,7 +27,7 @@ export function computeVoteSlots(
   }
 
   const memberCount = members.length;
-  const windowMs = 30 * 60 * 1000;
+  const windowMs = SCHEDULE_DEFAULTS.slotMinutes * MS_PER_MINUTE;
 
   // Collect all 30-min windows across all blocks
   const windowMap = new Map<string, Set<string>>();
@@ -47,7 +49,7 @@ export function computeVoteSlots(
     const overlapCount = userIds.size;
     // overlapCount / memberCount >= thresholdPct / 100, in integers: the float
     // form drops exact matches (7 of 25 at 28% computes 7.000000000000001).
-    const meetsThreshold = overlapCount * 100 >= thresholdPct * memberCount;
+    const meetsThreshold = overlapCount * PERCENT >= thresholdPct * memberCount;
     const isBelowThreshold = isForced === false && meetsThreshold === false;
     if (isBelowThreshold) {
       continue;

@@ -2,17 +2,23 @@ import { groupInvites, groupMembers, groups, users } from '@cubicecho/ravocal-db
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Context } from '../../context.ts';
+import { GROUP_DEFAULTS } from '../../core/defaults.ts';
+import { MS_PER_DAY, PERCENT } from '../../core/wire.ts';
 import { randomToken } from '../../services/auth.ts';
 import { sendGroupInviteEmail } from '../../services/email.ts';
 
+const nameSchema = z.string().min(1).max(GROUP_DEFAULTS.maxNameLength);
+const overlapThresholdSchema = z.number().int().min(0).max(PERCENT);
+
+// Left out, overlapThreshold takes the column's default.
 const CreateGroupInput = z.object({
-  name: z.string().min(1).max(100),
-  overlapThreshold: z.number().int().min(0).max(100).optional().default(50),
+  name: nameSchema,
+  overlapThreshold: overlapThresholdSchema.optional(),
 });
 
 const UpdateGroupInput = z.object({
-  name: z.string().min(1).max(100).optional(),
-  overlapThreshold: z.number().int().min(0).max(100).optional(),
+  name: nameSchema.optional(),
+  overlapThreshold: overlapThresholdSchema.optional(),
 });
 
 /** Everything a `Group` resolves to, loaded in one relational query. */
@@ -153,7 +159,7 @@ export function applyGroupResolvers(queryFields: Record<string, unknown>, mutati
     }
 
     const token = randomToken();
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + GROUP_DEFAULTS.inviteTtlDays * MS_PER_DAY);
     const [invite] = await ctx.db
       .insert(groupInvites)
       .values({ groupId: args.groupId, email: args.email, token, expiresAt })
