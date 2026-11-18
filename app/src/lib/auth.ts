@@ -13,9 +13,11 @@ export const HOME_PATH = '/groups' as const;
 export const LOGIN_PATH = '/login' as const;
 /** Where a sign-in link from an email lands. The server builds the link with this path. */
 export const VERIFY_PATH = '/auth/verify' as const;
+/** Where a sign-in with Google or Facebook lands, with a one-time token. The server redirects to this path. */
+export const SSO_PATH = '/auth/sso' as const;
 
-/** The pages a signed-out reader may open: the sign-in form, and the page its link opens. */
-export const PUBLIC_PATHS: ReadonlySet<string> = new Set([LOGIN_PATH, VERIFY_PATH]);
+/** The pages a signed-out reader may open: the sign-in form, and the pages a sign-in lands on. */
+export const PUBLIC_PATHS: ReadonlySet<string> = new Set([LOGIN_PATH, VERIFY_PATH, SSO_PATH]);
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
@@ -25,7 +27,7 @@ export function isSignedIn(): boolean {
   return getToken() !== null;
 }
 
-/** Keeps the session token `magicLinkVerify` answered with. */
+/** Keeps the session token `magicLinkVerify` or `verifyOneTimeToken` answered with. */
 export function storeToken(token: string): void {
   localStorage.setItem(TOKEN_KEY, token);
 }

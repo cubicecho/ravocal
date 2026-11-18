@@ -11,18 +11,20 @@ interface PendingScreenProps {
   /** What the screen says when the link did not work. */
   failedTitle: string;
   error: unknown;
+  /** A sentence after the failure's own message, on what to do about it. */
+  failedHint?: string;
 }
 
 /**
- * The page a link from an email lands on while it does its work — signing in, accepting an
- * invite — and what it says if that fails, with the way back to sign in.
+ * The page a link lands on while it does its work — signing in, accepting an invite — and what it says if that fails,
+ * with the way back to sign in.
  */
-export function PendingScreen({ title, failedTitle, error }: PendingScreenProps) {
+export function PendingScreen({ title, failedTitle, error, failedHint }: PendingScreenProps) {
   if (error) {
     return (
       <CenteredCardLayout
         title={failedTitle}
-        description={describeError(error)}
+        description={failedHint === undefined ? describeError(error) : `${describeError(error)} ${failedHint}`}
         footerActionsSlot={
           // A failed invite leaves its reader signed in, and /login would only bounce them on.
           isSignedIn() ? (
