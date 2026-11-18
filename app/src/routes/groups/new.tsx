@@ -43,7 +43,9 @@ function NewGroupPage() {
         variables: { name: value.name.trim(), overlapThreshold: value.overlapThreshold },
       });
       const id = res.data?.createGroup.id;
-      if (id) await navigate({ to: '/groups/$groupId', params: { groupId: id } });
+      if (id) {
+        await navigate({ to: '/groups/$groupId', params: { groupId: id } });
+      }
     },
   });
 
@@ -87,9 +89,13 @@ function NewGroupPage() {
                 validators={{
                   onChange: ({ value }) => {
                     const name = value.trim();
-                    if (name === '') return 'Give the group a name.';
+                    if (name === '') {
+                      return 'Give the group a name.';
+                    }
                     // The server's limit.
-                    if (name.length > 100) return 'Keep the name to 100 characters or fewer.';
+                    if (name.length > 100) {
+                      return 'Keep the name to 100 characters or fewer.';
+                    }
                     return undefined;
                   },
                 }}

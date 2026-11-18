@@ -36,9 +36,15 @@ export async function verifyMagicLink(
     where: eq(magicLinks.token, token),
     with: { user: true },
   });
-  if (!link) throw new Error('Invalid or expired magic link');
-  if (link.usedAt) throw new Error('Magic link already used');
-  if (link.expiresAt < new Date()) throw new Error('Magic link expired');
+  if (!link) {
+    throw new Error('Invalid or expired magic link');
+  }
+  if (link.usedAt) {
+    throw new Error('Magic link already used');
+  }
+  if (link.expiresAt < new Date()) {
+    throw new Error('Magic link expired');
+  }
 
   await db.update(magicLinks).set({ usedAt: new Date() }).where(eq(magicLinks.id, link.id));
 

@@ -47,7 +47,9 @@ function InvitePage() {
   // with "already accepted". The ref lives through StrictMode's remount, so it is sent once.
   const sent = useRef<string | null>(null);
   useEffect(() => {
-    if (sent.current === token) return;
+    if (sent.current === token) {
+      return;
+    }
     sent.current = token;
     void acceptInvite({ variables: { token } });
   }, [token, acceptInvite]);

@@ -13,7 +13,9 @@ export { PUBLIC_MUTATIONS };
 
 export async function createContext(req: Request, db: DB): Promise<Context> {
   const auth = req.headers.authorization;
-  if (!auth?.startsWith('Bearer ')) return { userId: null, db };
+  if (!auth?.startsWith('Bearer ')) {
+    return { userId: null, db };
+  }
 
   const token = auth.slice(7);
   const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? 'dev-secret-change-in-production');

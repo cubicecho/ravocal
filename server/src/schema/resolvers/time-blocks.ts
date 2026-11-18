@@ -30,13 +30,17 @@ export function applyTimeBlockResolvers(
     args: { groupId: string; startsAt: Date; endsAt: Date },
     ctx: Context,
   ) => {
-    if (!ctx.userId) throw new Error('Not authenticated');
+    if (!ctx.userId) {
+      throw new Error('Not authenticated');
+    }
     const input = AddTimeBlockInput.parse(args);
 
     const membership = await ctx.db.query.groupMembers.findFirst({
       where: and(eq(groupMembers.groupId, input.groupId), eq(groupMembers.userId, ctx.userId)),
     });
-    if (!membership) throw new Error('Forbidden');
+    if (!membership) {
+      throw new Error('Forbidden');
+    }
 
     const [block] = await ctx.db
       .insert(timeBlocks)
@@ -51,12 +55,18 @@ export function applyTimeBlockResolvers(
   };
 
   mutationFields.removeTimeBlock = async (_: unknown, args: { id: string }, ctx: Context) => {
-    if (!ctx.userId) throw new Error('Not authenticated');
+    if (!ctx.userId) {
+      throw new Error('Not authenticated');
+    }
     const block = await ctx.db.query.timeBlocks.findFirst({
       where: eq(timeBlocks.id, args.id),
     });
-    if (!block) throw new Error(`TimeBlock ${args.id} not found`);
-    if (block.userId !== ctx.userId) throw new Error('Forbidden');
+    if (!block) {
+      throw new Error(`TimeBlock ${args.id} not found`);
+    }
+    if (block.userId !== ctx.userId) {
+      throw new Error('Forbidden');
+    }
     await ctx.db.delete(timeBlocks).where(eq(timeBlocks.id, args.id));
     return true;
   };

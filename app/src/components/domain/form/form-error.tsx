@@ -5,7 +5,9 @@ import { describeError } from '@/lib/error-message';
  * field. Nothing is drawn while there is no error.
  */
 export function FormError({ error }: { error: unknown }) {
-  if (!error) return null;
+  if (!error) {
+    return null;
+  }
   return (
     <p role="alert" className="text-sm text-negative">
       {describeError(error)}

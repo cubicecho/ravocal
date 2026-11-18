@@ -9,7 +9,9 @@ import { HOME_PATH, isSignedIn } from '@/lib/auth';
 
 export const Route = createFileRoute('/login')({
   beforeLoad: () => {
-    if (isSignedIn()) throw redirect({ to: HOME_PATH });
+    if (isSignedIn()) {
+      throw redirect({ to: HOME_PATH });
+    }
   },
   component: LoginPage,
 });
@@ -34,7 +36,9 @@ function LoginPage() {
     onSubmit: async ({ value }) => {
       const email = value.email.trim();
       const res = await requestMagicLink({ variables: { email } });
-      if (res.data?.requestMagicLink) setSentTo(email);
+      if (res.data?.requestMagicLink) {
+        setSentTo(email);
+      }
     },
   });
 

@@ -42,7 +42,9 @@ function VerifyPage() {
   // link again and fail. The ref lives through StrictMode's remount, so the link is sent once.
   const sent = useRef<string | null>(null);
   useEffect(() => {
-    if (sent.current === token) return;
+    if (sent.current === token) {
+      return;
+    }
     sent.current = token;
     void verifyMagicLink({ variables: { token } });
   }, [token, verifyMagicLink]);

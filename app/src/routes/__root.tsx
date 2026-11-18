@@ -9,8 +9,12 @@ export const Route = createRootRoute({
   // Before any page loads, so a signed-out reader never sees one flash before the redirect, and
   // the magic link's own page is left to finish signing them in.
   beforeLoad: ({ location }) => {
-    if (isSignedIn() || PUBLIC_PATHS.has(location.pathname)) return;
-    if (location.pathname !== '/') rememberAfterSignIn(location.href);
+    if (isSignedIn() || PUBLIC_PATHS.has(location.pathname)) {
+      return;
+    }
+    if (location.pathname !== '/') {
+      rememberAfterSignIn(location.href);
+    }
     throw redirect({ to: '/login' });
   },
   component: Root,
