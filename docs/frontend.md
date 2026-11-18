@@ -9,7 +9,7 @@ npm run dev:app    # Vite on localhost:5173
 npm run dev        # server + app concurrently
 ```
 
-Vite proxies `/graphql` to `http://localhost:3001` so no CORS issues in development.
+Vite proxies `/graphql`, `/sso/` and `/api/auth/` to `http://localhost:3001`, so the app and the server are one origin in development as in production: no CORS, and a provider's state cookie comes back to the origin that set it. Set `APP_URL=http://localhost:5173` (`.env.example` does).
 
 ## Auth
 
@@ -23,10 +23,26 @@ with. Under `SECURE_LOCAL_NET` `signInMagicLink` answers with the token itself, 
 signs straight in. With neither SMTP nor `SECURE_LOCAL_NET` the page says sign-in is not set up
 instead of offering a form. A `TOO_MANY_REQUESTS` refusal is shown as its own callout.
 
+Google and Facebook: `/login` shows a "Continue with <name>" `Button` per entry in
+`authConfig.providers`, its `linkSlot` a plain `<a href={signInUrl}>`: a full page load out to the
+provider, not a fetch. The server's callback lands on `/auth/sso?token=…`, which calls
+`verifyOneTimeToken` once (the same ref guard), stores the token and goes on with
+`takeAfterSignIn`; a failure says a sign-in has to be finished within a few minutes and only once.
+A refusal comes back as `/login?error=<code>&provider=<id>`, and `lib/provider-errors.ts`
+(`describeProviderError`) says what each code means, naming the provider. "Sign-in is not set up"
+shows only with no links, no `SECURE_LOCAL_NET` and no provider.
+
+Settings (`/settings`, the Settings button on `/groups`): "Connected accounts" lists the email link
+and each provider with `SettingRow`s. Connect calls `linkSocialAccount(provider)` and follows the
+URL it answers with; the provider sends the reader back to `/settings?connected=<id>` or
+`?error=<code>&provider=<id>`. Disconnect is a `ConfirmButton` calling `unlinkAccount`, held back
+(with the reason as its hint) when it is the last way to sign in: no other provider connected and
+no confirmed address for a link. The server enforces the same rule.
+
 Auth guard: the root route's `beforeLoad` (`app/src/routes/__root.tsx`) redirects a signed-out
-reader to `/login`, except on `PUBLIC_PATHS` (`/login` and `/auth/verify`). It first remembers where
+reader to `/login`, except on `PUBLIC_PATHS` (`/login`, `/auth/verify` and `/auth/sso`). It first remembers where
 they were going (`rememberAfterSignIn`), so an invite link or a group link opened while signed out
-finishes there once the magic link is followed; `/auth/verify` sends them on with `takeAfterSignIn`.
+finishes there once the magic link is followed; `/auth/verify` and `/auth/sso` send them on with `takeAfterSignIn`.
 `/login` redirects a signed-in reader to `/groups` in its own `beforeLoad`.
 
 An expired or ended session: Apollo's `errorLink` (`app/src/apollo-client.ts`) watches for the
@@ -48,8 +64,10 @@ TanStack Router with file-based routes. The Vite plugin regenerates `app/src/rou
 | Route | File | Purpose |
 |-------|------|---------|
 | `/` | `routes/index.tsx` | Redirect → `/groups` or `/login` |
-| `/login` | `routes/login.tsx` | Magic link request form |
+| `/login` | `routes/login.tsx` | Magic link request form, provider buttons, `?error=` messages |
 | `/auth/verify` | `routes/auth/verify.tsx` | Spend a magic link's token for a session |
+| `/auth/sso` | `routes/auth/sso.tsx` | Spend a provider sign-in's one-time token for a session |
+| `/settings` | `routes/settings.tsx` | Connected accounts: connect and disconnect providers |
 | `/invite` | `routes/invite.tsx` | Accept group invite via token |
 | `/groups` | `routes/groups/index.tsx` | List user's groups |
 | `/groups/new` | `routes/groups/new.tsx` | Create group form |

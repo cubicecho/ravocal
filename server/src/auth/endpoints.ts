@@ -1,35 +1,81 @@
-import { applyBetterAuthGraphQL, betterAuthGraphQL, type OperationOptions } from '@cubicecho/graphql-better-auth';
+import {
+  applyBetterAuthGraphQL,
+  betterAuthGraphQL,
+  type JsonSchema,
+  type OperationCall,
+  type OperationOptions,
+} from '@cubicecho/graphql-better-auth';
 import type { DB } from '@cubicecho/ravocal-db';
 import { GraphQLError, type GraphQLSchema } from 'graphql';
 import { z } from 'zod';
-import { secureLocalNet } from '../core/config.ts';
+import { appUrl, secureLocalNet } from '../core/config.ts';
 import type { Context } from '../core/context.ts';
-import { badInput } from '../core/errors.ts';
+import { badInput, notFound, requireAuth } from '../core/errors.ts';
 import { parseOrThrow } from '../core/validation.ts';
-import { createAuth, sendsMagicLinks, sessionUserId } from './better-auth.ts';
+import { createAuth, nonSessionCookies, sendsMagicLinks, sessionUserId } from './better-auth.ts';
 import { AuthFlow, throttle } from './throttle.ts';
 
 // better-auth's own endpoints, served as GraphQL by @cubicecho/graphql-better-auth. Fields, arguments and types are
 // read off the auth instance, so a better-auth upgrade moves them with it. What Ravocal adds is in the `around`s:
-// the throttle, SECURE_LOCAL_NET, and errors that never sign anyone out.
+// the throttle, SECURE_LOCAL_NET, the rule on the last way to sign in, and errors that never sign anyone out.
 
 /** The better-auth endpoints served, by name. Nothing else better-auth offers is reachable. */
 export const BETTER_AUTH_OPERATIONS = [
   'signInMagicLink',
   'magicLinkVerify',
+  'verifyOneTimeToken',
   'getSession',
   'listSessions',
   'signOut',
   'revokeSession',
   'revokeSessions',
   'revokeOtherSessions',
+  'linkSocialAccount',
+  'listUserAccounts',
+  'unlinkAccount',
 ];
 
 /** How an account made by a SECURE_LOCAL_NET sign-in is labelled in better-auth's hooks. */
 const LOCAL_NET_METHOD = 'secure-local-net';
 
+/** The app's Settings page, where connecting a provider starts and ends. */
+const SETTINGS_PATH = '/settings';
+
 /** What a link that cannot be spent is told, whichever way it is wrong. */
 const BAD_LINK = 'Invalid or expired sign-in link.';
+
+/** What a one-time token that cannot be spent is told: the sign-in has to be started again. */
+const BAD_SSO_TOKEN = 'Invalid or expired sign-in. Sign in again.';
+
+/** What unlinking the last way to sign in is told. */
+const LAST_WAY =
+  'This is the only way you can sign in. Sign in with an email link once, so Ravocal knows the address is yours, then disconnect it.';
+
+/** better-auth's code for a session too old to change how its account signs in (`session.freshAge`, a day). */
+const SESSION_NOT_FRESH = 'SESSION_NOT_FRESH';
+
+/** What disconnecting with such a session is told. */
+const SIGN_IN_AGAIN = 'For your safety, sign out and in again before disconnecting an account.';
+
+/** A session as the client keeps it: the bearer token, and whose it is. */
+const SESSION_RESULT: JsonSchema = {
+  type: 'object',
+  properties: {
+    token: { type: 'string', description: 'The session, to send as `Authorization: Bearer <token>`.' },
+    userId: { type: 'string', format: 'uuid', description: "The session's user." },
+  },
+  required: ['token', 'userId'],
+};
+
+/** Where to send the browser to connect a provider. */
+const LINK_RESULT: JsonSchema = {
+  type: 'object',
+  properties: { url: { type: 'string', description: "The provider's authorize page. Open it in this browser." } },
+  required: ['url'],
+};
+
+/** What each call's endpoint answered with, for an `around` that needs its headers after `next()`. */
+const responseHeaders = new WeakMap<OperationCall<Context>, Headers>();
 
 /** What an instance with no way to deliver a link answers a request for one. */
 const NO_LINKS =
@@ -144,6 +190,102 @@ const signOut: OperationOptions<Context> = {
 };
 
 /**
+ * Spends the one-time token a provider's callback put on `/auth/sso` for the session it stands for. Expired, spent and
+ * unknown tokens answer the same.
+ */
+const verifyOneTimeToken: OperationOptions<Context> = {
+  result: () => SESSION_RESULT,
+  around: async (call, next) => {
+    // By IP alone: until the token verifies there is no address to count against.
+    throttle(call.context, AuthFlow.VerifyOneTimeToken);
+    const result = (await refusedAs(next, BAD_SSO_TOKEN)) as { session: { token: string }; user: { id: string } };
+    return { token: result.session.token, userId: result.user.id };
+  },
+};
+
+/**
+ * Starts connecting a provider to the signed-in reader. The answer is the provider's authorize page; the state cookie
+ * that ties the flow to this browser goes on the response, and the provider sends the browser back to Settings.
+ */
+const linkSocialAccount: OperationOptions<Context> = {
+  omitArgs: [
+    'callbackURL',
+    'errorCallbackURL',
+    'disableRedirect',
+    'idToken',
+    'requestSignUp',
+    'scopes',
+    'loginHint',
+    'additionalParams',
+    'additionalData',
+  ],
+  result: () => LINK_RESULT,
+  around: async (call, next) => {
+    requireAuth(call.context);
+    const provider = String(call.body.provider);
+    const isOffered = call.context.authHost.providers().some((offered) => offered.id === provider);
+    if (isOffered === false) {
+      throw badInput(`Signing in with ${provider} is not set up on this instance.`);
+    }
+    call.body.callbackURL = `${appUrl()}${SETTINGS_PATH}?connected=${provider}`;
+    call.body.errorCallbackURL = `${appUrl()}${SETTINGS_PATH}?provider=${provider}`;
+    call.body.disableRedirect = true;
+    const { url } = (await next()) as { url: string };
+    const headers = responseHeaders.get(call);
+    for (const cookie of headers === undefined ? [] : await nonSessionCookies(call.context.auth, headers)) {
+      call.context.setCookie(cookie);
+    }
+    return { url };
+  },
+};
+
+/**
+ * Whether the reader could still sign in by email: anyone can under SECURE_LOCAL_NET, and otherwise an address a link
+ * has confirmed can, while the instance sends links.
+ *
+ * @param context - The request's context.
+ * @param emailVerified - Whether the reader's address has been confirmed.
+ * @returns true when the email way to sign in works for them.
+ */
+function emailSignsIn(context: Context, emailVerified: boolean): boolean {
+  return secureLocalNet() || (emailVerified && sendsMagicLinks(context.auth));
+}
+
+/**
+ * Disconnects a provider from the signed-in reader, unless it is their last way to sign in: no other provider this
+ * instance offers is connected, and no email link would reach them.
+ */
+const unlinkAccount: OperationOptions<Context> = {
+  around: async (call, next) => {
+    const userId = requireAuth(call.context);
+    const { internalAdapter } = await call.context.auth.$context;
+    const [user, accounts] = await Promise.all([
+      internalAdapter.findUserById(userId),
+      internalAdapter.findAccounts(userId),
+    ]);
+    const target = accounts.find((account) => account.id === call.body.accountId);
+    if (target === undefined) {
+      throw notFound('That account is not connected.');
+    }
+    const offered = new Set<string>(call.context.authHost.providers().map((provider) => provider.id));
+    const otherWays = accounts.filter((account) => account.id !== target.id && offered.has(account.providerId));
+    const isLastWay =
+      offered.has(target.providerId) &&
+      otherWays.length === 0 &&
+      emailSignsIn(call.context, user?.emailVerified === true) === false;
+    if (isLastWay) {
+      throw badInput(LAST_WAY);
+    }
+    try {
+      return await next();
+    } catch (error) {
+      const isStale = error instanceof GraphQLError && error.extensions.authCode === SESSION_NOT_FRESH;
+      throw isStale ? badInput(SIGN_IN_AGAIN) : error;
+    }
+  },
+};
+
+/**
  * Adds better-auth's endpoints to the schema. Each call goes to the request's own auth instance with the request's
  * headers, which is where better-auth finds the session.
  *
@@ -152,13 +294,17 @@ const signOut: OperationOptions<Context> = {
  * @returns The schema with them.
  */
 export function applyBetterAuthExtension(schema: GraphQLSchema, db: DB): GraphQLSchema {
-  // Described from an instance that always has the magic-link plugin, so the fields don't depend on SMTP_URL.
-  const describing = createAuth(db, { sendMagicLink: async () => {} });
+  // Described from an instance that always has the magic-link plugin, so the fields don't depend on SMTP_URL, and no
+  // provider, so describing it fetches nothing. Linking a provider is better-auth's core, there with or without one.
+  const describing = createAuth(db, { sendMagicLink: async () => {}, providers: [] });
   const built = betterAuthGraphQL<Context>(describing, {
     include: BETTER_AUTH_OPERATIONS,
     auth: (context) => context.auth,
     headers: (context) => context.headers,
-    operations: { signInMagicLink, magicLinkVerify, signOut },
+    onResponseHeaders: (headers, call) => {
+      responseHeaders.set(call, headers);
+    },
+    operations: { signInMagicLink, magicLinkVerify, verifyOneTimeToken, signOut, linkSocialAccount, unlinkAccount },
   });
   return applyBetterAuthGraphQL(schema, built);
 }

@@ -5,8 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { closeDatabase, db } from '@cubicecho/ravocal-db';
 import { waitForDatabase } from '@cubicecho/ravocal-db/wait';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
-import { createAuth, sendsMagicLinks } from './auth/better-auth.ts';
-import { appUrl, dbConnectTimeoutMs, port, secureLocalNet } from './core/config.ts';
+import { createAuthHost } from './auth/auth-host.ts';
+import { sendsMagicLinks } from './auth/better-auth.ts';
+import { appUrl, dbConnectTimeoutMs, port, providerRedirectUri, secureLocalNet, serverUrl } from './core/config.ts';
 import { errorMessage } from './core/errors.ts';
 import { createApp } from './http/app.ts';
 import { stopOnSignals } from './http/shutdown.ts';
@@ -31,8 +32,8 @@ try {
 // At boot, so a fresh database is set up by starting the server.
 await migrate(db, { migrationsFolder: join(__dirname, '../../db/drizzle') });
 
-const auth = createAuth(db);
-const app = createApp({ db, auth, staticDir: join(__dirname, '../../app/dist') });
+const authHost = await createAuthHost(db);
+const app = createApp({ db, authHost, staticDir: join(__dirname, '../../app/dist') });
 
 const server = app.listen(port(), LISTEN_HOST, (error) => {
   if (error !== undefined) {
@@ -40,12 +41,16 @@ const server = app.listen(port(), LISTEN_HOST, (error) => {
     process.exit(1);
   }
   console.log(`[server] ready on port ${port()}: GraphQL at /graphql, health at /healthz`);
-  console.log(`[server] links in emails point at ${appUrl()}`);
+  console.log(`[server] links in emails point at ${appUrl()}, provider sign-in at ${serverUrl()}`);
+  const providers = authHost.providers();
+  for (const provider of providers) {
+    console.log(`[auth] sign-in with ${provider.name}; redirect URI ${providerRedirectUri(provider.id)}`);
+  }
   if (secureLocalNet()) {
     console.warn('[auth] SECURE_LOCAL_NET is on: any email signs in without a link. Private networks only.');
-  } else if (sendsMagicLinks(auth) === false) {
+  } else if (sendsMagicLinks(authHost.current()) === false && providers.length === 0) {
     console.warn(
-      '[auth] nobody can sign in: set SMTP_URL to email sign-in links, or SECURE_LOCAL_NET=true on a private network.',
+      '[auth] nobody can sign in: set SMTP_URL to email sign-in links, GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET or FACEBOOK_CLIENT_ID and FACEBOOK_CLIENT_SECRET for a provider, or SECURE_LOCAL_NET=true on a private network.',
     );
   }
 });

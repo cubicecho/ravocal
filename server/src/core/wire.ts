@@ -1,5 +1,5 @@
 /** The HTTP statuses this server sends, and its tests expect. */
-export const HttpStatus = { Ok: 200, PayloadTooLarge: 413, ServiceUnavailable: 503 } as const;
+export const HttpStatus = { Ok: 200, Found: 302, PayloadTooLarge: 413, ServiceUnavailable: 503 } as const;
 export type HttpStatus = (typeof HttpStatus)[keyof typeof HttpStatus];
 
 /** Milliseconds in one second. */

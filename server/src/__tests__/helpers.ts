@@ -6,7 +6,8 @@ import { getTableName, is, sql, Table } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { type ExecutionResult, type GraphQLSchema, graphql } from 'graphql';
 import { inject } from 'vitest';
-import { type Auth, createAuth, type MagicLink } from '../auth/better-auth.ts';
+import { type AuthHost, fixedAuthHost } from '../auth/auth-host.ts';
+import { type Auth, type AuthOptions, createAuth, type MagicLink } from '../auth/better-auth.ts';
 import { createRateLimiter, type RateLimiter } from '../auth/rate-limit.ts';
 import type { Context } from '../core/context.ts';
 import { buildSchema } from '../schema/index.ts';
@@ -61,11 +62,17 @@ export interface TestAuth {
  * Builds better-auth over the test db, with magic links captured instead of sent.
  *
  * @param testDb - Test db.
+ * @param [options] - The providers to offer and where they are; none by default.
  * @returns The auth instance and the captured links.
  */
-export function createTestAuth(testDb: TestDb): TestAuth {
+export function createTestAuth(
+  testDb: TestDb,
+  options: Pick<AuthOptions, 'providers' | 'providerEndpoints'> = {},
+): TestAuth {
   const links: MagicLink[] = [];
   const auth = createAuth(testDb, {
+    providers: [],
+    ...options,
     secret: TEST_SECRET,
     sendMagicLink: async (link) => {
       links.push(link);
@@ -81,7 +88,7 @@ export function createTestAuth(testDb: TestDb): TestAuth {
  * @returns The auth instance.
  */
 export function createLinklessAuth(testDb: TestDb): Auth {
-  return createAuth(testDb, { secret: TEST_SECRET });
+  return createAuth(testDb, { secret: TEST_SECRET, providers: [] });
 }
 
 /**
@@ -209,6 +216,11 @@ export interface ClientDeps {
    */
   auth?: Auth;
   /**
+   * Pass one to offer providers, or to see a rebuild.
+   * @defaultValue `fixedAuthHost(auth)`, which offers none
+   */
+  authHost?: AuthHost;
+  /**
    * Pass a small one to reach the budget.
    * @defaultValue `createRateLimiter()`
    */
@@ -223,6 +235,11 @@ export interface ClientDeps {
    * @defaultValue None
    */
   headers?: Headers;
+  /**
+   * Collects the `Set-Cookie` values an operation sends.
+   * @defaultValue None
+   */
+  cookies?: string[];
 }
 
 /**
@@ -239,10 +256,22 @@ export function createClient(testDb: TestDb, userId: string | null, deps: Client
   schemas.set(testDb, schemaForRun);
   const sharedAuth = auths.get(testDb) ?? createTestAuth(testDb).auth;
   auths.set(testDb, sharedAuth);
-  const auth = deps.auth ?? sharedAuth;
+  const authHost = deps.authHost ?? fixedAuthHost(deps.auth ?? sharedAuth);
+  const { cookies = [] } = deps;
 
   const run: TestClient['run'] = (query, variables) => {
-    const contextValue: Context = { db: testDb, auth, limiter, userId, ip, headers };
+    const contextValue: Context = {
+      db: testDb,
+      auth: authHost.current(),
+      authHost,
+      limiter,
+      userId,
+      ip,
+      headers,
+      setCookie: (cookie) => {
+        cookies.push(cookie);
+      },
+    };
     return graphql({
       schema: schemaForRun,
       source: query,

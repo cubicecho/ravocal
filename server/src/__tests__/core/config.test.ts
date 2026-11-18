@@ -1,5 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEV_SECRET, describeWeakSecret, PLACEHOLDER_SECRET, secureLocalNet, smtpFrom } from '../../core/config.ts';
+import {
+  DEV_SECRET,
+  describeWeakSecret,
+  halfSetProviders,
+  PLACEHOLDER_SECRET,
+  ProviderId,
+  providerConfigs,
+  providerRedirectUri,
+  secureLocalNet,
+  serverUrl,
+  smtpFrom,
+} from '../../core/config.ts';
 import { AUTH_DEFAULTS } from '../../core/defaults.ts';
 
 afterEach(() => {
@@ -52,5 +63,44 @@ describe('smtpFrom', () => {
   it('is SMTP_FROM when set', () => {
     vi.stubEnv('SMTP_FROM', 'meetings@example.com');
     expect(smtpFrom()).toBe('meetings@example.com');
+  });
+});
+
+describe('serverUrl', () => {
+  it('is APP_URL when SERVER_URL is unset, since the app and the server share an origin', () => {
+    vi.stubEnv('APP_URL', 'http://localhost:5173');
+    expect(serverUrl()).toBe('http://localhost:5173');
+  });
+
+  it('is SERVER_URL when set, and the redirect URIs follow it', () => {
+    vi.stubEnv('APP_URL', 'http://localhost:5173');
+    vi.stubEnv('SERVER_URL', 'http://localhost:3001');
+    expect(serverUrl()).toBe('http://localhost:3001');
+    expect(providerRedirectUri(ProviderId.Google)).toBe('http://localhost:3001/api/auth/callback/google');
+  });
+});
+
+describe('providerConfigs', () => {
+  it('offers no provider when none is set', () => {
+    expect(providerConfigs()).toEqual([]);
+    expect(halfSetProviders()).toEqual([]);
+  });
+
+  it('offers a provider whose id and secret are both set, trimmed', () => {
+    vi.stubEnv('FACEBOOK_CLIENT_ID', ' 1234 ');
+    vi.stubEnv('FACEBOOK_CLIENT_SECRET', 'shh');
+    expect(providerConfigs()).toEqual([
+      { id: ProviderId.Facebook, name: 'Facebook', clientId: '1234', clientSecret: 'shh' },
+    ]);
+  });
+
+  it.each([
+    ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'],
+    ['GOOGLE_CLIENT_SECRET', 'GOOGLE_CLIENT_ID'],
+  ])('turns Google off, and preflight names what is missing, when only %s is set', (set, missing) => {
+    vi.stubEnv(set, 'value');
+    expect(providerConfigs()).toEqual([]);
+    const [problem] = halfSetProviders();
+    expect(problem).toContain(`${set} is set but ${missing} is not`);
   });
 });
