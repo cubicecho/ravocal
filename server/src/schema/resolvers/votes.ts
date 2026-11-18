@@ -15,7 +15,7 @@ export function applyVoteResolvers(
     if (!ctx.userId) throw new Error("Not authenticated");
     const group = await ctx.db.query.groups.findFirst({
       where: eq(groups.id, args.groupId),
-      with: { members: true, timeBlocks: true },
+      with: { members: { with: { user: true } }, timeBlocks: true },
     });
     if (!group) throw new Error(`Group ${args.groupId} not found`);
     if (group.ownerId !== ctx.userId) throw new Error("Forbidden");
@@ -37,7 +37,7 @@ export function applyVoteResolvers(
     if (!ctx.userId) throw new Error("Not authenticated");
     const group = await ctx.db.query.groups.findFirst({
       where: eq(groups.id, args.groupId),
-      with: { members: true, timeBlocks: true },
+      with: { members: { with: { user: true } }, timeBlocks: true },
     });
     if (!group) throw new Error(`Group ${args.groupId} not found`);
     if (group.ownerId !== ctx.userId) throw new Error("Forbidden");
