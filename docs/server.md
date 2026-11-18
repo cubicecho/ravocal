@@ -234,16 +234,16 @@ Where it comes from is decided only by `sso/settings.ts` `effectiveOidc(db)`:
 2. POSTs `{ client_name: 'Ravocal', redirect_uris: ['<SERVER_URL>/api/auth/callback/oidc'], token_endpoint_auth_method: 'client_secret_basic', grant_types: ['authorization_code'], response_types: ['code'] }` with `Authorization: Bearer <token>` (RFC 7591).
 3. Keeps `client_id` (required), `client_secret`, the auth method the provider actually registered, `registration_access_token` and `registration_client_uri` in the one `oidc_settings` row.
 
-Every call goes through one `call()` with `AbortSignal.timeout(AUTH_DEFAULTS.oidcPairingTimeoutMs)` (10 s). The setup token is never stored or logged, and no message carries it. A failure is a `PairingError`, answered with its `reason` in `extensions.reason`:
+Every call goes through one `call()` with `AbortSignal.timeout(AUTH_DEFAULTS.oidcPairingTimeoutMs)` (10 s) and `redirect: 'manual'`: a redirect is refused, never followed, so the setup token and the registration access token reach only the endpoints the issuer's document and the registration named. The setup token is never stored or logged, and no message carries it. A failure is a `PairingError`, answered with its `reason` in `extensions.reason`:
 
-| reason            | when                                                                                | code                |
-| ----------------- | ----------------------------------------------------------------------------------- | ------------------- |
-| `BAD_URL`         | not a URL, not http(s), or no `setup`                                               | `BAD_USER_INPUT`    |
-| `NOT_A_PROVIDER`  | unreachable, no discovery, another issuer, no `client_id`, or an unexpected status  | `BAD_USER_INPUT`    |
-| `NO_REGISTRATION` | no `registration_endpoint`: register by hand and use `OIDC_ISSUER`/`OIDC_CLIENT_ID` | `BAD_USER_INPUT`    |
-| `EXPIRED`         | 401, or `invalid_token`                                                             | `BAD_USER_INPUT`    |
-| `REFUSED`         | 400, with the provider's `error_description`                                        | `BAD_USER_INPUT`    |
-| `RATE_LIMITED`    | 429                                                                                 | `TOO_MANY_REQUESTS` |
+| reason            | when                                                                                           | code                |
+| ----------------- | ---------------------------------------------------------------------------------------------- | ------------------- |
+| `BAD_URL`         | not a URL, not http(s), or no `setup`                                                          | `BAD_USER_INPUT`    |
+| `NOT_A_PROVIDER`  | unreachable, no discovery, another issuer, a redirect, no `client_id`, or an unexpected status | `BAD_USER_INPUT`    |
+| `NO_REGISTRATION` | no `registration_endpoint`: register by hand and use `OIDC_ISSUER`/`OIDC_CLIENT_ID`            | `BAD_USER_INPUT`    |
+| `EXPIRED`         | 401, or `invalid_token`                                                                        | `BAD_USER_INPUT`    |
+| `REFUSED`         | 400, with the provider's `error_description`                                                   | `BAD_USER_INPUT`    |
+| `RATE_LIMITED`    | 429                                                                                            | `TOO_MANY_REQUESTS` |
 
 `unpair(db)` sends an RFC 7592 `DELETE` to the registration client URI with the registration access token (a 2xx, 401 or 404 counts as gone), then forgets the row whatever the answer, warning under `[auth]` when it could not confirm.
 

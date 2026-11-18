@@ -298,6 +298,16 @@ describe('pairSso', () => {
     expect(await readPairedOidc(db)).toBeNull();
   });
 
+  it('refuses a registration endpoint that redirects, and never sends the token on', async () => {
+    dcr.answer = 'redirect';
+    const error = await refused(PAIR, { url: dcr.setupUrl() });
+    expect(error).toMatchObject({ code: ErrorCode.BadUserInput, reason: PairingFailure.NotAProvider });
+    expect(error.message).toMatch(/redirect/);
+    expect(dcr.registrations).toHaveLength(1);
+    expect(dcr.redirected).toEqual([]);
+    expect(await readPairedOidc(db)).toBeNull();
+  });
+
   it('says nothing answers at an unreachable URL', async () => {
     const error = await refused(PAIR, { url: `http://127.0.0.1:1/oidc#setup=${SETUP_TOKEN}` });
     expect(error).toMatchObject({ code: ErrorCode.BadUserInput, reason: PairingFailure.NotAProvider });

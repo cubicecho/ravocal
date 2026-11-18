@@ -61,6 +61,11 @@ const INVALID_TOKEN = 'invalid_token';
 /** The schemes a setup URL may have. */
 const WEB_PROTOCOLS = new Set(['https:', 'http:']);
 
+/** The lowest status a redirect answers with (RFC 9110, section 15.4). */
+const FIRST_REDIRECT_STATUS = 300;
+/** The highest. */
+const LAST_REDIRECT_STATUS = 399;
+
 /**
  * Takes a setup URL apart.
  *
@@ -100,17 +105,35 @@ export function parseSetupUrl(text: string): SetupUrl {
 /**
  * Makes one request to the provider, with the pairing timeout. Every call pairing makes goes through here.
  *
+ * @remarks
+ * A redirect is not followed: the setup token and the registration access token go only to the endpoint the issuer's
+ * own document names, never wherever that endpoint points on.
+ *
  * @param url - Where.
  * @param [init] - The request.
- * @returns The response, whatever its status.
- * @throws A `PairingError` (NOT_A_PROVIDER) when nothing answered in time.
+ * @returns The response, whatever its status but a redirect.
+ * @throws A `PairingError` (NOT_A_PROVIDER) when nothing answered in time, or the answer was a redirect.
  */
 async function call(url: string, init: RequestInit = {}): Promise<Response> {
+  const { origin } = new URL(url);
+  let response: Response;
   try {
-    return await fetch(url, { ...init, signal: AbortSignal.timeout(AUTH_DEFAULTS.oidcPairingTimeoutMs) });
+    response = await fetch(url, {
+      ...init,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(AUTH_DEFAULTS.oidcPairingTimeoutMs),
+    });
   } catch {
-    throw new PairingError(PairingFailure.NotAProvider, `Could not reach ${new URL(url).origin}. Check the setup URL.`);
+    throw new PairingError(PairingFailure.NotAProvider, `Could not reach ${origin}. Check the setup URL.`);
   }
+  const isRedirect = response.status >= FIRST_REDIRECT_STATUS && response.status <= LAST_REDIRECT_STATUS;
+  if (isRedirect) {
+    throw new PairingError(
+      PairingFailure.NotAProvider,
+      `${origin} answered with a redirect, which pairing does not follow. Check the setup URL with your provider's admin.`,
+    );
+  }
+  return response;
 }
 
 /**
