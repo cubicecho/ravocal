@@ -1,30 +1,31 @@
-FROM node:22-alpine AS builder
+# syntax=docker/dockerfile:1
 
-RUN apk add --no-cache python3 make g++
-
+FROM node:26-slim AS builder
 WORKDIR /app
-
 COPY . .
-
 RUN npm ci
-RUN npm run codegen && npm run build -w app
+RUN npm run codegen && npm run build:app
 
-FROM node:22-alpine
-
+FROM node:26-slim AS runtime
 WORKDIR /app
+COPY package.json package-lock.json ./
+COPY db/package.json db/
+COPY server/package.json server/
+COPY app/package.json app/
+RUN npm ci --omit=dev --include-workspace-root --workspace @cubicecho/ravocal-db --workspace @cubicecho/ravocal-server \
+ && npm cache clean --force
 
-COPY --from=builder /app .
-
-RUN npm prune --omit=dev
+# The server isn't compiled. Its sources are the build output.
+COPY db/src db/src
+COPY db/drizzle db/drizzle
+COPY server/src server/src
+COPY --from=builder /app/app/dist app/dist
 
 ENV NODE_ENV=production
 ENV PORT=3001
-ENV DATABASE_URL=/data/pgdata
-
-RUN mkdir -p /data
-
 EXPOSE 3001
 
-VOLUME ["/data"]
-
-CMD ["node", "--experimental-strip-types", "--preserve-symlinks", "server/src/index.ts"]
+# No --preserve-symlinks: it would resolve the db workspace to its path inside
+# node_modules, and Node refuses to strip types from anything under there.
+# Exec form, so node is PID 1 and gets SIGTERM itself.
+CMD ["node", "server/src/index.ts"]
