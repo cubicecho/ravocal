@@ -1,5 +1,5 @@
-# On every push to main: cuts a version from the conventional commits since the last one (semantic-release: a tag,
-# a GitHub release, CHANGELOG.md and package.json's version), then pushes the image to GHCR as that version and
+# Once CI has passed on main: cuts a version from the conventional commits since the last one (semantic-release: a
+# tag, a GitHub release, CHANGELOG.md and package.json's version), then pushes the image to GHCR as that version and
 # `latest`. A push whose commits are all chore, docs, ci, build, refactor or test cuts no version and pushes nothing.
 #
 # No secrets to set: the workflow's own GITHUB_TOKEN pushes the tag, the release commit and ghcr.io/cubicecho/ravocal.
@@ -8,12 +8,22 @@
 name: Release
 
 on:
-  push:
+  # After CI finishes on main, so a commit that fails its checks is never released. It fires for a failed run too,
+  # which the job's `if` turns away. This must name ci.yml's `name` exactly.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
-  # To retry a release by hand (Actions > Release > Run workflow, on main).
+  # Pushes the image for a version that was already released, without cutting a new one (Actions > Release > Run
+  # workflow). It is built from that version's tag.
   workflow_dispatch:
+    inputs:
+      version:
+        description: The released version to push the image for, such as 1.2.0
+        required: true
 
-# Two releases at once would both try to cut the same version. The second waits for the first.
+# Two releases at once would both try to cut the same version. The second waits for the first; cancelling one
+# mid-push would leave a tag with no image.
 concurrency:
   group: release
   cancel-in-progress: false
@@ -23,11 +33,7 @@ env:
 
 jobs:
   release:
-    # main only (.releaserc.json), and never on the release's own commit. GitHub already skips a `[skip ci]` commit and
-    # a push made with GITHUB_TOKEN; this says so where it can be read.
-    if: >-
-      github.ref == 'refs/heads/main' &&
-      startsWith(github.event.head_commit.message, 'chore(release):') == false
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -41,23 +47,34 @@ jobs:
         with:
           # semantic-release reads the whole history to find the last release and the commits since.
           fetch-depth: 0
+          # The commit CI passed, not wherever main has moved since; or, by hand, the version's tag.
+          ref: ${{ inputs.version && format('v{0}', inputs.version) || github.event.workflow_run.head_sha }}
 
       - uses: actions/setup-node@v7
         with:
           node-version: 26
 
       - name: Install semantic-release
+        if: github.event_name == 'workflow_run'
         run: >-
           npm install -g semantic-release @semantic-release/commit-analyzer @semantic-release/release-notes-generator
           @semantic-release/changelog @semantic-release/npm @semantic-release/git @semantic-release/github
 
       # A dry run first: when every commit since the last release is a chore, docs, ci or build, no version is cut,
-      # and the image steps must not run.
+      # and the image steps must not run. When main has moved on since CI ran, semantic-release releases nothing
+      # here; the newer commit's own CI run releases both.
       - name: Release
         id: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISPATCH_VERSION: ${{ inputs.version }}
         run: |
+          if [ -n "$DISPATCH_VERSION" ]; then
+            echo "version=$DISPATCH_VERSION" >> "$GITHUB_OUTPUT"
+            echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            echo "released=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           output=$(semantic-release --dry-run 2>&1)
           echo "$output"
           version=$(echo "$output" | grep -oP 'next release version is \K[0-9]+\.[0-9]+\.[0-9]+' || true)

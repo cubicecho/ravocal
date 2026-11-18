@@ -128,7 +128,7 @@ ravocal/
 │   └── voting.md            # Overlap algorithm + ranked-choice tallying
 ├── .github/
 │   ├── workflows/ci.yml     # check, postgres, boot (see CI below)
-│   ├── workflows/release.yml # On push to main: semantic-release, then the image to GHCR
+│   ├── workflows/release.yml # After CI passes on main: semantic-release, then the image to GHCR
 │   ├── scripts/boot-smoke.sh # What the boot job asks of a running instance
 │   └── dependabot.yml       # npm, github-actions, docker
 ├── Dockerfile               # node:26-slim, production dependencies only, USER node, HEALTHCHECK on /healthz
@@ -267,7 +267,7 @@ Run the smoke script against any instance: `.github/scripts/boot-smoke.sh http:/
 
 `.github/workflows/release.yml` runs semantic-release (`.releaserc.json`): commit-analyzer, release notes, `CHANGELOG.md`, `@semantic-release/npm` with `npmPublish: false` (so the root `package.json` version, which `/healthz` reports, follows the release), the GitHub release, and a `chore(release): X.Y.Z [skip ci]` commit. A dry run first decides whether there is a version at all; only then does it build the image from the bumped tree and push `ghcr.io/cubicecho/ravocal` as `X.Y.Z` and `latest`, labelled with the version and the release commit (the Dockerfile labels `org.opencontainers.image.source`, which links the package to the repo).
 
-- **Trigger:** every push to `main`, plus `workflow_dispatch` to retry by hand. The job skips the `chore(release):` commit, which GitHub also skips for `[skip ci]` and because `GITHUB_TOKEN` pushes start no workflow.
+- **Trigger:** `workflow_run` on the `CI` workflow, on `main`, and only when that run succeeded, so a commit that fails its checks is never released. It checks out the commit CI passed (`workflow_run.head_sha`), not the tip of `main`. `ci.yml`'s `name` must stay `CI` exactly, or releases silently stop. The `chore(release): X.Y.Z [skip ci]` commit starts no CI run, so no second release. `workflow_dispatch` with a `version` pushes the image for an already-released version from its tag `vX.Y.Z`, without cutting one (it moves `latest` too). A change to `release.yml` only takes effect once it is on `main`.
 - **Secrets:** none. `GITHUB_TOKEN` does it all (`contents`, `issues`, `pull-requests` and `packages: write`). There is no Docker Hub image.
 - The first release is `1.0.0`. The GHCR package must be made public once in its settings, or pulls need a login.
 - Commit types decide the version: `feat` minor, `fix`/`perf` patch, `BREAKING CHANGE` major; `chore`, `docs`, `ci`, `build`, `refactor`, `test` none.
