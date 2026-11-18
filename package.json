@@ -32,6 +32,8 @@
     "db:migrate": "npm run migrate -w db",
     "db:push": "npm run push -w db",
     "db:studio": "npm run studio -w db",
+    "db:up": "docker compose -f docker-compose.dev.yml up -d",
+    "db:down": "docker compose -f docker-compose.dev.yml down",
     "codegen": "npm run codegen:server && npm run codegen:app && npm run codegen:routes",
     "codegen:app": "graphql-codegen --config codegen.ts",
     "codegen:server": "graphql-codegen --config codegen.server.ts",
