@@ -43,7 +43,7 @@ app.use(
 );
 
 app.use(express.static(staticDir));
-app.get("/{*path}", (_req, res) => {
+app.get("*", (_req, res) => {
   res.sendFile(join(staticDir, "index.html"));
 });
 
