@@ -47,7 +47,7 @@
     "drizzle-orm": "1.0.0-rc.5"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.7",
+    "@biomejs/biome": "2.6.8",
     "@graphql-codegen/cli": "^8.0.0",
     "@graphql-codegen/client-preset": "^7.0.0",
     "@graphql-codegen/schema-ast": "^7.0.0",
