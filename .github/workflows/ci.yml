@@ -97,7 +97,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
 
-      # Loaded into the runner's daemon under the tag docker-compose.yml names, so `up --pull never` runs this build.
+      # Loaded into the runner's daemon under the tag docker-compose.yml names, so `up --pull missing` runs this build and pulls only Postgres.
       - name: Build the image
         uses: docker/build-push-action@v7
         with:
@@ -117,7 +117,7 @@ jobs:
 
       # A fresh volume: the server migrates it at boot. --wait returns once both healthchecks pass, the app's on /healthz.
       - name: Start the stack
-        run: docker compose up -d --pull never --wait --wait-timeout 180
+        run: docker compose up -d --pull missing --wait --wait-timeout 180
 
       - name: Answers as an instance should
         run: .github/scripts/boot-smoke.sh http://127.0.0.1:3001

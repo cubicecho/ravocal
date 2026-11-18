@@ -246,7 +246,7 @@ A new variable goes in `config.ts`, `.env.example`, `docker-compose.yml`'s `envi
 
 - **`check`**: `npm ci`, codegen, `biome ci .`, `check:types`, `npm test`, `npm run build`.
 - **`postgres`**: two `postgres:17-alpine` services. On the first, `db:migrate` from empty, `drizzle-kit check`, and `db:generate`, which must leave `db/drizzle` unchanged. On the second, `check:data-migrations` (`docs/database.md`).
-- **`boot`**: builds the image with Buildx (GHA cache) and loads it as `ghcr.io/cubicecho/ravocal:latest`, then `docker compose up --pull never --wait` with a generated `BETTER_AUTH_SECRET`. `.github/scripts/boot-smoke.sh` checks `/healthz`, an anonymous `{ groups { id } }` answering `UNAUTHENTICATED`, `{ authConfig { magicLink } }` and `GET /` serving the app; then `docker compose stop` must leave the server's exit code 0.
+- **`boot`**: builds the image with Buildx (GHA cache) and loads it as `ghcr.io/cubicecho/ravocal:latest`, then `docker compose up --pull missing --wait` (the app image is already loaded, so only Postgres is pulled) with a generated `BETTER_AUTH_SECRET`. `.github/scripts/boot-smoke.sh` checks `/healthz`, an anonymous `{ groups { id } }` answering `UNAUTHENTICATED`, `{ authConfig { magicLink } }` and `GET /` serving the app; then `docker compose stop` must leave the server's exit code 0.
 
 Run the smoke script against any instance: `.github/scripts/boot-smoke.sh http://localhost:3001`.
 
