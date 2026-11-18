@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "codegen": "graphql-codegen --config ../../codegen.ts",
+    "routes": "tsr generate",
     "clean": "rm -rf dist node_modules"
   },
   "dependencies": {
@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.5",
+    "@tanstack/router-cli": "^1.168.0",
     "@tanstack/router-plugin": "^1.120.5",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
