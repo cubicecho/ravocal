@@ -63,7 +63,7 @@ graphql-yoga 5 on Express 5, running TypeScript directly (Node 26 strips types w
 
 `server/src/index.ts` is boot only:
 
-1. `core/preflight.ts` (its first import): `DATABASE_URL` must be set, in production `BETTER_AUTH_SECRET` must not be unset, a published default, or shorter than `AUTH_DEFAULTS.minSecretLength`, and `SECURE_LOCAL_NET` is refused when `APP_URL`'s host is not private (unless `I_KNOW_SECURE_LOCAL_NET_IS_PUBLIC=true`), a provider's client id without its secret (or the reverse) is refused, so are `OIDC_ISSUER` without `OIDC_CLIENT_ID` (or the reverse), an `OIDC_ISSUER` that is not an http(s) URL and an unknown `OIDC_CLIENT_AUTH`, and so is a `SERVER_URL` that is not a URL
+1. `core/preflight.ts` (its first import): `DATABASE_URL` must be set, in production `BETTER_AUTH_SECRET` must not be unset, a published default, or shorter than `AUTH_DEFAULTS.minSecretLength`, and `SECURE_LOCAL_NET` is refused when `APP_URL`'s host is not private (unless `I_KNOW_SECURE_LOCAL_NET_IS_PUBLIC=true`), a provider's client id without its secret (or the reverse) is refused, so are `OIDC_ISSUER` without `OIDC_CLIENT_ID` (or the reverse), an `OIDC_ISSUER` that is not an http(s) URL, in production an `http:` `OIDC_ISSUER` whose host is not loopback or private (`isPublicHttp`, over the db package's `isPrivateHost`), and an unknown `OIDC_CLIENT_AUTH`, and so is a `SERVER_URL` that is not a URL
 2. `waitForDatabase` (from `@cubicecho/ravocal-db/wait`), exiting with a sentence if Postgres never answers
 3. The migrations in `db/drizzle`
 4. `createApp({ db, authHost: await createAuthHost(db), staticDir })`, then `listen` on `PORT` (default 3001) on every interface. It logs each provider it offers (the OIDC provider with its issuer) with the redirect URI to register (`<SERVER_URL>/api/auth/callback/<id>`), and warns under `[auth]` when `SECURE_LOCAL_NET` is on, and when nobody can sign in (no `SMTP_URL`, no provider and no `SECURE_LOCAL_NET`; pairing from the login page is still open then)
@@ -228,7 +228,7 @@ Where it comes from is decided only by `sso/settings.ts` `effectiveOidc(db)`:
 2. Otherwise the `oidc_settings` row a pairing wrote (`PAIRED`).
 3. Otherwise none (`NONE`).
 
-**Pairing** (`sso/pairing.ts`). A provider that does Dynamic Client Registration hands its admin a setup URL, `<issuer>#setup=<initial access token>&name=<label>`. The token is in the fragment, so no server logs it on the way. `parseSetupUrl` wants an http(s) URL with `setup`; the issuer is the URL without its fragment, query and trailing slashes, and the name falls back to `SSO`. `pair(db, setupUrl)`:
+**Pairing** (`sso/pairing.ts`). A provider that does Dynamic Client Registration hands its admin a setup URL, `<issuer>#setup=<initial access token>&name=<label>`. The token is in the fragment, so no server logs it on the way. `parseSetupUrl` wants an http(s) URL with `setup`, and in production refuses an `http:` one whose host is not loopback or private (`isPublicHttp`) before anything is fetched, since the token and later the client secret would cross the network in the clear; the issuer is the URL without its fragment, query and trailing slashes, and the name falls back to `SSO`. `pair(db, setupUrl)`:
 
 1. Fetches the discovery document, and **checks that its `issuer` is the pasted issuer before the token goes anywhere**; it must name a `registration_endpoint`.
 2. POSTs `{ client_name: 'Ravocal', redirect_uris: ['<SERVER_URL>/api/auth/callback/oidc'], token_endpoint_auth_method: 'client_secret_basic', grant_types: ['authorization_code'], response_types: ['code'] }` with `Authorization: Bearer <token>` (RFC 7591).
@@ -238,7 +238,7 @@ Every call goes through one `call()` with `AbortSignal.timeout(AUTH_DEFAULTS.oid
 
 | reason            | when                                                                                           | code                |
 | ----------------- | ---------------------------------------------------------------------------------------------- | ------------------- |
-| `BAD_URL`         | not a URL, not http(s), or no `setup`                                                          | `BAD_USER_INPUT`    |
+| `BAD_URL`         | not a URL, not http(s), no `setup`, or in production `http:` on a public host                  | `BAD_USER_INPUT`    |
 | `NOT_A_PROVIDER`  | unreachable, no discovery, another issuer, a redirect, no `client_id`, or an unexpected status | `BAD_USER_INPUT`    |
 | `NO_REGISTRATION` | no `registration_endpoint`: register by hand and use `OIDC_ISSUER`/`OIDC_CLIENT_ID`            | `BAD_USER_INPUT`    |
 | `EXPIRED`         | 401, or `invalid_token`                                                                        | `BAD_USER_INPUT`    |

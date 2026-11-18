@@ -209,6 +209,17 @@ describe('setup URLs', () => {
     expect(() => parseSetupUrl(text)).toThrow(expect.objectContaining({ reason: PairingFailure.BadUrl }));
   });
 
+  it('are refused in production as BAD_URL when they are http:// on a public host', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    const text = `http://id.example.com/oidc#setup=${SETUP_TOKEN}`;
+    expect(() => parseSetupUrl(text)).toThrow(expect.objectContaining({ reason: PairingFailure.BadUrl }));
+    expect(() => parseSetupUrl(text)).toThrow(/https:\/\//);
+    expect(parseSetupUrl(`https://id.example.com/oidc#setup=${SETUP_TOKEN}`).issuer).toBe(
+      'https://id.example.com/oidc',
+    );
+    expect(parseSetupUrl(`http://id.lan/oidc#setup=${SETUP_TOKEN}`).issuer).toBe('http://id.lan/oidc');
+  });
+
   it('are refused over the API as BAD_USER_INPUT, with the reason', async () => {
     expect(await refused(PAIR, { url: 'https://id.example.com/oidc' })).toMatchObject({
       code: ErrorCode.BadUserInput,
@@ -263,6 +274,12 @@ describe('pairSso', () => {
     const authorize = locationOf(await fetch(`${appUrl}/sso/${ProviderId.Oidc}`, { redirect: 'manual' }));
     expect(`${authorize.origin}${authorize.pathname}`).toBe(`${dcr.issuer}/auth`);
     expect(authorize.searchParams.get('client_id')).toBe(REGISTERED.clientId);
+  });
+
+  it('pairs with a provider over http:// on this machine in production', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    expect(dcr.issuer.startsWith('http://127.0.0.1:')).toBe(true);
+    expect((await ok(PAIR, { url: dcr.setupUrl() })).pairSso.source).toBe(SsoSource.Paired);
   });
 
   it('says a spent setup URL is expired, and keeps nothing', async () => {

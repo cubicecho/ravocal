@@ -1,5 +1,12 @@
 import type { DB } from '@cubicecho/ravocal-db';
-import { normalizeIssuer, OIDC_CLIENT_AUTH_METHODS, ProviderId, providerRedirectUri } from '../core/config.ts';
+import {
+  isProduction,
+  isPublicHttp,
+  normalizeIssuer,
+  OIDC_CLIENT_AUTH_METHODS,
+  ProviderId,
+  providerRedirectUri,
+} from '../core/config.ts';
 import { AUTH_DEFAULTS } from '../core/defaults.ts';
 import { errorMessage } from '../core/errors.ts';
 import { HttpStatus } from '../core/wire.ts';
@@ -72,7 +79,8 @@ const LAST_REDIRECT_STATUS = 399;
  * @param text - What was pasted.
  * @returns The issuer (the URL without its fragment, query or trailing slash), the initial access token, and the
  *   provider's name (`AUTH_DEFAULTS.oidcName` when it gives none).
- * @throws A `PairingError` (BAD_URL) when it is not a setup URL.
+ * @throws A `PairingError` (BAD_URL) when it is not a setup URL, or in production when it is `http:` on a public host:
+ *   the setup token, and later the client secret, would cross the network in the clear.
  */
 export function parseSetupUrl(text: string): SetupUrl {
   const url = URL.parse(text.trim());
@@ -83,6 +91,13 @@ export function parseSetupUrl(text: string): SetupUrl {
     throw new PairingError(
       PairingFailure.BadUrl,
       'A setup URL starts with https://. Paste the one your provider gave you.',
+    );
+  }
+  const isCleartext = isProduction() && isPublicHttp(url.toString());
+  if (isCleartext) {
+    throw new PairingError(
+      PairingFailure.BadUrl,
+      "This setup URL is http:// on a public address, so its token would cross the network in the clear. Ask your provider's admin for its https:// address.",
     );
   }
   const params = new URLSearchParams(url.hash.slice(1));

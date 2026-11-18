@@ -150,6 +150,25 @@ describe('oidcConfig', () => {
     expect(oidcConfigProblems()).toEqual([expect.stringContaining('is not an http(s) URL')]);
   });
 
+  it('has preflight refuse an http:// issuer on a public host in production', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('OIDC_ISSUER', 'http://id.example.com/oidc');
+    vi.stubEnv('OIDC_CLIENT_ID', 'ravocal');
+    expect(oidcConfigProblems()).toEqual([expect.stringContaining("Set it to the provider's https:// address")]);
+  });
+
+  it.each([
+    ['in production, over https', 'production', 'https://id.example.com/oidc'],
+    ['in production, on this machine', 'production', 'http://127.0.0.1:8080/oidc'],
+    ['in production, on a private network', 'production', 'http://id.lan/oidc'],
+    ['in development, anywhere', 'development', 'http://id.example.com/oidc'],
+  ])('lets preflight accept an issuer %s', (_where, nodeEnv, issuer) => {
+    vi.stubEnv('NODE_ENV', nodeEnv);
+    vi.stubEnv('OIDC_ISSUER', issuer);
+    vi.stubEnv('OIDC_CLIENT_ID', 'ravocal');
+    expect(oidcConfigProblems()).toEqual([]);
+  });
+
   it('has preflight refuse a client auth it does not know', () => {
     vi.stubEnv('OIDC_ISSUER', 'https://id.example.com/oidc');
     vi.stubEnv('OIDC_CLIENT_ID', 'ravocal');

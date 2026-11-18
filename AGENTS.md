@@ -159,7 +159,7 @@ npm run dev:server       # The API only (port 3001, watch mode)
 npm run db:down          # Stop them
 ```
 
-The server runs preflight (it refuses a missing `DATABASE_URL`, in production a weak `BETTER_AUTH_SECRET`, `SECURE_LOCAL_NET` with a public `APP_URL`, a Google or Facebook client id without its secret or the reverse, and half an `OIDC_ISSUER`/`OIDC_CLIENT_ID`, a non-URL issuer or an unknown `OIDC_CLIENT_AUTH`), waits for Postgres, applies the migrations in `db/drizzle`, then listens. `GET /healthz` answers `{ ok, version }`, or 503 when Postgres doesn't. SIGTERM drains and exits 0. If the Docker daemon is remote (`docker context ls`), set `DEV_BIND=0.0.0.0` and put the daemon's host in `DATABASE_URL` and `SMTP_URL`.
+The server runs preflight (it refuses a missing `DATABASE_URL`, in production a weak `BETTER_AUTH_SECRET`, `SECURE_LOCAL_NET` with a public `APP_URL`, a Google or Facebook client id without its secret or the reverse, and half an `OIDC_ISSUER`/`OIDC_CLIENT_ID`, a non-URL issuer, in production an `http:` issuer on a public host, or an unknown `OIDC_CLIENT_AUTH`), waits for Postgres, applies the migrations in `db/drizzle`, then listens. `GET /healthz` answers `{ ok, version }`, or 503 when Postgres doesn't. SIGTERM drains and exits 0. If the Docker daemon is remote (`docker context ls`), set `DEV_BIND=0.0.0.0` and put the daemon's host in `DATABASE_URL` and `SMTP_URL`.
 
 ### Signing in during development
 
