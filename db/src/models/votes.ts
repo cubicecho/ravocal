@@ -31,9 +31,7 @@ export const votes = pgTable(
   (table) => [
     index('idx_votes_group_id').on(table.groupId),
     // One open vote per group: the group page reads it as the group's vote.
-    uniqueIndex('uq_votes_group_id_active')
-      .on(table.groupId)
-      .where(sql`${table.status} = ${VOTE_ACTIVE}`),
+    uniqueIndex('uq_votes_group_id_active').on(table.groupId).where(sql`${table.status} = ${VOTE_ACTIVE}`),
   ],
 );
 

@@ -1,7 +1,11 @@
+import { randomBytes } from 'node:crypto';
 import { index, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { groups } from './groups.ts';
 
-/** An emailed invitation to join a group. Accepting it makes a group member. */
+/** Random bytes in an invite's token: as hard to guess as a session's. */
+const TOKEN_BYTES = 32;
+
+/** An invitation to join a group. Whoever opens its link while signed in becomes a member, once. */
 export const groupInvites = pgTable(
   'group_invites',
   {
@@ -9,9 +13,12 @@ export const groupInvites = pgTable(
     groupId: uuid('group_id')
       .notNull()
       .references(() => groups.id, { onDelete: 'cascade' }),
+    /** Who the link was emailed to. Anyone holding it may join. */
     email: text('email').notNull(),
-    /** 32 random bytes, hex encoded. */
-    token: text('token').notNull(),
+    /** The link's secret, hex encoded. Made when the row is, and never served through the schema. */
+    token: text('token')
+      .notNull()
+      .$defaultFn(() => randomBytes(TOKEN_BYTES).toString('hex')),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     /** null while the invite is pending. */
     acceptedAt: timestamp('accepted_at', { withTimezone: true }),
