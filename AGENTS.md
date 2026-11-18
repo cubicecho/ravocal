@@ -16,7 +16,7 @@ The repo follows the cubicecho skills (`cubicecho_typescript`, `cubicecho_backen
 | UI       | Tailwind CSS 4, cubeui (shadcn registry), Radix UI |
 | API      | graphql-yoga 5 on Express 5, hand-written SDL      |
 | Database | Drizzle ORM 1.0.0-rc.5 on Postgres (postgres-js)   |
-| Auth     | Magic-link email + JWT (jose)                      |
+| Auth     | better-auth: magic links, bearer sessions in Postgres |
 | Testing  | Vitest 4, in-memory PGlite                         |
 | Linting  | Biome 2.5 (formatter + linter), TypeScript 7       |
 | Runtime  | Node.js 26+, ESM, TypeScript run directly (no build) |
@@ -25,7 +25,7 @@ The repo follows the cubicecho skills (`cubicecho_typescript`, `cubicecho_backen
 
 ### Entities
 
-- **User** — identified by email; signs in via magic link. No passwords.
+- **User** — identified by email; signs in via magic link (or, under `SECURE_LOCAL_NET`, by typing the address). No passwords.
 - **Group** — has one owner (creator), a name, and a configurable overlap threshold (0–100%). Owner is the only one who can start/force votes and manage membership.
 - **GroupMember** — join table linking users to groups.
 - **GroupInvite** — pending email invitation (tokenized); converts to GroupMember on acceptance.
@@ -76,16 +76,23 @@ ravocal/
 │       │   ├── health.ts    # checkHealth(db) for GET /healthz
 │       │   ├── static.ts    # The built SPA and its index.html fallback
 │       │   └── shutdown.ts  # stopOnSignals: drain, close, exit
+│       ├── auth/            # Who the caller is, and how they sign in
+│       │   ├── better-auth.ts # createAuth(db, opts), sendsMagicLinks, sessionUserId
+│       │   ├── endpoints.ts # applyBetterAuthExtension: better-auth's endpoints as GraphQL, with our arounds
+│       │   ├── resolvers.ts # applyAuthExtension: authConfig
+│       │   ├── throttle.ts  # AuthFlow, throttle(): what every sign-in step calls first
+│       │   ├── rate-limit.ts # createRateLimiter: the sign-in limiter (ctx.limiter)
+│       │   └── email.ts     # sendMagicLinkEmail
 │       ├── graphql/         # The rules every operation obeys
 │       │   ├── handler.ts   # createGraphQLHandler (Yoga) and createContextFactory
 │       │   ├── logger.ts    # graphqlLogger: [graphql]-tagged, logs masked errors' causes
 │       │   └── operation-limits.ts # Depth, aliases and cost, refused as QUERY_TOO_COMPLEX
 │       ├── schema/
-│       │   ├── index.ts     # buildSchema: SDL + resolvers through makeExecutableSchema
-│       │   └── resolvers/   # One file per domain (auth, groups, votes, etc.)
+│       │   ├── index.ts     # buildSchema(db): SDL + resolvers through makeExecutableSchema, then auth/'s fields
+│       │   ├── write-schema.ts # Prints the served schema for codegen
+│       │   └── resolvers/   # One file per domain (groups, time blocks, votes)
 │       ├── services/
-│       │   ├── auth.ts      # Magic links, session tokens (sign and verify)
-│       │   ├── email.ts     # Email sending (invite, vote-start, vote-result)
+│       │   ├── email.ts     # sendMail over SMTP_URL, and the invite and vote emails
 │       │   └── voting.ts    # Ranked-choice tallying, overlap computation
 │       └── __tests__/       # The same folders as src; global-setup.ts diffs the models once; helpers.ts boots PGlite per file
 ├── db/                      # Drizzle ORM on Postgres; exports raw .ts, no build step
@@ -104,7 +111,7 @@ ravocal/
 │   ├── graphql.md
 │   ├── frontend.md
 │   └── voting.md            # Overlap algorithm + ranked-choice tallying
-├── docker-compose.dev.yml   # Dev Postgres for `npm run db:up`
+├── docker-compose.dev.yml   # Dev Postgres and Mailpit for `npm run db:up`
 ├── tsconfig.base.json       # Every package's tsconfig extends it
 ├── vitest.config.ts
 ├── biome.json               # With the no-negation.grit plugin beside it
@@ -118,14 +125,18 @@ All commands run from the **project root**.
 ### Development
 ```bash
 cp .env.example .env     # Once. DATABASE_URL points at the dev Postgres
-npm run db:up            # Start the dev Postgres (docker-compose.dev.yml, port 5436)
+npm run db:up            # Start the dev Postgres (port 5436) and Mailpit (SMTP 1036, web UI 8036)
 npm run dev              # Start server + app concurrently
 npm run dev:app          # Vite dev server only (port 5173)
 npm run dev:server       # The API only (port 3001, watch mode)
-npm run db:down          # Stop the dev Postgres
+npm run db:down          # Stop them
 ```
 
-The server runs preflight (it refuses a missing `DATABASE_URL`, and in production a weak `JWT_SECRET`), waits for Postgres, applies the migrations in `db/drizzle`, then listens. `GET /healthz` answers `{ ok, version }`, or 503 when Postgres doesn't. SIGTERM drains and exits 0. With `SMTP_HOST` unset, emails (sign-in links included) are printed to the server's console. If the Docker daemon is remote (`docker context ls`), set `DEV_BIND=0.0.0.0` and put the daemon's host in `DATABASE_URL`.
+The server runs preflight (it refuses a missing `DATABASE_URL`, in production a weak `BETTER_AUTH_SECRET`, and `SECURE_LOCAL_NET` with a public `APP_URL`), waits for Postgres, applies the migrations in `db/drizzle`, then listens. `GET /healthz` answers `{ ok, version }`, or 503 when Postgres doesn't. SIGTERM drains and exits 0. If the Docker daemon is remote (`docker context ls`), set `DEV_BIND=0.0.0.0` and put the daemon's host in `DATABASE_URL` and `SMTP_URL`.
+
+### Signing in during development
+
+Sign-in links go out over `SMTP_URL`, which `.env.example` points at the Mailpit `npm run db:up` starts: request a link, then open it from http://localhost:8036 (Mailpit's web UI; `GET /api/v1/messages` for scripts). Invite and vote emails land there too. With no mail server at all, set `SECURE_LOCAL_NET=true` instead: typing an address signs straight in. With neither, nobody can sign in, and the server warns at boot.
 
 The app talks to the API through Vite's `/graphql` proxy in development and from the same origin in production, so the server sends no CORS headers. Every variable is described in `.env.example`; the server reads them only through `server/src/core/config.ts`.
 
@@ -217,13 +228,21 @@ if (group.ownerId !== userId) {
 }
 ```
 
+### Auth
+- better-auth (`server/src/auth/`), following the `cubicecho_backend` skill's auth.md: sessions in Postgres (`sessions`, `accounts`, `verifications`, uuid ids), sent as `Authorization: Bearer <token>`, signed with `BETTER_AUTH_SECRET`
+- Its endpoints are served as GraphQL by `@cubicecho/graphql-better-auth`, limited to `BETTER_AUTH_OPERATIONS` (`signInMagicLink`, `magicLinkVerify`, `getSession`, `listSessions`, `signOut`, `revokeSession`, `revokeSessions`, `revokeOtherSessions`). Its REST routes are not mounted. `authConfig { secureLocalNet magicLink }` tells the login page what is on offer
+- `createApp({ db, auth })` takes the auth instance, and the context carries it as `ctx.auth`. No module imports a global auth; tests build a real one on PGlite (`createTestAuth`)
+- Every sign-in step calls `throttle(ctx, flow, email?)` first: `ctx.limiter`, keyed by client address and by email, refused as `TOO_MANY_REQUESTS`. `ctx.ip` is only the client's when `TRUST_PROXY` matches the proxies in front
+- A spent, expired or unknown link is `BAD_USER_INPUT`, never `UNAUTHENTICATED`: the app drops its token on `UNAUTHENTICATED`, and a bad link must not sign anyone out
+- `me` stays for now; the generated `users` query replaces it later
+
 ### Error handling
-- Yoga masks every error that isn't a `GraphQLError` as `Unexpected error.`, so a failure the client should read is thrown with a coded helper from `server/src/core/errors.ts`. The app shows these messages, so keep their text
+- Yoga masks every error that isn't a `GraphQLError` as `Unexpected error.`, so a failure the client should read is thrown with a coded helper from `server/src/core/errors.ts`. The app branches on the code (`app/src/lib/error-codes.ts`) and shows the message
 - Input is parsed with `parseOrThrow(schema, value)` (`core/validation.ts`), and every zod rule carries a sentence
 - Read a caught value with `errorMessage(error)`, never `(error as Error).message`
 - Never swallow errors silently
 - Always surface errors to the user or log them
-- Log lines carry a `[subsystem]` tag: `[server]`, `[db]`, `[graphql]`, `[preflight]`, `[email]`
+- Log lines carry a `[subsystem]` tag: `[server]`, `[db]`, `[auth]`, `[graphql]`, `[preflight]`, `[email]`. Sign-in links and tokens are never logged
 
 ### Tunables
 - Every limit, lifetime, size and timeout is a member of a `<CONCEPT>_DEFAULTS` group in `server/src/core/defaults.ts` (`DATABASE_DEFAULTS` is in the db package), and tests read the group rather than repeat its numbers
@@ -231,7 +250,8 @@ if (group.ownerId !== userId) {
 ### Testing
 - Test files in `__tests__/` or as `*.test.ts`
 - Database tests run on in-memory PGlite: `createTestDb()` in `beforeAll`, `resetTestDb(db)` in `beforeEach`, `closeTestDb(db)` in `afterAll` (`server/src/__tests__/helpers.ts`)
-- `vitest.config.ts` sets `DATABASE_URL` empty, so a test that imports the db package root fails instead of touching a real Postgres
+- `vitest.config.ts` sets `DATABASE_URL` empty, so a test that imports the db package root fails instead of touching a real Postgres, and empties `SMTP_URL` and `SECURE_LOCAL_NET`
+- Sign-in is tested with real better-auth: `createTestAuth(db)` captures links in `links`, `createSessionToken(auth, userId)` starts a session, and `createClient(db, userId, { auth, limiter, ip, headers })` shares them
 - `describe` / `it` / `expect` from Vitest (globals enabled)
 - HTTP-level behaviour (masking, operation limits, the body cap, `/healthz`, the SPA, CORS) is tested against the real `createApp` in `server/src/__tests__/http/app.test.ts`; in-process `graphql()` skips Yoga
 - Fresh test context in `beforeEach`
