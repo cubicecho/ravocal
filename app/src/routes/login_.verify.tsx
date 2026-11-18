@@ -1,14 +1,14 @@
-import { useMutation } from "@apollo/client";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
-import { z } from "zod";
-import { graphql } from "@/__generated__/index.js";
-import { PendingScreen } from "@/components/domain/pending-screen";
-import { signIn, takeAfterSignIn } from "@/lib/auth";
+import { useMutation } from '@apollo/client';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useEffect, useRef } from 'react';
+import { z } from 'zod';
+import { graphql } from '@/__generated__/index.js';
+import { PendingScreen } from '@/components/domain/pending-screen';
+import { signIn, takeAfterSignIn } from '@/lib/auth';
 
 const searchSchema = z.object({ token: z.string() });
 
-export const Route = createFileRoute("/login_/verify")({
+export const Route = createFileRoute('/login_/verify')({
   validateSearch: searchSchema,
   component: VerifyPage,
 });
@@ -42,16 +42,12 @@ function VerifyPage() {
   // link again and fail. The ref lives through StrictMode's remount, so the link is sent once.
   const sent = useRef<string | null>(null);
   useEffect(() => {
-    if (sent.current === token) return;
+    if (sent.current === token) {
+      return;
+    }
     sent.current = token;
     void verifyMagicLink({ variables: { token } });
   }, [token, verifyMagicLink]);
 
-  return (
-    <PendingScreen
-      title="Signing you in…"
-      failedTitle="That sign-in link didn't work"
-      error={error}
-    />
-  );
+  return <PendingScreen title="Signing you in…" failedTitle="That sign-in link didn't work" error={error} />;
 }

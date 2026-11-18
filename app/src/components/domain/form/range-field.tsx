@@ -1,11 +1,5 @@
-import {
-  bindToForm,
-  type FieldProps,
-  splitProps,
-  useFieldContext,
-  useFieldError,
-} from "@/components/app-form";
-import { FormField } from "@/components/form-field";
+import { bindToForm, type FieldProps, splitProps, useFieldContext, useFieldError } from '@/components/app-form';
+import { FormField } from '@/components/form-field';
 
 type RangeFieldProps = FieldProps & {
   min: number;
@@ -52,4 +46,4 @@ function BoundRangeField(props: RangeFieldProps) {
   );
 }
 
-export const RangeField = bindToForm<RangeFieldProps, number>(BoundRangeField, "RangeField");
+export const RangeField = bindToForm<RangeFieldProps, number>(BoundRangeField, 'RangeField');

@@ -1,15 +1,15 @@
-import { useMutation } from "@apollo/client";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { graphql } from "@/__generated__/index.js";
-import { InputField, useAppForm } from "@/components/app-form";
-import { CardLayout } from "@/components/card-layout";
-import { FormError } from "@/components/domain/form/form-error";
-import { RangeField } from "@/components/domain/form/range-field";
-import { PageLayout } from "@/components/page-layout";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "@/components/ui/icons";
+import { useMutation } from '@apollo/client';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { graphql } from '@/__generated__/index.js';
+import { InputField, useAppForm } from '@/components/app-form';
+import { CardLayout } from '@/components/card-layout';
+import { FormError } from '@/components/domain/form/form-error';
+import { RangeField } from '@/components/domain/form/range-field';
+import { PageLayout } from '@/components/page-layout';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft } from '@/components/ui/icons';
 
-export const Route = createFileRoute("/groups/new")({
+export const Route = createFileRoute('/groups/new')({
   component: NewGroupPage,
 });
 
@@ -28,7 +28,7 @@ function NewGroupPage() {
     // The cached groups list lacks this one, and its page is not mounted to be refetched: drop it,
     // so the page asks again when it opens.
     update: (cache) => {
-      cache.evict({ fieldName: "myGroups" });
+      cache.evict({ fieldName: 'myGroups' });
       cache.gc();
     },
     // The failure is drawn from `error` under the fields; handling it here keeps the submit's
@@ -37,13 +37,15 @@ function NewGroupPage() {
   });
 
   const form = useAppForm({
-    defaultValues: { name: "", overlapThreshold: 50 },
+    defaultValues: { name: '', overlapThreshold: 50 },
     onSubmit: async ({ value }) => {
       const res = await createGroup({
         variables: { name: value.name.trim(), overlapThreshold: value.overlapThreshold },
       });
       const id = res.data?.createGroup.id;
-      if (id) await navigate({ to: "/groups/$groupId", params: { groupId: id } });
+      if (id) {
+        await navigate({ to: '/groups/$groupId', params: { groupId: id } });
+      }
     },
   });
 
@@ -87,9 +89,13 @@ function NewGroupPage() {
                 validators={{
                   onChange: ({ value }) => {
                     const name = value.trim();
-                    if (name === "") return "Give the group a name.";
+                    if (name === '') {
+                      return 'Give the group a name.';
+                    }
                     // The server's limit.
-                    if (name.length > 100) return "Keep the name to 100 characters or fewer.";
+                    if (name.length > 100) {
+                      return 'Keep the name to 100 characters or fewer.';
+                    }
                     return undefined;
                   },
                 }}
@@ -110,11 +116,7 @@ function NewGroupPage() {
           footerActionsSlot={
             <>
               <Button variant="outline" linkSlot={<Link to="/groups" />} content="Cancel" />
-              <form.SubmitButton
-                variant="info"
-                createLabel="Create group"
-                loadingLabel="Creating…"
-              />
+              <form.SubmitButton variant="info" createLabel="Create group" loadingLabel="Creating…" />
             </>
           }
         />

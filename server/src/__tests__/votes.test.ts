@@ -1,18 +1,19 @@
-import { type DB, timeBlocks, votes } from "@ravocal/db";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { timeBlocks, votes } from '@cubicecho/ravocal-db/schema';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest';
 import {
   addMember,
   closeTestDb,
   createClient,
   createGroup,
+  createTestDb,
   createUser,
-  openTestDb,
   resetTestDb,
   type TestClient,
-} from "./helpers.ts";
+  type TestDb,
+} from './helpers.ts';
 
 const HALF_HOUR_MS = 30 * 60 * 1000;
-const BASE_MS = Date.parse("2026-01-05T09:00:00Z");
+const BASE_MS = Date.parse('2026-01-05T09:00:00Z');
 const at = (index: number): Date => new Date(BASE_MS + index * HALF_HOUR_MS);
 
 const START = `mutation($groupId: ID!) { startVote(groupId: $groupId) { id isForced status } }`;
@@ -35,14 +36,14 @@ interface Slot {
   overlapCount: number;
 }
 
-describe("vote resolvers", () => {
-  let db: DB;
+describe('vote resolvers', () => {
+  let db: TestDb;
   let ownerId: string;
   let memberId: string;
   let groupId: string;
   let owner: TestClient;
   let member: TestClient;
-  let logged: ReturnType<typeof vi.spyOn>;
+  let logged: MockInstance<typeof console.log>;
 
   /**
    * Marks a member free from half hour `from` up to half hour `to`.
@@ -63,12 +64,10 @@ describe("vote resolvers", () => {
 
   /** Email recipients the console transport logged. */
   const recipients = () =>
-    logged.mock.calls
-      .filter(([tag]) => tag === "[email]")
-      .map(([, message]) => (message as { to: string }).to);
+    logged.mock.calls.filter(([tag]) => tag === '[email]').map(([, message]) => (message as { to: string }).to);
 
   beforeAll(async () => {
-    db = await openTestDb();
+    db = await createTestDb();
   });
 
   afterAll(() => closeTestDb(db));
@@ -80,27 +79,27 @@ describe("vote resolvers", () => {
   beforeEach(async () => {
     await resetTestDb(db);
     // With SMTP unset the email service logs each message instead of sending it.
-    logged = vi.spyOn(console, "log").mockImplementation(() => {});
-    ownerId = await createUser(db, "owner@example.com");
-    memberId = await createUser(db, "member@example.com");
+    logged = vi.spyOn(console, 'log').mockImplementation(() => {});
+    ownerId = await createUser(db, 'owner@example.com');
+    memberId = await createUser(db, 'member@example.com');
     groupId = await createGroup(db, ownerId, 100);
     await addMember(db, groupId, memberId);
     owner = createClient(db, ownerId);
     member = createClient(db, memberId);
   });
 
-  describe("startVote", () => {
-    it("opens a vote on the slots every member is free for, and emails the members", async () => {
+  describe('startVote', () => {
+    it('opens a vote on the slots every member is free for, and emails the members', async () => {
       await free(ownerId, 0, 2);
       await free(memberId, 1, 3);
       const { startVote } = await owner.expectOk(START, { groupId });
-      expect(startVote).toMatchObject({ isForced: false, status: "active" });
+      expect(startVote).toMatchObject({ isForced: false, status: 'active' });
       const slots = await activeSlots(member);
       expect(slots.map((slot) => slot.startsAt)).toEqual([at(1)]);
-      expect(recipients().sort()).toEqual(["member@example.com", "owner@example.com"]);
+      expect(recipients().sort()).toEqual(['member@example.com', 'owner@example.com']);
     });
 
-    it("refuses when no slot meets the threshold", async () => {
+    it('refuses when no slot meets the threshold', async () => {
       await free(ownerId, 0, 1);
       await free(memberId, 1, 2);
       const message = await owner.expectError(START, { groupId });
@@ -108,7 +107,7 @@ describe("vote resolvers", () => {
       expect(await db.select().from(votes)).toEqual([]);
     });
 
-    it("refuses a member who is not the owner", async () => {
+    it('refuses a member who is not the owner', async () => {
       await free(ownerId, 0, 1);
       await free(memberId, 0, 1);
       const message = await member.expectError(START, { groupId });
@@ -117,8 +116,8 @@ describe("vote resolvers", () => {
     });
   });
 
-  describe("forceStartVote", () => {
-    it("puts the slots the owner is free for first", async () => {
+  describe('forceStartVote', () => {
+    it('puts the slots the owner is free for first', async () => {
       // Half hour 0: the member alone. Half hour 1: the owner alone.
       await free(memberId, 0, 1);
       await free(ownerId, 1, 2);
@@ -128,7 +127,7 @@ describe("vote resolvers", () => {
       expect(slots.map((slot) => slot.startsAt)).toEqual([at(1), at(0)]);
     });
 
-    it("refuses a member who is not the owner", async () => {
+    it('refuses a member who is not the owner', async () => {
       await free(memberId, 0, 1);
       const message = await member.expectError(FORCE, { groupId });
       expect(message).toMatch(/forbidden/i);
@@ -136,7 +135,7 @@ describe("vote resolvers", () => {
     });
   });
 
-  describe("submitRankings and closeVote", () => {
+  describe('submitRankings and closeVote', () => {
     let voteId: string;
     let slots: Slot[];
 
@@ -148,7 +147,7 @@ describe("vote resolvers", () => {
       slots = await activeSlots(owner);
     });
 
-    it("shows a member their own rankings on the active vote", async () => {
+    it('shows a member their own rankings on the active vote', async () => {
       const [first, second] = slots;
       const rankings = [
         { slotId: second.id, rank: 1 },
@@ -161,27 +160,27 @@ describe("vote resolvers", () => {
       expect(ownerView.activeVote.myRankings).toEqual([]);
     });
 
-    it("refuses rankings from someone outside the group", async () => {
-      const outsider = createClient(db, await createUser(db, "outsider@example.com"));
+    it('refuses rankings from someone outside the group', async () => {
+      const outsider = createClient(db, await createUser(db, 'outsider@example.com'));
       const rankings = [{ slotId: slots[0].id, rank: 1 }];
       const message = await outsider.expectError(SUBMIT, { voteId, rankings });
       expect(message).toMatch(/forbidden/i);
     });
 
-    it("closes with the ranked-choice winner", async () => {
+    it('closes with the ranked-choice winner', async () => {
       const [, second] = slots;
       const rankings = [{ slotId: second.id, rank: 1 }];
       await owner.expectOk(SUBMIT, { voteId, rankings });
       await member.expectOk(SUBMIT, { voteId, rankings });
       const { closeVote } = await owner.expectOk(CLOSE, { voteId });
-      expect(closeVote).toEqual({ status: "closed", winnerSlotId: second.id });
+      expect(closeVote).toEqual({ status: 'closed', winnerSlotId: second.id });
     });
 
-    it("refuses to close for a member who is not the owner", async () => {
+    it('refuses to close for a member who is not the owner', async () => {
       const message = await member.expectError(CLOSE, { voteId });
       expect(message).toMatch(/forbidden/i);
       const [vote] = await db.select().from(votes);
-      expect(vote.status).toBe("active");
+      expect(vote.status).toBe('active');
     });
   });
 });

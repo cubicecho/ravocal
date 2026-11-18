@@ -5,7 +5,7 @@ React 19 + Vite + TanStack Router (file-based) + Apollo Client. Plain web app â€
 ## Dev Server
 
 ```bash
-npm run dev:app    # Vite on localhost:3000
+npm run dev:app    # Vite on localhost:5173
 npm run dev        # server + app concurrently
 ```
 
@@ -32,7 +32,7 @@ Sign-out: `signOut()`, clear Apollo's store, and navigate to `/login` (the Sign 
 
 ## Routing
 
-TanStack Router with file-based routes. The Vite plugin generates `app/src/routeTree.gen.ts` automatically â€” do not edit it manually.
+TanStack Router with file-based routes. The Vite plugin regenerates `app/src/routeTree.gen.ts` in dev, and `npm run codegen` generates it for typechecks and builds. It is gitignored; do not edit it manually.
 
 | Route | File | Purpose |
 |-------|------|---------|

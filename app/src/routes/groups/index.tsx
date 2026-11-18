@@ -1,19 +1,19 @@
-import { useApolloClient, useQuery } from "@apollo/client";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { graphql } from "@/__generated__/index.js";
-import { Users } from "@/components/domain/app-icons";
-import { EmptyState } from "@/components/empty-state";
-import { List } from "@/components/list";
-import { ListItem } from "@/components/list-item";
-import { LoadState } from "@/components/load-state";
-import { PageLayout } from "@/components/page-layout";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Plus } from "@/components/ui/icons";
-import { asQuery } from "@/lib/as-query";
-import { signOut } from "@/lib/auth";
+import { useApolloClient, useQuery } from '@apollo/client';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { graphql } from '@/__generated__/index.js';
+import { Users } from '@/components/domain/app-icons';
+import { EmptyState } from '@/components/empty-state';
+import { List } from '@/components/list';
+import { ListItem } from '@/components/list-item';
+import { LoadState } from '@/components/load-state';
+import { PageLayout } from '@/components/page-layout';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Plus } from '@/components/ui/icons';
+import { asQuery } from '@/lib/as-query';
+import { signOut } from '@/lib/auth';
 
-export const Route = createFileRoute("/groups/")({
+export const Route = createFileRoute('/groups/')({
   component: GroupsPage,
 });
 
@@ -44,7 +44,7 @@ function GroupsPage() {
     signOut();
     // Nothing the last account fetched may show to the next one.
     await client.clearStore();
-    await navigate({ to: "/login" });
+    await navigate({ to: '/login' });
   };
 
   return (
@@ -83,7 +83,7 @@ function GroupsPage() {
               <ListItem
                 key={group.id}
                 title={group.name}
-                description={`${group.members.length} ${group.members.length === 1 ? "member" : "members"}`}
+                description={`${group.members.length} ${group.members.length === 1 ? 'member' : 'members'}`}
                 linkSlot={<Link to="/groups/$groupId" params={{ groupId: group.id }} />}
                 meta={group.activeVote ? <Badge variant="info-soft">Vote active</Badge> : undefined}
               />

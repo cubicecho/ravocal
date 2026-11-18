@@ -1,66 +1,52 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.4.6/schema.json",
-  "formatter": {
-    "enabled": true,
-    "indentStyle": "space",
-    "indentWidth": 2,
-    "lineWidth": 100,
-    "lineEnding": "lf"
+  "$schema": "https://biomejs.dev/schemas/2.5.11/schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "plugins": ["./no-negation.grit"],
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**",
+      "!**/dist",
+      "!**/__generated__",
+      "!**/drizzle",
+      "!**/storybook-static",
+      "!app/cubeui-tokens.css",
+      "!app/cubeui-reset.css"
+    ]
   },
-  "javascript": {
-    "formatter": {
-      "quoteStyle": "double",
-      "trailingCommas": "all",
-      "semicolons": "always",
-      "arrowParentheses": "always",
-      "bracketSpacing": true
-    }
-  },
+  "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
+  "javascript": { "formatter": { "quoteStyle": "single", "trailingCommas": "all", "semicolons": "always" } },
+  "css": { "parser": { "tailwindDirectives": true } },
   "linter": {
     "enabled": true,
     "rules": {
       "recommended": true,
       "correctness": {
-        "useExhaustiveDependencies": "warn",
-        "useHookAtTopLevel": "error",
         "noUnusedImports": "error",
-        "noUnusedVariables": "error"
+        "noUnusedVariables": "error",
+        "noUnusedFunctionParameters": "error"
       },
       "style": {
         "useImportType": "error",
-        "noNonNullAssertion": "off"
+        "useConst": "error",
+        "useBlockStatements": "error",
+        "noMagicNumbers": "warn",
+        "noCommonJs": "error",
+        "noEnum": "error",
+        "noNamespace": "error",
+        "noParameterProperties": "error",
+        "noNonNullAssertion": "error",
+        "useFilenamingConvention": { "level": "error", "options": { "filenameCases": ["kebab-case"] } }
       },
-      "suspicious": {
-        "noExplicitAny": "error"
-      }
+      "suspicious": { "noExplicitAny": "error" }
     }
   },
-  "assist": {
-    "actions": {
-      "source": {
-        "organizeImports": "on"
-      }
-    }
-  },
-  "files": {
-    "includes": [
-      "**/*.ts",
-      "**/*.tsx",
-      "**/*.json",
-      "**/*.css",
-      "!**/dist",
-      "!**/__generated__",
-      "!app/src/routeTree.gen.ts",
-      "!**/drizzle",
-      "!**/node_modules",
-      "!app/cubeui-tokens.css",
-      "!app/cubeui-reset.css"
-    ]
-  },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "overrides": [
     {
       "includes": [
-        "app/src/components/ui/**",
+        "**/components/ui/**",
+        "app/index.html",
         "app/src/components/app-form.tsx",
         "app/src/components/card-layout.tsx",
         "app/src/components/centered-card-layout.tsx",
@@ -86,20 +72,17 @@
         "app/src/lib/select-options.ts",
         "app/src/lib/utils.ts"
       ],
-      "linter": {
-        "enabled": false
-      },
-      "formatter": {
-        "enabled": false
-      },
-      "assist": {
-        "enabled": false
-      }
+      "linter": { "enabled": false },
+      "formatter": { "enabled": false },
+      "assist": { "enabled": false }
+    },
+    {
+      "includes": ["app/src/routes/**"],
+      "linter": { "rules": { "style": { "useFilenamingConvention": "off" } } }
+    },
+    {
+      "includes": ["**/*.test.ts", "**/*.test.tsx", "**/tests/**", "**/bench/**"],
+      "linter": { "rules": { "style": { "noMagicNumbers": "off" } } }
     }
-  ],
-  "css": {
-    "parser": {
-      "tailwindDirectives": true
-    }
-  }
+  ]
 }

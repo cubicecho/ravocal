@@ -1,19 +1,19 @@
-import { useQuery } from "@apollo/client";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { graphql } from "@/__generated__/index.js";
-import { EmptyState } from "@/components/empty-state";
-import { List } from "@/components/list";
-import { ListItem } from "@/components/list-item";
-import { LoadState } from "@/components/load-state";
-import { PageLayout } from "@/components/page-layout";
-import { Section } from "@/components/section";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "@/components/ui/icons";
-import { asQuery } from "@/lib/as-query";
-import { byStart, formatDay, formatWindow } from "@/lib/time-window";
+import { useQuery } from '@apollo/client';
+import { createFileRoute, Link } from '@tanstack/react-router';
+import { graphql } from '@/__generated__/index.js';
+import { EmptyState } from '@/components/empty-state';
+import { List } from '@/components/list';
+import { ListItem } from '@/components/list-item';
+import { LoadState } from '@/components/load-state';
+import { PageLayout } from '@/components/page-layout';
+import { Section } from '@/components/section';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft } from '@/components/ui/icons';
+import { asQuery } from '@/lib/as-query';
+import { byStart, formatDay, formatWindow } from '@/lib/time-window';
 
-export const Route = createFileRoute("/groups/$groupId")({
+export const Route = createFileRoute('/groups/$groupId')({
   component: GroupPage,
 });
 
@@ -89,7 +89,7 @@ function GroupPage() {
 
   return (
     <PageLayout
-      title={group?.name ?? "Group"}
+      title={group?.name ?? 'Group'}
       description={group ? `Overlap threshold: ${group.overlapThreshold}%` : undefined}
       loading={result.loading}
       width="prose"
@@ -113,13 +113,7 @@ function GroupPage() {
             record={group}
             notFoundLabel="Group not found"
             description="You may not be a member, or the link is old."
-            actionSlot={
-              <Button
-                variant="outline"
-                linkSlot={<Link to="/groups" />}
-                content="Back to your groups"
-              />
-            }
+            actionSlot={<Button variant="outline" linkSlot={<Link to="/groups" />} content="Back to your groups" />}
             level={2}
           />
           {group ? (
@@ -134,11 +128,7 @@ function GroupPage() {
                         key={m.id}
                         title={m.user.name ?? m.user.email}
                         description={m.user.name ? m.user.email : undefined}
-                        meta={
-                          m.userId === group.ownerId ? (
-                            <Badge variant="outline">Owner</Badge>
-                          ) : undefined
-                        }
+                        meta={m.userId === group.ownerId ? <Badge variant="outline">Owner</Badge> : undefined}
                       />
                     ))}
                   />
@@ -189,7 +179,7 @@ function GroupPage() {
               {vote && (
                 <Section
                   title="Active vote"
-                  description={`${vote.isForced ? "Forced vote" : "Vote"} over ${plural(vote.slots.length, "candidate time", "candidate times")}`}
+                  description={`${vote.isForced ? 'Forced vote' : 'Vote'} over ${plural(vote.slots.length, 'candidate time', 'candidate times')}`}
                   contentSlot={
                     <List
                       label="Candidate times"

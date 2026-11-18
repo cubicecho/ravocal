@@ -1,63 +1,53 @@
-import { relations } from "drizzle-orm";
-import {
-  groupInvites,
-  groupMembers,
-  groups,
-  magicLinks,
-  timeBlocks,
-  users,
-  voteRankings,
-  voteSlots,
-  votes,
-} from "./schema.ts";
+import { defineRelations } from 'drizzle-orm';
+import * as schema from './schema.ts';
 
-export const usersRelations = relations(users, ({ many }) => ({
-  magicLinks: many(magicLinks),
-  groupMemberships: many(groupMembers),
-  ownedGroups: many(groups),
-  timeBlocks: many(timeBlocks),
-  voteRankings: many(voteRankings),
-}));
-
-export const magicLinksRelations = relations(magicLinks, ({ one }) => ({
-  user: one(users, { fields: [magicLinks.userId], references: [users.id] }),
-}));
-
-export const groupsRelations = relations(groups, ({ one, many }) => ({
-  owner: one(users, { fields: [groups.ownerId], references: [users.id] }),
-  members: many(groupMembers),
-  invites: many(groupInvites),
-  timeBlocks: many(timeBlocks),
-  votes: many(votes),
-}));
-
-export const groupMembersRelations = relations(groupMembers, ({ one }) => ({
-  group: one(groups, { fields: [groupMembers.groupId], references: [groups.id] }),
-  user: one(users, { fields: [groupMembers.userId], references: [users.id] }),
-}));
-
-export const groupInvitesRelations = relations(groupInvites, ({ one }) => ({
-  group: one(groups, { fields: [groupInvites.groupId], references: [groups.id] }),
-}));
-
-export const timeBlocksRelations = relations(timeBlocks, ({ one }) => ({
-  group: one(groups, { fields: [timeBlocks.groupId], references: [groups.id] }),
-  user: one(users, { fields: [timeBlocks.userId], references: [users.id] }),
-}));
-
-export const votesRelations = relations(votes, ({ one, many }) => ({
-  group: one(groups, { fields: [votes.groupId], references: [groups.id] }),
-  slots: many(voteSlots),
-  rankings: many(voteRankings),
-}));
-
-export const voteSlotsRelations = relations(voteSlots, ({ one, many }) => ({
-  vote: one(votes, { fields: [voteSlots.voteId], references: [votes.id] }),
-  rankings: many(voteRankings),
-}));
-
-export const voteRankingsRelations = relations(voteRankings, ({ one }) => ({
-  vote: one(votes, { fields: [voteRankings.voteId], references: [votes.id] }),
-  slot: one(voteSlots, { fields: [voteRankings.slotId], references: [voteSlots.id] }),
-  user: one(users, { fields: [voteRankings.userId], references: [users.id] }),
+/**
+ * Drizzle v2 relations: what `db.query` can load with `with`.
+ *
+ * @remarks
+ * A `one` side whose foreign key is not null is `optional: false`, so a loaded row's parent is typed as present.
+ */
+export const relations = defineRelations(schema, (relate) => ({
+  users: {
+    magicLinks: relate.many.magicLinks(),
+    groupMemberships: relate.many.groupMembers(),
+    ownedGroups: relate.many.groups(),
+    timeBlocks: relate.many.timeBlocks(),
+    voteRankings: relate.many.voteRankings(),
+  },
+  magicLinks: {
+    user: relate.one.users({ from: relate.magicLinks.userId, to: relate.users.id, optional: false }),
+  },
+  groups: {
+    owner: relate.one.users({ from: relate.groups.ownerId, to: relate.users.id, optional: false }),
+    members: relate.many.groupMembers(),
+    invites: relate.many.groupInvites(),
+    timeBlocks: relate.many.timeBlocks(),
+    votes: relate.many.votes(),
+  },
+  groupMembers: {
+    group: relate.one.groups({ from: relate.groupMembers.groupId, to: relate.groups.id, optional: false }),
+    user: relate.one.users({ from: relate.groupMembers.userId, to: relate.users.id, optional: false }),
+  },
+  groupInvites: {
+    group: relate.one.groups({ from: relate.groupInvites.groupId, to: relate.groups.id, optional: false }),
+  },
+  timeBlocks: {
+    group: relate.one.groups({ from: relate.timeBlocks.groupId, to: relate.groups.id, optional: false }),
+    user: relate.one.users({ from: relate.timeBlocks.userId, to: relate.users.id, optional: false }),
+  },
+  votes: {
+    group: relate.one.groups({ from: relate.votes.groupId, to: relate.groups.id, optional: false }),
+    slots: relate.many.voteSlots(),
+    rankings: relate.many.voteRankings(),
+  },
+  voteSlots: {
+    vote: relate.one.votes({ from: relate.voteSlots.voteId, to: relate.votes.id, optional: false }),
+    rankings: relate.many.voteRankings(),
+  },
+  voteRankings: {
+    vote: relate.one.votes({ from: relate.voteRankings.voteId, to: relate.votes.id, optional: false }),
+    slot: relate.one.voteSlots({ from: relate.voteRankings.slotId, to: relate.voteSlots.id, optional: false }),
+    user: relate.one.users({ from: relate.voteRankings.userId, to: relate.users.id, optional: false }),
+  },
 }));

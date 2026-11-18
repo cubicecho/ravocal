@@ -1,15 +1,17 @@
-import { useMutation } from "@apollo/client";
-import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useState } from "react";
-import { graphql } from "@/__generated__/index.js";
-import { InputField, useAppForm } from "@/components/app-form";
-import { CenteredCardLayout } from "@/components/centered-card-layout";
-import { FormError } from "@/components/domain/form/form-error";
-import { HOME_PATH, isSignedIn } from "@/lib/auth";
+import { useMutation } from '@apollo/client';
+import { createFileRoute, redirect } from '@tanstack/react-router';
+import { useState } from 'react';
+import { graphql } from '@/__generated__/index.js';
+import { InputField, useAppForm } from '@/components/app-form';
+import { CenteredCardLayout } from '@/components/centered-card-layout';
+import { FormError } from '@/components/domain/form/form-error';
+import { HOME_PATH, isSignedIn } from '@/lib/auth';
 
-export const Route = createFileRoute("/login")({
+export const Route = createFileRoute('/login')({
   beforeLoad: () => {
-    if (isSignedIn()) throw redirect({ to: HOME_PATH });
+    if (isSignedIn()) {
+      throw redirect({ to: HOME_PATH });
+    }
   },
   component: LoginPage,
 });
@@ -30,11 +32,13 @@ function LoginPage() {
   });
 
   const form = useAppForm({
-    defaultValues: { email: "" },
+    defaultValues: { email: '' },
     onSubmit: async ({ value }) => {
       const email = value.email.trim();
       const res = await requestMagicLink({ variables: { email } });
-      if (res.data?.requestMagicLink) setSentTo(email);
+      if (res.data?.requestMagicLink) {
+        setSentTo(email);
+      }
     },
   });
 
@@ -73,7 +77,7 @@ function LoginPage() {
             placeholder="you@example.com"
             required
             validators={{
-              onChange: ({ value }) => (value.trim() === "" ? "Enter your email." : undefined),
+              onChange: ({ value }) => (value.trim() === '' ? 'Enter your email.' : undefined),
             }}
           />
           <FormError error={error} />

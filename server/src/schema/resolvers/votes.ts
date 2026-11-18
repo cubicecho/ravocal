@@ -1,24 +1,27 @@
-import { groupMembers, groups, voteRankings, voteSlots, votes } from "@ravocal/db";
-import { and, eq } from "drizzle-orm";
-import { z } from "zod";
-import type { Context } from "../../context.ts";
-import { sendVoteResultEmail, sendVoteStartedEmail } from "../../services/email.ts";
-import { computeVoteSlots, tallyRankedChoice } from "../../services/voting.ts";
+import { voteRankings, voteSlots, votes } from '@cubicecho/ravocal-db/schema';
+import { and, eq } from 'drizzle-orm';
+import { z } from 'zod';
+import type { Context } from '../../context.ts';
+import { sendVoteResultEmail, sendVoteStartedEmail } from '../../services/email.ts';
+import { computeVoteSlots, tallyRankedChoice } from '../../services/voting.ts';
 
 const RankingInput = z.object({ slotId: z.string().uuid(), rank: z.number().int().min(1) });
 
-export function applyVoteResolvers(
-  _queryFields: Record<string, unknown>,
-  mutationFields: Record<string, unknown>,
-) {
+export function applyVoteResolvers(_queryFields: Record<string, unknown>, mutationFields: Record<string, unknown>) {
   mutationFields.startVote = async (_: unknown, args: { groupId: string }, ctx: Context) => {
-    if (!ctx.userId) throw new Error("Not authenticated");
+    if (!ctx.userId) {
+      throw new Error('Not authenticated');
+    }
     const group = await ctx.db.query.groups.findFirst({
-      where: eq(groups.id, args.groupId),
+      where: { id: args.groupId },
       with: { members: { with: { user: true } }, timeBlocks: true },
     });
-    if (!group) throw new Error(`Group ${args.groupId} not found`);
-    if (group.ownerId !== ctx.userId) throw new Error("Forbidden");
+    if (!group) {
+      throw new Error(`Group ${args.groupId} not found`);
+    }
+    if (group.ownerId !== ctx.userId) {
+      throw new Error('Forbidden');
+    }
 
     const slots = computeVoteSlots(group.members, group.timeBlocks, group.overlapThreshold, false);
     if (slots.length === 0) {
@@ -30,16 +33,24 @@ export function applyVoteResolvers(
   };
 
   mutationFields.forceStartVote = async (_: unknown, args: { groupId: string }, ctx: Context) => {
-    if (!ctx.userId) throw new Error("Not authenticated");
+    if (!ctx.userId) {
+      throw new Error('Not authenticated');
+    }
     const group = await ctx.db.query.groups.findFirst({
-      where: eq(groups.id, args.groupId),
+      where: { id: args.groupId },
       with: { members: { with: { user: true } }, timeBlocks: true },
     });
-    if (!group) throw new Error(`Group ${args.groupId} not found`);
-    if (group.ownerId !== ctx.userId) throw new Error("Forbidden");
+    if (!group) {
+      throw new Error(`Group ${args.groupId} not found`);
+    }
+    if (group.ownerId !== ctx.userId) {
+      throw new Error('Forbidden');
+    }
 
     const slots = computeVoteSlots(group.members, group.timeBlocks, 0, true, group.ownerId);
-    if (slots.length === 0) throw new Error("No time blocks have been submitted yet.");
+    if (slots.length === 0) {
+      throw new Error('No time blocks have been submitted yet.');
+    }
     return createVote(ctx, args.groupId, group, slots, true);
   };
 
@@ -48,17 +59,25 @@ export function applyVoteResolvers(
     args: { voteId: string; rankings: Array<{ slotId: string; rank: number }> },
     ctx: Context,
   ) => {
-    if (!ctx.userId) throw new Error("Not authenticated");
+    if (!ctx.userId) {
+      throw new Error('Not authenticated');
+    }
     const inputs = z.array(RankingInput).parse(args.rankings);
 
-    const vote = await ctx.db.query.votes.findFirst({ where: eq(votes.id, args.voteId) });
-    if (!vote) throw new Error(`Vote ${args.voteId} not found`);
-    if (vote.status !== "active") throw new Error("Vote is not active");
+    const vote = await ctx.db.query.votes.findFirst({ where: { id: args.voteId } });
+    if (!vote) {
+      throw new Error(`Vote ${args.voteId} not found`);
+    }
+    if (vote.status !== 'active') {
+      throw new Error('Vote is not active');
+    }
 
     const membership = await ctx.db.query.groupMembers.findFirst({
-      where: and(eq(groupMembers.groupId, vote.groupId), eq(groupMembers.userId, ctx.userId)),
+      where: { groupId: vote.groupId, userId: ctx.userId },
     });
-    if (!membership) throw new Error("Forbidden");
+    if (!membership) {
+      throw new Error('Forbidden');
+    }
 
     await ctx.db
       .delete(voteRankings)
@@ -74,25 +93,35 @@ export function applyVoteResolvers(
   };
 
   mutationFields.closeVote = async (_: unknown, args: { voteId: string }, ctx: Context) => {
-    if (!ctx.userId) throw new Error("Not authenticated");
+    if (!ctx.userId) {
+      throw new Error('Not authenticated');
+    }
     const vote = await ctx.db.query.votes.findFirst({
-      where: eq(votes.id, args.voteId),
+      where: { id: args.voteId },
       with: { slots: true, rankings: true },
     });
-    if (!vote) throw new Error(`Vote ${args.voteId} not found`);
-    if (vote.status !== "active") throw new Error("Vote is not active");
+    if (!vote) {
+      throw new Error(`Vote ${args.voteId} not found`);
+    }
+    if (vote.status !== 'active') {
+      throw new Error('Vote is not active');
+    }
 
     const group = await ctx.db.query.groups.findFirst({
-      where: eq(groups.id, vote.groupId),
+      where: { id: vote.groupId },
       with: { members: { with: { user: true } } },
     });
-    if (!group) throw new Error("Group not found");
-    if (group.ownerId !== ctx.userId) throw new Error("Forbidden");
+    if (!group) {
+      throw new Error('Group not found');
+    }
+    if (group.ownerId !== ctx.userId) {
+      throw new Error('Forbidden');
+    }
 
     const winnerSlotId = tallyRankedChoice(vote.slots, vote.rankings);
     const [closed] = await ctx.db
       .update(votes)
-      .set({ status: "closed", winnerSlotId, closedAt: new Date() })
+      .set({ status: 'closed', winnerSlotId, closedAt: new Date() })
       .where(eq(votes.id, args.voteId))
       .returning();
 
@@ -111,11 +140,13 @@ export function applyVoteResolvers(
 export const voteFields = {
   // Insertion order, which is computeVoteSlots' order (owner-free first in a forced vote).
   slots: (vote: { id: string }, _: unknown, ctx: Context) =>
-    ctx.db.query.voteSlots.findMany({ where: eq(voteSlots.voteId, vote.id) }),
+    ctx.db.query.voteSlots.findMany({ where: { voteId: vote.id } }),
   myRankings: (vote: { id: string }, _: unknown, ctx: Context) => {
-    if (!ctx.userId) return [];
+    if (!ctx.userId) {
+      return [];
+    }
     return ctx.db.query.voteRankings.findMany({
-      where: and(eq(voteRankings.voteId, vote.id), eq(voteRankings.userId, ctx.userId)),
+      where: { voteId: vote.id, userId: ctx.userId },
     });
   },
 };

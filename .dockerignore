@@ -1,0 +1,7 @@
+**/node_modules
+**/dist
+**/__generated__
+app/src/routeTree.gen.ts
+.env
+.git
+.claude

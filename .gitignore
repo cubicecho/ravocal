@@ -7,3 +7,4 @@ pgdata/
 .env.local
 *.tsbuildinfo
 __generated__
+app/src/routeTree.gen.ts
