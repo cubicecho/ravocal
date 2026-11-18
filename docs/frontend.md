@@ -39,7 +39,8 @@ Setting sign-in up: `/login` also reads `ssoSetup`. On an instance with no accou
 first account becomes the admin. `lib/sso.ts` holds the documents and `describePairingError`, which heads each
 `extensions.reason` (`BAD_URL`, `EXPIRED`, …) with its own title over the server's sentence.
 
-Settings (`/settings`, the Settings button on `/groups`): "Connected accounts" lists the email link
+Settings (`/settings`, the Settings button on `/groups`): "Profile" (`components/domain/profile-form.tsx`) edits the
+reader's display name with `updateUser`, and re-reads `getSession`. "Connected accounts" lists the email link
 and each provider with `SettingRow`s. Connect calls `linkSocialAccount(provider)` and follows the
 URL it answers with; the provider sends the reader back to `/settings?connected=<id>` or
 `?error=<code>&provider=<id>`. Disconnect is a `ConfirmButton` calling `unlinkAccount`, held back
@@ -83,7 +84,7 @@ TanStack Router with file-based routes. The Vite plugin regenerates `app/src/rou
 | `/invite`          | `routes/invite.tsx`          | Accept group invite via token                                                                       |
 | `/groups`          | `routes/groups/index.tsx`    | List user's groups                                                                                  |
 | `/groups/new`      | `routes/groups/new.tsx`      | Create group form                                                                                   |
-| `/groups/$groupId` | `routes/groups/$groupId.tsx` | Group detail + calendar + vote                                                                      |
+| `/groups/$groupId` | `routes/groups/$groupId.tsx` | Group detail: vote, free time, members and invites ("The group page")                               |
 
 Add new routes by creating files in `app/src/routes/`. Run the dev server once to let the plugin generate the updated route tree.
 
@@ -130,6 +131,11 @@ edited: change them upstream and reinstall. `biome.json` turns linting and forma
 so a new item's files join that override. App-specific components go in
 `app/src/components/domain/`.
 
+- An edit is an explicit form, never inline: a `DialogLayout` holding a `useAppForm` form, its `wrapperSlot` from
+  `dialogForm` (`components/domain/form/dialog-form.tsx`), Cancel taken from `footerActionsSlot`'s `close`, and
+  `hasUnsavedChanges` read off `form.state.isDefaultValue`. The page holds it with `useDialog` (`lib/use-dialog.ts`) and
+  keys the dialog on its `key`, so a reopened form starts from what is saved. A destructive action is a
+  `ConfirmButton`.
 - A page is `PageLayout` (a detail page passes `loading` and puts `LoadState` with `record` in its
   body); a list page puts `LoadState` with `count` and an `EmptyState` over a `List` of `ListItem`s.
   Pass `asQuery(result)` from `@/lib/as-query` as an Apollo query's `query`.
@@ -137,6 +143,31 @@ so a new item's files join that override. App-specific components go in
   mutation's failure goes under the fields with `FormError`. `RangeField`
   (`components/domain/form/range-field.tsx`) is the slider the registry does not ship.
 - The palette is cubeui's (`app/cubeui-tokens.css`), light and dark following the system.
+
+## The group page
+
+`/groups/$groupId` reads everything in one query, `GroupDetail`, and every change on the page refetches it by name
+(`refetchQueries: ['GroupDetail']`), except a rename, which Apollo's normalized cache shows at once. Each list in the
+query is priced by its page size (`OPERATION_LIMIT_DEFAULTS.maxCost`), which is why a block's owner is looked up in
+`members` rather than read per block. Owner-only controls (Settings, Invite, Start vote, Close vote, Remove, Cancel
+invite) are drawn only for the owner; the server refuses them anyway. The sections, in `components/domain/group/`:
+
+- **Vote** (`vote-section.tsx`). The owner starts a vote (`startVote`). A `BAD_USER_INPUT` refusal with no vote open is
+  the threshold's: the page shows the server's sentence and offers `forceStartVote`. While a vote is open, every member
+  ranks it in `ranking-dialog.tsx`: an ordered list with move up, move down and take-off buttons (focus follows the
+  time that moved, and a live region says where it went), and the times left out with Add. Saving sends the whole
+  ballot to `submitRankings`, top choice rank 1; a member may leave times out, and an empty ballot withdraws a saved
+  one. Before a first save the ballot starts as every candidate in ballot order. The owner closes it (`closeVote`,
+  a `ConfirmButton`), and a closed vote shows its winner on a card of its own over every candidate.
+- **Free time** (`free-time-section.tsx`, `time-block-dialog.tsx`). Blocks grouped by member, the reader's first, with
+  Edit and Delete on the reader's own. The dialog takes a date and a start and an end from selects built by
+  `lib/time-grid.ts`: every **UTC** half hour inside the chosen local day, labelled in local time, so every choice is
+  one the server's grid accepts. Where the offset is not a whole number of half hours (Nepal, +05:45) the choices read
+  :15 and :45, and the dialog says so. A choice is minutes since the local midnight, so changing the date keeps the
+  times; a 23- or 25-hour day has fewer or more, and the repeated hour is labelled with its offset.
+- **Members** and **Invited**, with the owner's Invite dialog (`invite-dialog.tsx`, `inviteToGroup`) and Group
+  settings (`group-settings-dialog.tsx`: `updateGroup` for the name and threshold, and `deleteGroup` behind a
+  `ConfirmButton` that asks for the group's name).
 
 ## Apollo Client
 

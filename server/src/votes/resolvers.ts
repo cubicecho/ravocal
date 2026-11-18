@@ -143,7 +143,7 @@ async function openVote(context: Context, info: GraphQLResolveInfo, groupId: str
     if (candidates.length === 0) {
       const advice = isForced
         ? 'Nobody has added free time yet.'
-        : `No time has ${owned.overlapThreshold}% of the group free. Use forceStartVote to open one anyway.`;
+        : `No time has ${owned.overlapThreshold}% of the group free. Start a forced vote to open one anyway.`;
       throw badInput(advice);
     }
     const [vote] = await tx.insert(votes).values({ groupId, isForced }).returning({ id: votes.id });

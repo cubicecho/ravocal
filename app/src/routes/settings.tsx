@@ -6,6 +6,7 @@ import type { SettingsQuery } from '@/__generated__/graphql.js';
 import { graphql } from '@/__generated__/index.js';
 import { CardLayout } from '@/components/card-layout';
 import { ConfirmButton } from '@/components/confirm-button';
+import { ProfileForm } from '@/components/domain/profile-form';
 import { SsoSettings } from '@/components/domain/sso/sso-settings';
 import { LoadState } from '@/components/load-state';
 import { PageLayout } from '@/components/page-layout';
@@ -43,6 +44,7 @@ const SETTINGS = graphql(`
     getSession {
       user {
         id
+        name
         email
         emailVerified
       }
@@ -232,6 +234,8 @@ function SettingsPage() {
   const result = useQuery(SETTINGS);
   // The provider whose Connect was pressed last.
   const [pending, setPending] = useState<string | null>(null);
+  // Whether the profile's last save went through, said under its card until the name changes again.
+  const [nameSaved, setNameSaved] = useState(false);
   const settings = result.data;
   const [linkSocialAccount, linking] = useMutation(LINK_SOCIAL_ACCOUNT, {
     // Leaves the page for the provider, which sends the reader back here.
@@ -280,6 +284,26 @@ function SettingsPage() {
             notFoundLabel="Your settings aren't available"
             level={2}
           />
+          {settings?.getSession ? (
+            <>
+              <ProfileForm
+                key={settings.getSession.user.name}
+                userId={settings.getSession.user.id}
+                name={settings.getSession.user.name}
+                onSaved={() => setNameSaved(true)}
+              />
+              {nameSaved ? (
+                <Alert
+                  variant="info"
+                  title="Your name is saved"
+                  description={`Your groups now see you as ${settings.getSession.user.name}.`}
+                  actionSlot={
+                    <Button size="sm" variant="ghost" onClick={() => setNameSaved(false)} content="Dismiss" />
+                  }
+                />
+              ) : null}
+            </>
+          ) : null}
           {settings && (
             <CardLayout
               title="Connected accounts"

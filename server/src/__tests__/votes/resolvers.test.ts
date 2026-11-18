@@ -119,7 +119,7 @@ describe('votes', () => {
       await free(ownerId, 0, 1);
       await free(memberId, 1, 2);
       const { message, code } = await owner.expectError(START, { groupId });
-      expect(message).toMatch(/forceStartVote/);
+      expect(message).toMatch(/Start a forced vote/);
       expect(code).toBe(ErrorCode.BadUserInput);
       expect(await db.select().from(votes)).toEqual([]);
     });
