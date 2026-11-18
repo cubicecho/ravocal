@@ -46,7 +46,7 @@ const SIGN_IN_MAGIC_LINK = graphql(`
  */
 function SignInError({ error }: { error: unknown }) {
   if (hasErrorCode(error, ErrorCode.TooManyRequests)) {
-    return <Alert variant="warning" title="Too many sign-in attempts" description={describeError(error)} />;
+    return <Alert variant="warning" title="Wait before trying again" description={describeError(error)} />;
   }
   return <FormError error={error} />;
 }
