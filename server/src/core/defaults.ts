@@ -72,12 +72,15 @@ export interface AuthSettings {
   magicLinkTtlMinutes: number;
   /** Shortest signing secret production accepts, in characters. `openssl rand -hex 32` gives twice this. */
   minSecretLength: number;
+  /** Whether typing an email signs in, with no link. Unsafe on a public network. `SECURE_LOCAL_NET` overrides it. */
+  secureLocalNet: boolean;
 }
 
 export const AUTH_DEFAULTS: Readonly<AuthSettings> = Object.freeze({
   sessionTtlDays: 30,
   magicLinkTtlMinutes: 15,
   minSecretLength: 32,
+  secureLocalNet: false,
 });
 
 /** Limits on a group and its invites. */

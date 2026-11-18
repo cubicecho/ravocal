@@ -1,12 +1,12 @@
-import { useMutation, useQuery } from '@apollo/client';
-import { createFileRoute, redirect } from '@tanstack/react-router';
+import { useApolloClient, useMutation, useQuery } from '@apollo/client';
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { graphql } from '@/__generated__/index.js';
 import { InputField, useAppForm } from '@/components/app-form';
 import { CenteredCardLayout } from '@/components/centered-card-layout';
 import { FormError } from '@/components/domain/form/form-error';
 import { Alert } from '@/components/ui/alert';
-import { HOME_PATH, isSignedIn } from '@/lib/auth';
+import { HOME_PATH, isSignedIn, storeToken, takeAfterSignIn } from '@/lib/auth';
 import { ErrorCode, hasErrorCode } from '@/lib/error-codes';
 import { describeError } from '@/lib/error-message';
 
@@ -22,6 +22,7 @@ export const Route = createFileRoute('/login')({
 const AUTH_CONFIG = graphql(`
   query AuthConfig {
     authConfig {
+      secureLocalNet
       magicLink
     }
   }
@@ -31,6 +32,7 @@ const SIGN_IN_MAGIC_LINK = graphql(`
   mutation SignInMagicLink($email: String!) {
     signInMagicLink(email: $email) {
       status
+      token
     }
   }
 `);
@@ -53,6 +55,10 @@ function LoginPage() {
   // The address the link went to, once it has been sent.
   const [sentTo, setSentTo] = useState<string | null>(null);
   const config = useQuery(AUTH_CONFIG).data?.authConfig;
+  const navigate = useNavigate();
+  const client = useApolloClient();
+  // Under SECURE_LOCAL_NET the address alone signs in, and no link is sent.
+  const isLocalNet = config?.secureLocalNet === true;
   const [signInMagicLink, { error }] = useMutation(SIGN_IN_MAGIC_LINK, {
     // The failure is drawn from `error` under the field; handling it here keeps the submit's
     // promise from rejecting unhandled.
@@ -64,7 +70,14 @@ function LoginPage() {
     onSubmit: async ({ value }) => {
       const email = value.email.trim();
       const res = await signInMagicLink({ variables: { email } });
-      if (res.data?.signInMagicLink.status) {
+      const result = res.data?.signInMagicLink;
+      if (result?.token) {
+        storeToken(result.token);
+        await client.clearStore();
+        await navigate({ href: takeAfterSignIn(), replace: true });
+        return;
+      }
+      if (result?.status) {
         setSentTo(email);
       }
     },
@@ -80,7 +93,7 @@ function LoginPage() {
   }
 
   // Only once the server has answered: a page still loading is not a broken instance.
-  const cannotSignIn = config?.magicLink === false;
+  const cannotSignIn = config !== undefined && config.magicLink === false && isLocalNet === false;
   if (cannotSignIn) {
     return (
       <CenteredCardLayout
@@ -99,7 +112,11 @@ function LoginPage() {
   return (
     <CenteredCardLayout
       title="Sign in to Ravocal"
-      description="We'll email you a link that signs you in. There's no password."
+      description={
+        isLocalNet
+          ? 'Enter your email to sign in. There is no password.'
+          : "We'll email you a link that signs you in. There's no password."
+      }
       wrapperSlot={(parts, { className }) => (
         <form
           className={className}
@@ -130,7 +147,10 @@ function LoginPage() {
       }
       footerActionsSlot={
         <form.AppForm>
-          <form.SubmitButton createLabel="Send sign-in link" loadingLabel="Sending…" />
+          <form.SubmitButton
+            createLabel={isLocalNet ? 'Sign in' : 'Send sign-in link'}
+            loadingLabel={isLocalNet ? 'Signing in…' : 'Sending…'}
+          />
         </form.AppForm>
       }
     />

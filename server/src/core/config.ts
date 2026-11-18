@@ -9,6 +9,8 @@ const TRUST_PROXY_OFF = 'false';
 /** A hop count: digits only. */
 const HOP_COUNT = /^\d+$/;
 const UNKNOWN_VERSION = 'unknown';
+/** The flag values that mean on. Anything else set means off. */
+const FLAG_ON = new Set(['1', 'true', 'yes']);
 /** The local part of the From address when `SMTP_FROM` is unset. */
 const DEFAULT_FROM_LOCAL_PART = 'ravocal';
 
@@ -41,6 +43,18 @@ function envNumber(value: string | undefined, fallback: number): number {
  */
 function envString(value: string | undefined): string | undefined {
   return value === undefined || value === '' ? undefined : value;
+}
+
+/**
+ * Reads an on/off flag.
+ *
+ * @param value - The raw env value.
+ * @param fallback - Used when the value is unset or blank.
+ * @returns true for "1", "true" or "yes" in any case, false for anything else set.
+ */
+function envFlag(value: string | undefined, fallback: boolean): boolean {
+  const trimmed = (value ?? '').trim().toLowerCase();
+  return trimmed === '' ? fallback : FLAG_ON.has(trimmed);
 }
 
 /**
@@ -150,6 +164,21 @@ export function describeWeakSecret(secret: string | undefined): string | undefin
  * @returns `BETTER_AUTH_SECRET`, or `DEV_SECRET` when unset, so development needs no .env entry.
  */
 export const authSecret = (): string => configuredAuthSecret() ?? DEV_SECRET;
+
+/**
+ * Whether typing an email address signs in, with no link to follow. The network is then the credential, so
+ * preflight refuses it with a public `APP_URL`.
+ *
+ * @returns `SECURE_LOCAL_NET` as a flag, or `AUTH_DEFAULTS.secureLocalNet` when unset.
+ */
+export const secureLocalNet = (): boolean => envFlag(process.env.SECURE_LOCAL_NET, AUTH_DEFAULTS.secureLocalNet);
+
+/**
+ * Whether a public `APP_URL` is accepted alongside `SECURE_LOCAL_NET`.
+ *
+ * @returns `I_KNOW_SECURE_LOCAL_NET_IS_PUBLIC` as a flag, off when unset.
+ */
+export const allowsPublicLocalNet = (): boolean => envFlag(process.env.I_KNOW_SECURE_LOCAL_NET_IS_PUBLIC, false);
 
 /**
  * Where email is sent through, as a nodemailer connection URL (`smtp://user:pass@host:587`).

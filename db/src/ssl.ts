@@ -10,12 +10,22 @@ const PRIVATE_IPV6 = [/^::1$/, /^f[cd][0-9a-f]{2}:/, /^fe[89ab][0-9a-f]:/];
 const IPV6_BRACKETS = /^\[|\]$/g;
 
 /**
+ * Reads the host out of a URL in the form `isPrivateHost` takes.
+ *
+ * @param url - Any URL.
+ * @returns Its host, lower-cased, without IPv6 brackets.
+ */
+export function hostOf(url: string): string {
+  return new URL(url).hostname.replace(IPV6_BRACKETS, '').toLowerCase();
+}
+
+/**
  * Whether a host can only be reached from a private network or this machine.
  *
- * @param host - Lower-case host name or address, without IPv6 brackets.
+ * @param host - Lower-case host name or address, without IPv6 brackets (`hostOf`).
  * @returns true for a dotless name (a compose service such as `postgres`), a private suffix or a private address.
  */
-function isPrivateHost(host: string): boolean {
+export function isPrivateHost(host: string): boolean {
   const isIpv6 = host.includes(':');
   if (isIpv6) {
     return PRIVATE_IPV6.some((range) => range.test(host));
@@ -37,11 +47,9 @@ function isPrivateHost(host: string): boolean {
  * internet gets TLS forced on.
  */
 export function requiresSsl(url: string): boolean {
-  const parsed = new URL(url);
-  const hasSslMode = parsed.searchParams.has(SSL_MODE_PARAM);
+  const hasSslMode = new URL(url).searchParams.has(SSL_MODE_PARAM);
   if (hasSslMode) {
     return false;
   }
-  const host = parsed.hostname.replace(IPV6_BRACKETS, '').toLowerCase();
-  return isPrivateHost(host) === false;
+  return isPrivateHost(hostOf(url)) === false;
 }

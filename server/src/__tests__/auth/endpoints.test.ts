@@ -1,4 +1,4 @@
-import { verifications } from '@cubicecho/ravocal-db/schema';
+import { users, verifications } from '@cubicecho/ravocal-db/schema';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type Auth, MAGIC_LINK_PATH, type MagicLink, sessionUserId } from '../../auth/better-auth.ts';
 import { createRateLimiter } from '../../auth/rate-limit.ts';
@@ -17,8 +17,8 @@ import {
   type TestDb,
 } from '../helpers.ts';
 
-const CONFIG = 'query { authConfig { magicLink } }';
-const REQUEST = 'mutation ($email: String!) { signInMagicLink(email: $email) { status } }';
+const CONFIG = 'query { authConfig { secureLocalNet magicLink } }';
+const REQUEST = 'mutation ($email: String!) { signInMagicLink(email: $email) { status token userId } }';
 const VERIFY = 'mutation ($token: String!) { magicLinkVerify(token: $token) { token user { id email name } } }';
 const SIGN_OUT = 'mutation { signOut { success } }';
 const SESSION = 'query { getSession { user { id email } session { userId } } }';
@@ -80,17 +80,24 @@ beforeEach(async () => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe('authConfig', () => {
   it('offers links when the instance can deliver them', async () => {
     const { authConfig } = await anonymous.expectOk(CONFIG);
-    expect(authConfig).toEqual({ magicLink: true });
+    expect(authConfig).toEqual({ secureLocalNet: false, magicLink: true });
   });
 
-  it('offers no links when the instance has no mail', async () => {
+  it('offers nothing when the instance has no mail and no private network', async () => {
     const { authConfig } = await createClient(db, null, { auth: createLinklessAuth(db) }).expectOk(CONFIG);
-    expect(authConfig).toEqual({ magicLink: false });
+    expect(authConfig).toEqual({ secureLocalNet: false, magicLink: false });
+  });
+
+  it('says so under SECURE_LOCAL_NET', async () => {
+    vi.stubEnv('SECURE_LOCAL_NET', 'true');
+    const { authConfig } = await createClient(db, null, { auth: createLinklessAuth(db) }).expectOk(CONFIG);
+    expect(authConfig).toEqual({ secureLocalNet: true, magicLink: false });
   });
 });
 
@@ -98,7 +105,7 @@ describe('signInMagicLink', () => {
   it("delivers a link to the app's verify page", async () => {
     const email = nextEmail();
     const { signInMagicLink } = await anonymous.expectOk(REQUEST, { email });
-    expect(signInMagicLink).toEqual({ status: true });
+    expect(signInMagicLink).toEqual({ status: true, token: null, userId: null });
     expect(links).toHaveLength(1);
     const [link] = links;
     expect(link?.email).toBe(email);
@@ -124,6 +131,24 @@ describe('signInMagicLink', () => {
     const { code, message } = await linkless.expectError(REQUEST, { email: nextEmail() });
     expect(code).toBe(ErrorCode.BadUserInput);
     expect(message).toBe(NO_LINKS);
+  });
+
+  it('signs straight in under SECURE_LOCAL_NET, with no link and no SMTP', async () => {
+    vi.stubEnv('SECURE_LOCAL_NET', 'true');
+    const linkless = createClient(db, null, { auth: createLinklessAuth(db) });
+    const { signInMagicLink } = await linkless.expectOk(REQUEST, { email: nextEmail() });
+    const { status, token, userId } = signInMagicLink;
+    expect(status).toBe(true);
+    expect(links).toHaveLength(0);
+    expect(await sessionUserId(auth, bearer(token))).toBe(userId);
+  });
+
+  it('opens the account that already has the address under SECURE_LOCAL_NET', async () => {
+    vi.stubEnv('SECURE_LOCAL_NET', 'true');
+    const existing = await createUser(db, 'kept@example.com');
+    const { signInMagicLink } = await anonymous.expectOk(REQUEST, { email: ' Kept@Example.com ' });
+    expect(signInMagicLink.userId).toBe(existing);
+    expect(await db.select().from(users)).toHaveLength(1);
   });
 });
 
