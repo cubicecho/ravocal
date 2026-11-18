@@ -20,8 +20,11 @@ jobs:
       # Generated files aren't in the tree, so codegen runs before anything reads them.
       - name: Codegen
         run: npm run codegen
-      - name: Lint and typecheck
-        run: npm run check
+      # `biome ci` runs the same checks as check:biome, but never writes.
+      - name: Lint
+        run: npx biome ci .
+      - name: Typecheck
+        run: npm run check:types
       # Tests use in-memory PGlite (vitest.config.ts), so no database service is needed.
       - name: Test
         run: npm test
