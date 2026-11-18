@@ -90,10 +90,12 @@ in until a provider is paired from the login page.
     Ravocal (`<issuer>#setup=<token>&name=<label>`). On a brand-new instance, the login page offers "Set up sign-in":
     paste the URL, and the button appears. Afterwards only the admin can change it, under Settings, "Single sign-on".
     The admin is the first account ever made (on an instance that had accounts before, the oldest one). The setup
-    URL works once, and Ravocal never stores or logs its token.
+    URL works once, and Ravocal never stores or logs its token. In production it must be `https://`, unless the
+    provider is on the same machine or a private network.
   - **Set it in the environment.** Register a client with redirect URI `<SERVER_URL>/api/auth/callback/oidc`, then set
     `OIDC_ISSUER` and `OIDC_CLIENT_ID` (and `OIDC_CLIENT_SECRET` for a confidential client). This wins over any
-    pairing, and the app cannot change it.
+    pairing, and the app cannot change it. In production the server refuses to start with an `http://` issuer on a
+    public host.
 
   As with Google, a sign-in reaches the account that has its address only when the provider's `email_verified` claim
   says it checked the address.

@@ -1,6 +1,8 @@
 import { getOAuthState } from 'better-auth/api';
 import { type GenericOAuthConfig, genericOAuth } from 'better-auth/plugins';
 import { type ClientProviderConfig, type OidcProviderConfig, type ProviderConfig, ProviderId } from '../core/config.ts';
+import type { AuthSettings } from '../core/defaults.ts';
+import { errorMessage } from '../core/errors.ts';
 
 // Google and Facebook through better-auth's generic OAuth plugin rather than its built-in social providers, whose
 // endpoints are fixed: here each provider's endpoints are an argument, so the tests run the whole sign-in against a
@@ -83,6 +85,34 @@ function isTrue(claim: unknown): boolean {
 }
 
 /**
+ * Reads the profile of the reader an access token was issued for from Facebook's Graph `/me`.
+ *
+ * @param profileUrl - Where `/me` is, with the fields asked for.
+ * @param accessToken - The reader's access token.
+ * @param timeoutMs - How long to wait for the whole answer.
+ * @returns The profile, or null when Graph refused, did not answer in time, could not be reached or sent no JSON.
+ */
+async function facebookProfile(
+  profileUrl: string,
+  accessToken: string,
+  timeoutMs: number,
+): Promise<FacebookProfile | null> {
+  try {
+    const response = await fetch(profileUrl, {
+      headers: { authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (response.ok === false) {
+      return null;
+    }
+    return await response.json();
+  } catch (error) {
+    console.warn(`[auth] could not read the Facebook profile: ${errorMessage(error)}`);
+    return null;
+  }
+}
+
+/**
  * Facebook, through explicit endpoints and the Graph API's `/me`.
  *
  * @remarks
@@ -92,9 +122,10 @@ function isTrue(claim: unknown): boolean {
  *
  * @param provider - The client.
  * @param endpoints - Where Facebook is.
+ * @param timeoutMs - How long to wait on `/me`.
  * @returns The plugin's configuration for Facebook.
  */
-function facebook(provider: ClientProviderConfig, endpoints: ProviderEndpoints): GenericOAuthConfig {
+function facebook(provider: ClientProviderConfig, endpoints: ProviderEndpoints, timeoutMs: number): GenericOAuthConfig {
   return {
     providerId: provider.id,
     name: provider.name,
@@ -107,13 +138,14 @@ function facebook(provider: ClientProviderConfig, endpoints: ProviderEndpoints):
     pkce: false,
     scopes: ['email', 'public_profile'],
     getUserInfo: async (tokens) => {
-      const response = await fetch(endpoints.facebook.profileUrl, {
-        headers: { authorization: `Bearer ${tokens.accessToken}` },
-      });
-      if (response.ok === false) {
+      const { accessToken } = tokens;
+      if (!accessToken) {
         return null;
       }
-      const profile: FacebookProfile = await response.json();
+      const profile = await facebookProfile(endpoints.facebook.profileUrl, accessToken, timeoutMs);
+      if (profile === null) {
+        return null;
+      }
       return {
         id: profile.id,
         name: profile.name ?? '',
@@ -175,14 +207,19 @@ function oidc(provider: OidcProviderConfig): GenericOAuthConfig {
  *
  * @param provider - The provider.
  * @param endpoints - Where Google and Facebook are. The OIDC provider is found by its issuer.
+ * @param settings - The auth settings, for how long a profile call may take.
  * @returns The plugin's configuration for it.
  */
-function pluginConfig(provider: ProviderConfig, endpoints: ProviderEndpoints): GenericOAuthConfig {
+function pluginConfig(
+  provider: ProviderConfig,
+  endpoints: ProviderEndpoints,
+  settings: Pick<AuthSettings, 'providerTimeoutMs'>,
+): GenericOAuthConfig {
   switch (provider.id) {
     case ProviderId.Google:
       return google(provider, endpoints);
     case ProviderId.Facebook:
-      return facebook(provider, endpoints);
+      return facebook(provider, endpoints, settings.providerTimeoutMs);
     case ProviderId.Oidc:
       return oidc(provider);
   }
@@ -194,10 +231,15 @@ function pluginConfig(provider: ProviderConfig, endpoints: ProviderEndpoints): G
  *
  * @param providers - The providers to offer. At least one.
  * @param endpoints - Where they are reached.
+ * @param settings - The auth settings, for how long a profile call may take.
  * @returns The plugin.
  */
-export function providersPlugin(providers: readonly ProviderConfig[], endpoints: ProviderEndpoints) {
+export function providersPlugin(
+  providers: readonly ProviderConfig[],
+  endpoints: ProviderEndpoints,
+  settings: Pick<AuthSettings, 'providerTimeoutMs'>,
+) {
   return genericOAuth({
-    config: providers.map((provider) => pluginConfig(provider, endpoints)),
+    config: providers.map((provider) => pluginConfig(provider, endpoints, settings)),
   });
 }

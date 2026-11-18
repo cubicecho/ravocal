@@ -13,7 +13,7 @@ export const HOME_PATH = '/groups' as const;
 export const LOGIN_PATH = '/login' as const;
 /** Where a sign-in link from an email lands. The server builds the link with this path. */
 export const VERIFY_PATH = '/auth/verify' as const;
-/** Where a sign-in with Google or Facebook lands, with a one-time token. The server redirects to this path. */
+/** Where a sign-in with Google, Facebook or the OIDC provider lands, with a one-time token. The server redirects here. */
 export const SSO_PATH = '/auth/sso' as const;
 
 /** The pages a signed-out reader may open: the sign-in form, and the pages a sign-in lands on. */

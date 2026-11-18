@@ -17,6 +17,7 @@ import { PairingFailure, parseSetupUrl } from '../../sso/pairing.ts';
 import { readPairedOidc, SsoSource } from '../../sso/settings.ts';
 import {
   closeTestDb,
+  createClient,
   createSessionToken,
   createTestDb,
   createUser,
@@ -208,6 +209,17 @@ describe('setup URLs', () => {
     expect(() => parseSetupUrl(text)).toThrow(expect.objectContaining({ reason: PairingFailure.BadUrl }));
   });
 
+  it('are refused in production as BAD_URL when they are http:// on a public host', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    const text = `http://id.example.com/oidc#setup=${SETUP_TOKEN}`;
+    expect(() => parseSetupUrl(text)).toThrow(expect.objectContaining({ reason: PairingFailure.BadUrl }));
+    expect(() => parseSetupUrl(text)).toThrow(/https:\/\//);
+    expect(parseSetupUrl(`https://id.example.com/oidc#setup=${SETUP_TOKEN}`).issuer).toBe(
+      'https://id.example.com/oidc',
+    );
+    expect(parseSetupUrl(`http://id.lan/oidc#setup=${SETUP_TOKEN}`).issuer).toBe('http://id.lan/oidc');
+  });
+
   it('are refused over the API as BAD_USER_INPUT, with the reason', async () => {
     expect(await refused(PAIR, { url: 'https://id.example.com/oidc' })).toMatchObject({
       code: ErrorCode.BadUserInput,
@@ -264,6 +276,12 @@ describe('pairSso', () => {
     expect(authorize.searchParams.get('client_id')).toBe(REGISTERED.clientId);
   });
 
+  it('pairs with a provider over http:// on this machine in production', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    expect(dcr.issuer.startsWith('http://127.0.0.1:')).toBe(true);
+    expect((await ok(PAIR, { url: dcr.setupUrl() })).pairSso.source).toBe(SsoSource.Paired);
+  });
+
   it('says a spent setup URL is expired, and keeps nothing', async () => {
     const error = await refused(PAIR, { url: dcr.setupUrl(SPENT_TOKEN) });
     expect(error).toMatchObject({ code: ErrorCode.BadUserInput, reason: PairingFailure.Expired });
@@ -295,6 +313,16 @@ describe('pairSso', () => {
       reason: PairingFailure.NotAProvider,
     });
     expect(dcr.registrations).toEqual([]);
+    expect(await readPairedOidc(db)).toBeNull();
+  });
+
+  it('refuses a registration endpoint that redirects, and never sends the token on', async () => {
+    dcr.answer = 'redirect';
+    const error = await refused(PAIR, { url: dcr.setupUrl() });
+    expect(error).toMatchObject({ code: ErrorCode.BadUserInput, reason: PairingFailure.NotAProvider });
+    expect(error.message).toMatch(/redirect/);
+    expect(dcr.registrations).toHaveLength(1);
+    expect(dcr.redirected).toEqual([]);
     expect(await readPairedOidc(db)).toBeNull();
   });
 
@@ -374,6 +402,30 @@ describe('who may pair', () => {
       });
     }
     expect(dcr.deletions).toEqual([]);
+  });
+});
+
+describe('the sign-in throttle', () => {
+  /**
+   * Builds an anonymous caller whose address may change sign-in once per flow.
+   *
+   * @returns The caller, in process, on the running server's auth host.
+   */
+  const throttled = () => createClient(db, null, { authHost: host, limiter: createRateLimiter({ maxAttempts: 1 }) });
+
+  it('refuses pairSso past the budget before anything reaches the provider', async () => {
+    const caller = throttled();
+    expect((await caller.expectError(PAIR, { url: 'not a url' })).code).toBe(ErrorCode.BadUserInput);
+    expect((await caller.expectError(PAIR, { url: dcr.setupUrl() })).code).toBe(ErrorCode.TooManyRequests);
+    expect(dcr.registrations).toEqual([]);
+    expect(await readPairedOidc(db)).toBeNull();
+  });
+
+  it('refuses unpairSso past its own budget', async () => {
+    const caller = throttled();
+    await caller.expectError(PAIR, { url: 'not a url' });
+    expect((await caller.expectOk(UNPAIR)).unpairSso.source).toBe(SsoSource.None);
+    expect((await caller.expectError(UNPAIR)).code).toBe(ErrorCode.TooManyRequests);
   });
 });
 
@@ -517,6 +569,23 @@ describe('signing in with the paired provider', () => {
     expect(location.searchParams.get('error')).toBe('account_not_linked');
     expect(location.searchParams.get('provider')).toBe(ProviderId.Oidc);
     expect(await providersOf(admin.id)).toEqual([]);
+  });
+
+  it('signs in as a client the provider registered to send its secret in the form', async () => {
+    dcr.authMethod = 'client_secret_post';
+    await ok(PAIR, { url: dcr.setupUrl() });
+    expect((await readPairedOidc(db))?.clientAuth).toBe('client_secret_post');
+    const session = await verified(await signInWithOidc());
+    expect(await providersOf(session.userId)).toEqual([ProviderId.Oidc]);
+  });
+
+  it('sends a reader whose id token has no address back to the login page', async () => {
+    await ok(PAIR, { url: dcr.setupUrl() });
+    dcr.oidc.profile = { sub: 'o-nomail', name: 'No Mail' };
+    const location = await signInWithOidc();
+    expect(location.pathname).toBe('/login');
+    expect(location.searchParams.get('error')).toBe('email_not_found');
+    expect(await db.select().from(users)).toEqual([]);
   });
 
   it('makes an account with the address not yet confirmed when the provider did not check a new address', async () => {

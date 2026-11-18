@@ -64,12 +64,13 @@ export interface TestAuth {
  * Builds better-auth over the test db, with magic links captured instead of sent.
  *
  * @param testDb - Test db.
- * @param [options] - The providers to offer and where they are; none by default.
+ * @param [options] - The providers to offer and where they are (none by default), and settings that replace
+ *   `AUTH_DEFAULTS`.
  * @returns The auth instance and the captured links.
  */
 export function createTestAuth(
   testDb: TestDb,
-  options: Pick<AuthOptions, 'providers' | 'providerEndpoints'> = {},
+  options: Pick<AuthOptions, 'providers' | 'providerEndpoints' | 'settings'> = {},
 ): TestAuth {
   const links: MagicLink[] = [];
   const auth = createAuth(testDb, {

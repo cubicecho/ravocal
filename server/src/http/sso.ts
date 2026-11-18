@@ -163,12 +163,29 @@ async function callback(auth: Auth, req: Request, res: Response): Promise<void> 
     res.redirect(HttpStatus.Found, location);
     return;
   }
+  // The token is a session for whoever holds it, so it goes nowhere but the app.
+  const target = appRedirect(location);
+  if (target === null) {
+    fail(res, SsoError.CallbackFailed, new Error(`better-auth's callback pointed off the app's origin: ${location}`));
+    return;
+  }
   const { token } = await auth.api.generateOneTimeToken({
     headers: new Headers({ authorization: `Bearer ${session}` }),
   });
-  const target = new URL(location, appUrl());
   target.searchParams.set('token', token);
   res.redirect(HttpStatus.Found, target.toString());
+}
+
+/**
+ * Reads where better-auth's callback sends a finished sign-in, if that is the app.
+ *
+ * @param location - Its `location` header: a path on the app, or an absolute URL.
+ * @returns The URL, resolved against `appUrl()`, or null when it is not on the app's origin.
+ */
+export function appRedirect(location: string): URL | null {
+  const { origin } = new URL(appUrl());
+  const target = URL.parse(location, origin);
+  return target !== null && target.origin === origin ? target : null;
 }
 
 /**

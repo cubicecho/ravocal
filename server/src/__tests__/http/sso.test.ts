@@ -12,7 +12,7 @@ import { AUTH_DEFAULTS } from '../../core/defaults.ts';
 import { ErrorCode } from '../../core/errors.ts';
 import { MS_PER_MINUTE } from '../../core/wire.ts';
 import { createApp } from '../../http/app.ts';
-import { SsoError } from '../../http/sso.ts';
+import { appRedirect, SsoError } from '../../http/sso.ts';
 import {
   bearer,
   closeTestDb,
@@ -28,6 +28,7 @@ import {
 } from '../helpers.ts';
 import { cookiesFrom, locationOf } from './fixtures/browser.ts';
 import { FAKE_PROVIDERS, type FakeProvider, startFakeProvider } from './fixtures/fake-provider.ts';
+import type { OidcClient } from './fixtures/oidc-issuer.ts';
 
 // A provider's whole sign-in through the real app, over HTTP, against a stand-in for Google and Facebook on a loopback
 // port (fixtures/fake-provider.ts). The test plays the browser: it follows each redirect by hand, carrying cookies.
@@ -41,6 +42,9 @@ const UNLINK = 'mutation ($accountId: String!) { unlinkAccount(accountId: $accou
 const SIGN_IN = 'mutation ($email: String!) { signInMagicLink(email: $email) { token userId } }';
 const REQUEST_LINK = 'mutation ($email: String!) { signInMagicLink(email: $email) { status } }';
 const VERIFY_LINK = 'mutation ($token: String!) { magicLinkVerify(token: $token) { token user { id } } }';
+
+/** How long a test lets a provider's profile endpoint take: far under the test's own timeout. */
+const PROFILE_TIMEOUT_MS = 100;
 
 let db: TestDb;
 let provider: FakeProvider;
@@ -251,6 +255,14 @@ describe('signing in with Google', () => {
     expect(await providersOf(session.userId)).toEqual([ProviderId.Google]);
   });
 
+  it('sends a reader whose id token has no address back to the login page', async () => {
+    provider.google = { sub: 'g-nomail', name: 'No Mail' };
+    const { location } = await signIn(ProviderId.Google);
+    expect(location.pathname).toBe('/login');
+    expect(location.searchParams.get('error')).toBe('email_not_found');
+    expect(await db.select().from(users)).toEqual([]);
+  });
+
   it('refuses a callback whose state does not match', async () => {
     const { location } = await signIn(ProviderId.Google, (back) => back.searchParams.set('state', 'forged'));
     expect(location.pathname).toBe('/login');
@@ -279,6 +291,68 @@ describe('signing in with Facebook', () => {
   it('sends a reader with no address back to the login page', async () => {
     provider.facebook = { id: 'fb-nomail', name: 'No Mail' };
     const { location } = await signIn(ProviderId.Facebook);
+    expect(location.pathname).toBe('/login');
+    expect(location.searchParams.get('error')).toBe('email_not_found');
+    expect(await db.select().from(users)).toEqual([]);
+  });
+
+  it('sends the reader back to the login page when Graph never answers for the profile', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await serve(async () => {
+      const settings = { providerTimeoutMs: PROFILE_TIMEOUT_MS };
+      ({ auth } = createTestAuth(db, { providers: FAKE_PROVIDERS, providerEndpoints: provider.endpoints, settings }));
+      return fixedAuthHost(auth, FAKE_PROVIDERS);
+    });
+    provider.hangFacebookProfile = true;
+    const { location } = await signIn(ProviderId.Facebook);
+    expect(`${location.origin}${location.pathname}`).toBe(`${appUrl}/login`);
+    expect(location.searchParams.get('token')).toBeNull();
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/^\[auth\] could not read the Facebook profile/));
+    expect(await db.select().from(users)).toEqual([]);
+  });
+});
+
+describe('signing in with the OIDC provider set in the environment', () => {
+  /**
+   * Sets the provider in the environment as an operator would, for a client the stand-in has registered, and serves
+   * the app built from it.
+   *
+   * @param client - The client, and how it sends its secret (or that it has none).
+   */
+  async function serveWithEnvOidc(client: OidcClient): Promise<void> {
+    provider.oidcClient = client;
+    vi.stubEnv('OIDC_ISSUER', provider.oidcIssuer);
+    vi.stubEnv('OIDC_CLIENT_ID', client.clientId);
+    if (client.clientSecret !== undefined) {
+      vi.stubEnv('OIDC_CLIENT_SECRET', client.clientSecret);
+    }
+    if (client.method === 'client_secret_post') {
+      vi.stubEnv('OIDC_CLIENT_AUTH', client.method);
+    }
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await serve(() => createAuthHost(db, { secret: TEST_SECRET, providerEndpoints: provider.endpoints }));
+  }
+
+  it.each<[string, OidcClient]>([
+    ['a secret in a Basic header', { clientId: 'ravocal-oidc', clientSecret: 'oidc-secret' }],
+    [
+      'a secret in the form (OIDC_CLIENT_AUTH=client_secret_post)',
+      { clientId: 'ravocal-oidc', clientSecret: 'oidc-secret', method: 'client_secret_post' },
+    ],
+    ['no secret, as a public client', { clientId: 'ravocal-public', method: 'none' }],
+  ])('signs in as a client that sends %s', async (_sends, client) => {
+    await serveWithEnvOidc(client);
+    const session = await verified((await signIn(ProviderId.Oidc)).location);
+    const { body } = await graphqlOverHttp(ME, {}, session.token);
+    expect(body.data.getSession.user).toEqual({ id: session.userId, email: provider.oidc.email });
+    expect(await providersOf(session.userId)).toEqual([ProviderId.Oidc]);
+  });
+
+  it('sends a reader whose id token has no address back to the login page', async () => {
+    await serveWithEnvOidc(provider.oidcClient);
+    provider.oidc = { sub: 'o-nomail', name: 'No Mail' };
+    const { location } = await signIn(ProviderId.Oidc);
     expect(location.pathname).toBe('/login');
     expect(location.searchParams.get('error')).toBe('email_not_found');
     expect(await db.select().from(users)).toEqual([]);
@@ -450,6 +524,29 @@ describe('the start and callback routes', () => {
       expect(`${location.origin}${location.pathname}`).toBe(`${appUrl}/login`);
       expect(location.searchParams.get('error')).toBe(SsoError.Off);
     }
+  });
+});
+
+describe('appRedirect', () => {
+  it.each(['/auth/sso', '/auth/sso?x=1'])('resolves %s against the app', (location) => {
+    expect(appRedirect(location)?.toString()).toBe(new URL(location, appUrl).toString());
+  });
+
+  it('keeps an absolute URL on the app', () => {
+    expect(appRedirect(`${appUrl}/auth/sso`)?.origin).toBe(appUrl);
+  });
+
+  it.each(['https://evil.example.com/auth/sso', '//evil.example.com/auth/sso', 'javascript:alert(1)'])(
+    'refuses %s, which is not on the app',
+    (location) => {
+      expect(appRedirect(location)).toBeNull();
+    },
+  );
+
+  it("refuses the app's host on another scheme or port", () => {
+    const app = new URL(appUrl);
+    expect(appRedirect(`https://${app.host}/auth/sso`)).toBeNull();
+    expect(appRedirect(`http://${app.hostname}:1/auth/sso`)).toBeNull();
   });
 });
 

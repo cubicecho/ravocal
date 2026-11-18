@@ -1,6 +1,7 @@
 // Getters, not constants, so a test (or a reload) sees the current environment.
 import { createRequire } from 'node:module';
 import { DATABASE_DEFAULTS } from '@cubicecho/ravocal-db/defaults';
+import { hostOf, isPrivateHost } from '@cubicecho/ravocal-db/ssl';
 import { AUTH_DEFAULTS, HTTP_DEFAULTS } from './defaults.ts';
 
 const NODE_ENV_PRODUCTION = 'production';
@@ -363,10 +364,22 @@ export function oidcConfig(): OidcConfig | null {
 }
 
 /**
+ * Whether talking to a provider at this URL would carry its secrets and tokens in the clear across a network nobody
+ * running Ravocal controls.
+ *
+ * @param url - An http(s) URL.
+ * @returns true for an `http:` URL whose host is not this machine or a private network (`isPrivateHost`).
+ */
+export function isPublicHttp(url: string): boolean {
+  return new URL(url).protocol === 'http:' && isPrivateHost(hostOf(url)) === false;
+}
+
+/**
  * Says what is wrong with the OIDC provider set in the environment, for preflight to refuse.
  *
- * @returns One sentence per problem: an issuer without a client id or the reverse, an issuer that is not a URL, an
- *   `OIDC_CLIENT_AUTH` that is not one of `OIDC_CLIENT_AUTH_METHODS`.
+ * @returns One sentence per problem: an issuer without a client id or the reverse, an issuer that is not a URL, in
+ *   production an `http:` issuer on a public host (`isPublicHttp`), an `OIDC_CLIENT_AUTH` that is not one of
+ *   `OIDC_CLIENT_AUTH_METHODS`.
  */
 export function oidcConfigProblems(): string[] {
   const issuer = envString(process.env.OIDC_ISSUER?.trim());
@@ -381,6 +394,12 @@ export function oidcConfigProblems(): string[] {
   const isBadIssuer = issuer !== undefined && /^https?:$/.test(URL.parse(issuer)?.protocol ?? '') === false;
   if (isBadIssuer) {
     problems.push(`OIDC_ISSUER (${issuer}) is not an http(s) URL. Set it to the provider's issuer URL.`);
+  }
+  const isCleartext = issuer !== undefined && isBadIssuer === false && isProduction() && isPublicHttp(issuer);
+  if (isCleartext) {
+    problems.push(
+      `OIDC_ISSUER (${issuer}) is http:// on a public host, so the client secret and the sign-in's tokens would cross the network in the clear. Set it to the provider's https:// address.`,
+    );
   }
   const isKnownClientAuth = OIDC_CLIENT_AUTH_METHODS.some((method) => method === clientAuth);
   if (clientAuth !== undefined && isKnownClientAuth === false) {

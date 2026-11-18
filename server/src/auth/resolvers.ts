@@ -7,9 +7,9 @@ import { sendsMagicLinks } from './better-auth.ts';
 const AUTH_SDL = parse(`
   "A provider a reader can sign in with instead of an email link."
   type AuthProvider {
-    "The provider's id: google or facebook. The end of its callback path."
+    "The provider's id: google, facebook or oidc (the instance's own OIDC provider). The end of its callback path."
     id: String!
-    "What the button calls it: Google."
+    "What the button calls it: Google, or the OIDC provider's name."
     name: String!
     "Where the button sends the browser, absolute. A page to open, not a request to make."
     signInUrl: String!

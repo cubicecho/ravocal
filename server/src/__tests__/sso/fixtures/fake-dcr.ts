@@ -24,8 +24,8 @@ export const REGISTERED: Readonly<OidcClient> = Object.freeze({
 /** The credential that deletes that client. */
 export const REGISTRATION_TOKEN = 'rat-0123456789';
 
-/** What registration answers next, when the token is good. */
-export type RegistrationAnswer = 'created' | 'badRedirect' | 'rateLimited';
+/** What registration answers next, when the token is good. `redirect` sends the request on to another endpoint. */
+export type RegistrationAnswer = 'created' | 'badRedirect' | 'rateLimited' | 'redirect';
 
 /** What the provider says to a redirect URI it will not take. */
 export const BAD_REDIRECT_DESCRIPTION = 'redirect_uris must use https';
@@ -45,10 +45,14 @@ export interface FakeDcr {
   canRegister: boolean;
   /** What the next registration answers, when the token is good. */
   answer: RegistrationAnswer;
+  /** How the client it registers must send its secret, whatever Ravocal asked for: its answer says so. */
+  authMethod: 'client_secret_basic' | 'client_secret_post';
   /** What deleting the client answers. */
   deleteStatus: number;
   /** Every call to the registration endpoint, with its body and `Authorization` header. */
   registrations: Registration[];
+  /** Every call to the endpoint a `redirect` answer points to, which registers whoever reaches it. */
+  redirected: Registration[];
   /** The `Authorization` header of every request to delete the client. */
   deletions: (string | undefined)[];
   /** The sign-in half: who signs in next, and the browser's step at the authorize page. */
@@ -64,7 +68,14 @@ export interface FakeDcr {
 }
 
 /** Statuses the registration endpoint answers with. */
-const Status = { Created: 201, NoContent: 204, BadRequest: 400, Unauthorized: 401, TooManyRequests: 429 } as const;
+const Status = {
+  Created: 201,
+  NoContent: 204,
+  TemporaryRedirect: 307,
+  BadRequest: 400,
+  Unauthorized: 401,
+  TooManyRequests: 429,
+} as const;
 
 /**
  * Starts the stand-in on a free loopback port, ready to register one client.
@@ -97,8 +108,10 @@ export async function startFakeDcr(
     claimedIssuer: issuer,
     canRegister: true,
     answer: 'created',
+    authMethod: 'client_secret_basic',
     deleteStatus: Status.NoContent,
     registrations: [],
+    redirected: [],
     deletions: [],
     oidc,
     setupUrl(token = SETUP_TOKEN, name) {
@@ -120,6 +133,11 @@ export async function startFakeDcr(
         .json({ error: 'invalid_token', error_description: 'the setup URL has been used' });
       return;
     }
+    if (fake.answer === 'redirect') {
+      // 307 keeps the method, the body and, on the same origin, the Authorization header.
+      res.redirect(Status.TemporaryRedirect, `${issuer}/register-elsewhere`);
+      return;
+    }
     if (fake.answer === 'rateLimited') {
       res.status(Status.TooManyRequests).json({ error: 'too_many_requests' });
       return;
@@ -130,14 +148,20 @@ export async function startFakeDcr(
         .json({ error: 'invalid_redirect_uri', error_description: BAD_REDIRECT_DESCRIPTION });
       return;
     }
-    client = { ...REGISTERED };
+    client = { ...REGISTERED, method: fake.authMethod };
     res.status(Status.Created).json({
       ...req.body,
+      token_endpoint_auth_method: fake.authMethod,
       client_id: REGISTERED.clientId,
       client_secret: REGISTERED.clientSecret,
       registration_access_token: REGISTRATION_TOKEN,
       registration_client_uri: `${issuer}/register/${REGISTERED.clientId}`,
     });
+  });
+  app.post('/oidc/register-elsewhere', express.json(), (req, res) => {
+    fake.redirected.push({ body: req.body, authorization: req.headers.authorization });
+    client = { ...REGISTERED };
+    res.status(Status.Created).json({ ...req.body, client_id: REGISTERED.clientId });
   });
   app.delete(`/oidc/register/${REGISTERED.clientId}`, (req, res) => {
     fake.deletions.push(req.headers.authorization);

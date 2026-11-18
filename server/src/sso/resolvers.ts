@@ -1,5 +1,6 @@
 import { assertObjectType, extendSchema, GraphQLError, type GraphQLSchema, parse } from 'graphql';
 import { hasUsers, isAdmin } from '../auth/admin.ts';
+import { AuthFlow, throttle } from '../auth/throttle.ts';
 import { ProviderId, providerRedirectUri } from '../core/config.ts';
 import type { Context } from '../core/context.ts';
 import { badInput, conflict, ErrorCode, forbidden } from '../core/errors.ts';
@@ -49,7 +50,8 @@ const SSO_SDL = parse(`
     """
     Pairs with the provider a setup URL names (\`<issuer>#setup=<token>&name=<name>\`). The admin, or anyone while
     the instance has no accounts. BAD_USER_INPUT or TOO_MANY_REQUESTS with \`extensions.reason\` when the provider
-    would not pair; CONFLICT when a provider is paired already.
+    would not pair; CONFLICT when a provider is paired already; TOO_MANY_REQUESTS without a reason past the sign-in
+    budget for the caller's address.
     """
     pairSso(setupUrl: String!): SsoSetup!
     "Deletes the paired provider's client and stops offering it on the login page. Same rule as pairSso."
@@ -140,6 +142,8 @@ export function applySsoExtension(schema: GraphQLSchema): GraphQLSchema {
   queries.ssoSetup.resolve = (_parent: unknown, _args: unknown, context: Context) => ssoSetup(context);
 
   mutations.pairSso.resolve = async (_parent: unknown, args: { setupUrl: string }, context: Context) => {
+    // First, so a refused attempt reaches neither the database nor the provider.
+    throttle(context, AuthFlow.PairSso);
     const source = await requirePairing(context);
     if (source === SsoSource.Paired) {
       throw conflict('Ravocal is already paired with a provider. Disconnect it first.');
@@ -158,6 +162,7 @@ export function applySsoExtension(schema: GraphQLSchema): GraphQLSchema {
   };
 
   mutations.unpairSso.resolve = async (_parent: unknown, _args: unknown, context: Context) => {
+    throttle(context, AuthFlow.UnpairSso);
     await requirePairing(context);
     await unpair(context.db);
     await context.authHost.rebuild();

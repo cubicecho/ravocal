@@ -5,11 +5,12 @@ import express from 'express';
 import type { ProviderEndpoints } from '../../../auth/providers.ts';
 import { type ClientProviderConfig, ProviderId } from '../../../core/config.ts';
 import { portOf } from '../../helpers.ts';
-import { mountOidcIssuer, type OidcProfile } from './oidc-issuer.ts';
+import { mountOidcIssuer, type OidcClient, type OidcProfile } from './oidc-issuer.ts';
 
-// A stand-in for Google and Facebook on one loopback port. Google's half does what an OpenID Connect provider does
-// (oidc-issuer.ts): discovery, a JWKS, a code flow with the client secret in a Basic header, PKCE, and a signed id
-// token carrying the nonce. Facebook's half does what Facebook Login does: no discovery, the secret in the token
+// A stand-in for Google, Facebook and an instance's own OIDC provider on one loopback port. Google's half does what an
+// OpenID Connect provider does (oidc-issuer.ts): discovery, a JWKS, a code flow with the client secret in a Basic
+// header, PKCE, and a signed id token carrying the nonce. The OIDC half is the same, with a client a test sets (a
+// secret in the form, or none). Facebook's half does what Facebook Login does: no discovery, the secret in the token
 // request's body, and the profile from a Graph-style `/me`.
 
 /** Who signs in at Google next: the id token's claims. */
@@ -46,10 +47,18 @@ export interface FakeProvider {
   endpoints: ProviderEndpoints;
   /** The issuer Google's half answers as. */
   googleIssuer: string;
+  /** The issuer the OIDC half answers as: what `OIDC_ISSUER` names. */
+  oidcIssuer: string;
+  /** The client the OIDC half accepts. */
+  oidcClient: OidcClient;
+  /** Who the next sign-in at the OIDC half is. */
+  oidc: OidcProfile;
   /** Who the next Google sign-in is. */
   google: GoogleProfile;
   /** Who the next Facebook sign-in is. */
   facebook: FacebookProfile;
+  /** When true, Facebook's `/me` takes the request and never answers. */
+  hangFacebookProfile: boolean;
   /**
    * Plays the browser at an authorize page the app sent it to: the reader agrees, and the provider would redirect
    * back with these.
@@ -75,6 +84,10 @@ export async function startFakeProvider(): Promise<FakeProvider> {
     client: () => GOOGLE_CLIENT,
     profile: { sub: 'g-ada', email: 'ada@example.com', email_verified: true, name: 'Ada' },
   });
+  const oidc = await mountOidcIssuer(app, origin, '/oidc', {
+    client: () => fake.oidcClient,
+    profile: { sub: 'o-ada', email: 'ada@example.com', email_verified: true, name: 'Ada' },
+  });
 
   /**
    * Takes the grant a Facebook code was issued for, once, if the redirect URI matches it. Facebook uses no PKCE.
@@ -90,6 +103,14 @@ export async function startFakeProvider(): Promise<FakeProvider> {
 
   const fake: FakeProvider = {
     googleIssuer: google.issuer,
+    oidcIssuer: oidc.issuer,
+    oidcClient: { clientId: 'ravocal-oidc', clientSecret: 'oidc-secret' },
+    get oidc() {
+      return oidc.profile;
+    },
+    set oidc(profile) {
+      oidc.profile = profile;
+    },
     endpoints: {
       google: { discoveryUrl: `${google.issuer}/.well-known/openid-configuration` },
       facebook: {
@@ -105,9 +126,13 @@ export async function startFakeProvider(): Promise<FakeProvider> {
       google.profile = profile;
     },
     facebook: { id: 'fb-ada', name: 'Ada', email: 'ada@example.com' },
+    hangFacebookProfile: false,
     authorize(url) {
       if (url.startsWith(google.issuer)) {
         return google.authorize(url);
+      }
+      if (url.startsWith(oidc.issuer)) {
+        return oidc.authorize(url);
       }
       const params = new URL(url).searchParams;
       if (params.get('client_id') !== FACEBOOK_CLIENT.clientId || params.get('response_type') !== 'code') {
@@ -117,7 +142,12 @@ export async function startFakeProvider(): Promise<FakeProvider> {
       grants.set(code, { redirectUri: params.get('redirect_uri') ?? '', facebook: { ...fake.facebook } });
       return { code, state: params.get('state') ?? '' };
     },
-    close: () => new Promise((resolve) => server.close(() => resolve())),
+    close: () =>
+      new Promise((resolve) => {
+        // A request left hanging on purpose would otherwise hold the server open.
+        server.closeAllConnections();
+        server.close(() => resolve());
+      }),
   };
 
   app.post('/facebook/oauth/access_token', express.urlencoded({ extended: false }), (req, res) => {
@@ -137,6 +167,9 @@ export async function startFakeProvider(): Promise<FakeProvider> {
     res.json({ access_token: accessToken, token_type: 'bearer', expires_in: 5_183_944 });
   });
   app.get('/facebook/me', (req, res) => {
+    if (fake.hangFacebookProfile) {
+      return;
+    }
     const profile = facebookTokens.get(String(req.headers.authorization).replace('Bearer ', ''));
     if (profile === undefined) {
       res.status(BAD_REQUEST).json({ error: { message: 'Invalid OAuth access token.', type: 'OAuthException' } });

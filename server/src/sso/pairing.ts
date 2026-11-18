@@ -1,5 +1,12 @@
 import type { DB } from '@cubicecho/ravocal-db';
-import { normalizeIssuer, OIDC_CLIENT_AUTH_METHODS, ProviderId, providerRedirectUri } from '../core/config.ts';
+import {
+  isProduction,
+  isPublicHttp,
+  normalizeIssuer,
+  OIDC_CLIENT_AUTH_METHODS,
+  ProviderId,
+  providerRedirectUri,
+} from '../core/config.ts';
 import { AUTH_DEFAULTS } from '../core/defaults.ts';
 import { errorMessage } from '../core/errors.ts';
 import { HttpStatus } from '../core/wire.ts';
@@ -61,13 +68,19 @@ const INVALID_TOKEN = 'invalid_token';
 /** The schemes a setup URL may have. */
 const WEB_PROTOCOLS = new Set(['https:', 'http:']);
 
+/** The lowest status a redirect answers with (RFC 9110, section 15.4). */
+const FIRST_REDIRECT_STATUS = 300;
+/** The highest. */
+const LAST_REDIRECT_STATUS = 399;
+
 /**
  * Takes a setup URL apart.
  *
  * @param text - What was pasted.
  * @returns The issuer (the URL without its fragment, query or trailing slash), the initial access token, and the
  *   provider's name (`AUTH_DEFAULTS.oidcName` when it gives none).
- * @throws A `PairingError` (BAD_URL) when it is not a setup URL.
+ * @throws A `PairingError` (BAD_URL) when it is not a setup URL, or in production when it is `http:` on a public host:
+ *   the setup token, and later the client secret, would cross the network in the clear.
  */
 export function parseSetupUrl(text: string): SetupUrl {
   const url = URL.parse(text.trim());
@@ -78,6 +91,13 @@ export function parseSetupUrl(text: string): SetupUrl {
     throw new PairingError(
       PairingFailure.BadUrl,
       'A setup URL starts with https://. Paste the one your provider gave you.',
+    );
+  }
+  const isCleartext = isProduction() && isPublicHttp(url.toString());
+  if (isCleartext) {
+    throw new PairingError(
+      PairingFailure.BadUrl,
+      "This setup URL is http:// on a public address, so its token would cross the network in the clear. Ask your provider's admin for its https:// address.",
     );
   }
   const params = new URLSearchParams(url.hash.slice(1));
@@ -100,17 +120,35 @@ export function parseSetupUrl(text: string): SetupUrl {
 /**
  * Makes one request to the provider, with the pairing timeout. Every call pairing makes goes through here.
  *
+ * @remarks
+ * A redirect is not followed: the setup token and the registration access token go only to the endpoint the issuer's
+ * own document names, never wherever that endpoint points on.
+ *
  * @param url - Where.
  * @param [init] - The request.
- * @returns The response, whatever its status.
- * @throws A `PairingError` (NOT_A_PROVIDER) when nothing answered in time.
+ * @returns The response, whatever its status but a redirect.
+ * @throws A `PairingError` (NOT_A_PROVIDER) when nothing answered in time, or the answer was a redirect.
  */
 async function call(url: string, init: RequestInit = {}): Promise<Response> {
+  const { origin } = new URL(url);
+  let response: Response;
   try {
-    return await fetch(url, { ...init, signal: AbortSignal.timeout(AUTH_DEFAULTS.oidcPairingTimeoutMs) });
+    response = await fetch(url, {
+      ...init,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(AUTH_DEFAULTS.oidcPairingTimeoutMs),
+    });
   } catch {
-    throw new PairingError(PairingFailure.NotAProvider, `Could not reach ${new URL(url).origin}. Check the setup URL.`);
+    throw new PairingError(PairingFailure.NotAProvider, `Could not reach ${origin}. Check the setup URL.`);
   }
+  const isRedirect = response.status >= FIRST_REDIRECT_STATUS && response.status <= LAST_REDIRECT_STATUS;
+  if (isRedirect) {
+    throw new PairingError(
+      PairingFailure.NotAProvider,
+      `${origin} answered with a redirect, which pairing does not follow. Check the setup URL with your provider's admin.`,
+    );
+  }
+  return response;
 }
 
 /**

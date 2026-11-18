@@ -4,7 +4,7 @@ import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { bearer, magicLink, oneTimeToken } from 'better-auth/plugins';
 import { appUrl, authSecret, type ProviderConfig, providerConfigs, serverUrl, smtpConfigured } from '../core/config.ts';
-import { AUTH_DEFAULTS } from '../core/defaults.ts';
+import { AUTH_DEFAULTS, type AuthSettings } from '../core/defaults.ts';
 import { SECONDS_PER_DAY, SECONDS_PER_MINUTE } from '../core/wire.ts';
 import { claimFirstAdmin } from './admin.ts';
 import { sendMagicLinkEmail } from './email.ts';
@@ -40,6 +40,8 @@ export interface AuthOptions {
   providers?: readonly ProviderConfig[];
   /** Where the providers are reached. Tests point them at a stand-in; the default is the real ones. */
   providerEndpoints?: ProviderEndpoints;
+  /** Settings that replace `AUTH_DEFAULTS`, so a test can shorten a lifetime or a timeout. */
+  settings?: Partial<AuthSettings>;
 }
 
 /**
@@ -57,8 +59,10 @@ export function createAuth(
     sendMagicLink,
     providers = providerConfigs(),
     providerEndpoints = PROVIDER_ENDPOINTS,
+    settings: overrides = {},
   }: AuthOptions = {},
 ) {
+  const settings = { ...AUTH_DEFAULTS, ...overrides };
   const smtpDelivery = smtpConfigured() ? sendMagicLinkEmail : undefined;
   const deliver = sendMagicLink ?? smtpDelivery;
   const magicLinkPlugins =
@@ -67,7 +71,7 @@ export function createAuth(
       : [
           magicLink({
             // better-auth takes seconds.
-            expiresIn: AUTH_DEFAULTS.magicLinkTtlMinutes * SECONDS_PER_MINUTE,
+            expiresIn: settings.magicLinkTtlMinutes * SECONDS_PER_MINUTE,
             storeToken: 'hashed',
             // Links go to the app, which calls magicLinkVerify over GraphQL. The REST verify route is not mounted.
             sendMagicLink: ({ email, token }) =>
@@ -87,7 +91,7 @@ export function createAuth(
     // So a provider's sign-in may finish on the app's pages, wherever they are served from.
     trustedOrigins: [new URL(appUrl()).origin],
     advanced: { database: { generateId: 'uuid' } },
-    session: { expiresIn: AUTH_DEFAULTS.sessionTtlDays * SECONDS_PER_DAY },
+    session: { expiresIn: settings.sessionTtlDays * SECONDS_PER_DAY },
     account: {
       accountLinking: {
         enabled: true,
@@ -120,12 +124,12 @@ export function createAuth(
       // How a provider's sign-in reaches the app: the callback mints one, and /auth/sso spends it over GraphQL. The
       // session never rides in a URL or a cookie.
       oneTimeToken({
-        expiresIn: AUTH_DEFAULTS.oneTimeTokenTtlMinutes,
+        expiresIn: settings.oneTimeTokenTtlMinutes,
         storeToken: 'hashed',
         disableClientRequest: true,
         disableSetSessionCookie: true,
       }),
-      ...(providers.length === 0 ? [] : [providersPlugin(providers, providerEndpoints)]),
+      ...(providers.length === 0 ? [] : [providersPlugin(providers, providerEndpoints, settings)]),
       ...magicLinkPlugins,
     ],
   });

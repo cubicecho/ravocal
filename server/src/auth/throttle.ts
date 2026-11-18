@@ -1,10 +1,15 @@
 import type { Context } from '../core/context.ts';
 
-/** The sign-in steps that are throttled. Each has its own budget. */
+/**
+ * The sign-in steps that are throttled. Each has its own budget. Pairing and unpairing the OIDC provider count too:
+ * they change how people sign in, and are open to anyone while the instance has no accounts.
+ */
 export const AuthFlow = {
   SignInMagicLink: 'sign-in-magic-link',
   MagicLinkVerify: 'magic-link-verify',
   VerifyOneTimeToken: 'verify-one-time-token',
+  PairSso: 'pair-sso',
+  UnpairSso: 'unpair-sso',
 } as const;
 export type AuthFlow = (typeof AuthFlow)[keyof typeof AuthFlow];
 

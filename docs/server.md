@@ -64,7 +64,7 @@ graphql-yoga 5 on Express 5, running TypeScript directly (Node 26 strips types w
 
 `server/src/index.ts` is boot only:
 
-1. `core/preflight.ts` (its first import): `DATABASE_URL` must be set, in production `BETTER_AUTH_SECRET` must not be unset, a published default, or shorter than `AUTH_DEFAULTS.minSecretLength`, and `SECURE_LOCAL_NET` is refused when `APP_URL`'s host is not private (unless `I_KNOW_SECURE_LOCAL_NET_IS_PUBLIC=true`), a provider's client id without its secret (or the reverse) is refused, so are `OIDC_ISSUER` without `OIDC_CLIENT_ID` (or the reverse), an `OIDC_ISSUER` that is not an http(s) URL and an unknown `OIDC_CLIENT_AUTH`, and so is a `SERVER_URL` that is not a URL
+1. `core/preflight.ts` (its first import): `DATABASE_URL` must be set, in production `BETTER_AUTH_SECRET` must not be unset, a published default, or shorter than `AUTH_DEFAULTS.minSecretLength`, and `SECURE_LOCAL_NET` is refused when `APP_URL`'s host is not private (unless `I_KNOW_SECURE_LOCAL_NET_IS_PUBLIC=true`), a provider's client id without its secret (or the reverse) is refused, so are `OIDC_ISSUER` without `OIDC_CLIENT_ID` (or the reverse), an `OIDC_ISSUER` that is not an http(s) URL, in production an `http:` `OIDC_ISSUER` whose host is not loopback or private (`isPublicHttp`, over the db package's `isPrivateHost`), and an unknown `OIDC_CLIENT_AUTH`, and so is a `SERVER_URL` that is not a URL
 2. `waitForDatabase` (from `@cubicecho/ravocal-db/wait`), exiting with a sentence if Postgres never answers
 3. The migrations in `db/drizzle`
 4. `createApp({ db, authHost: await createAuthHost(db), staticDir })`, then `listen` on `PORT` (default 3001) on every interface. It logs each provider it offers (the OIDC provider with its issuer) with the redirect URI to register (`<SERVER_URL>/api/auth/callback/<id>`), and warns under `[auth]` when `SECURE_LOCAL_NET` is on, and when nobody can sign in (no `SMTP_URL`, no provider and no `SECURE_LOCAL_NET`; pairing from the login page is still open then)
@@ -202,10 +202,10 @@ Sign-in links expire in `AUTH_DEFAULTS.magicLinkTtlMinutes` (15) and work once. 
 
 ### Google and Facebook
 
-`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` and `FACEBOOK_CLIENT_ID`/`FACEBOOK_CLIENT_SECRET` turn each provider on; `.env.example` says how to get them. Both run through better-auth's `genericOAuth` plugin (`auth/providers.ts`): Google from its discovery document, with its id token verified against its keys and PKCE; Facebook from explicit endpoints, with the profile read from the Graph API's `/me`. `createAuth`'s `providerEndpoints` points them elsewhere, which only the tests do.
+`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` and `FACEBOOK_CLIENT_ID`/`FACEBOOK_CLIENT_SECRET` turn each provider on; `.env.example` says how to get them. Both run through better-auth's `genericOAuth` plugin (`auth/providers.ts`): Google from its discovery document, with its id token verified against its keys and PKCE; Facebook from explicit endpoints, with the profile read from the Graph API's `/me`, which may take `AUTH_DEFAULTS.providerTimeoutMs` (10 s): past it, or when Graph cannot be reached, the reader has no profile, the failure is logged under `[auth]`, and the browser goes back to the login page. `createAuth`'s `providerEndpoints` points them elsewhere and its `settings` replaces `AUTH_DEFAULTS` members, which only the tests do.
 
 1. The login page's button is a link to `${SERVER_URL}/sso/<provider>` (`authConfig.providers[].signInUrl`). `http/sso.ts` calls `signInSocial`, forwards the state cookie, and redirects to the provider
-2. The provider sends the browser to `/api/auth/callback/<provider>`. `http/sso.ts` hands it to `auth.handler`, which checks the state, swaps the code and opens a session; the session cookie is dropped, a one-time token (`AUTH_DEFAULTS.oneTimeTokenTtlMinutes`, 3) is minted for it, and the browser goes to `${APP_URL}/auth/sso?token=…`
+2. The provider sends the browser to `/api/auth/callback/<provider>`. `http/sso.ts` hands it to `auth.handler`, which checks the state, swaps the code and opens a session; the session cookie is dropped, a one-time token (`AUTH_DEFAULTS.oneTimeTokenTtlMinutes`, 3) is minted for it, and the browser goes to `${APP_URL}/auth/sso?token=…`. The token is added only when better-auth's `location` is on `APP_URL`'s origin (`appRedirect`); anywhere else is logged and sent to `/login?error=callback_failed`
 3. The app's `/auth/sso` page calls `verifyOneTimeToken(token)` once, and keeps the bearer token it answers with. A spent, expired or unknown token is `BAD_USER_INPUT`
 4. A refusal goes to `${APP_URL}/login?error=<code>&provider=<id>`, with better-auth's code. A provider that is unknown or not set up is `?error=sso_off`
 
@@ -232,22 +232,22 @@ Where it comes from is decided only by `sso/settings.ts` `effectiveOidc(db)`:
 2. Otherwise the `oidc_settings` row a pairing wrote (`PAIRED`).
 3. Otherwise none (`NONE`).
 
-**Pairing** (`sso/pairing.ts`). A provider that does Dynamic Client Registration hands its admin a setup URL, `<issuer>#setup=<initial access token>&name=<label>`. The token is in the fragment, so no server logs it on the way. `parseSetupUrl` wants an http(s) URL with `setup`; the issuer is the URL without its fragment, query and trailing slashes, and the name falls back to `SSO`. `pair(db, setupUrl)`:
+**Pairing** (`sso/pairing.ts`). A provider that does Dynamic Client Registration hands its admin a setup URL, `<issuer>#setup=<initial access token>&name=<label>`. The token is in the fragment, so no server logs it on the way. `parseSetupUrl` wants an http(s) URL with `setup`, and in production refuses an `http:` one whose host is not loopback or private (`isPublicHttp`) before anything is fetched, since the token and later the client secret would cross the network in the clear; the issuer is the URL without its fragment, query and trailing slashes, and the name falls back to `SSO`. `pair(db, setupUrl)`:
 
 1. Fetches the discovery document, and **checks that its `issuer` is the pasted issuer before the token goes anywhere**; it must name a `registration_endpoint`.
 2. POSTs `{ client_name: 'Ravocal', redirect_uris: ['<SERVER_URL>/api/auth/callback/oidc'], token_endpoint_auth_method: 'client_secret_basic', grant_types: ['authorization_code'], response_types: ['code'] }` with `Authorization: Bearer <token>` (RFC 7591).
 3. Keeps `client_id` (required), `client_secret`, the auth method the provider actually registered, `registration_access_token` and `registration_client_uri` in the one `oidc_settings` row.
 
-Every call goes through one `call()` with `AbortSignal.timeout(AUTH_DEFAULTS.oidcPairingTimeoutMs)` (10 s). The setup token is never stored or logged, and no message carries it. A failure is a `PairingError`, answered with its `reason` in `extensions.reason`:
+Every call goes through one `call()` with `AbortSignal.timeout(AUTH_DEFAULTS.oidcPairingTimeoutMs)` (10 s) and `redirect: 'manual'`: a redirect is refused, never followed, so the setup token and the registration access token reach only the endpoints the issuer's document and the registration named. The setup token is never stored or logged, and no message carries it. A failure is a `PairingError`, answered with its `reason` in `extensions.reason`:
 
-| reason            | when                                                                                | code                |
-| ----------------- | ----------------------------------------------------------------------------------- | ------------------- |
-| `BAD_URL`         | not a URL, not http(s), or no `setup`                                               | `BAD_USER_INPUT`    |
-| `NOT_A_PROVIDER`  | unreachable, no discovery, another issuer, no `client_id`, or an unexpected status  | `BAD_USER_INPUT`    |
-| `NO_REGISTRATION` | no `registration_endpoint`: register by hand and use `OIDC_ISSUER`/`OIDC_CLIENT_ID` | `BAD_USER_INPUT`    |
-| `EXPIRED`         | 401, or `invalid_token`                                                             | `BAD_USER_INPUT`    |
-| `REFUSED`         | 400, with the provider's `error_description`                                        | `BAD_USER_INPUT`    |
-| `RATE_LIMITED`    | 429                                                                                 | `TOO_MANY_REQUESTS` |
+| reason            | when                                                                                           | code                |
+| ----------------- | ---------------------------------------------------------------------------------------------- | ------------------- |
+| `BAD_URL`         | not a URL, not http(s), no `setup`, or in production `http:` on a public host                  | `BAD_USER_INPUT`    |
+| `NOT_A_PROVIDER`  | unreachable, no discovery, another issuer, a redirect, no `client_id`, or an unexpected status | `BAD_USER_INPUT`    |
+| `NO_REGISTRATION` | no `registration_endpoint`: register by hand and use `OIDC_ISSUER`/`OIDC_CLIENT_ID`            | `BAD_USER_INPUT`    |
+| `EXPIRED`         | 401, or `invalid_token`                                                                        | `BAD_USER_INPUT`    |
+| `REFUSED`         | 400, with the provider's `error_description`                                                   | `BAD_USER_INPUT`    |
+| `RATE_LIMITED`    | 429                                                                                            | `TOO_MANY_REQUESTS` |
 
 `unpair(db)` sends an RFC 7592 `DELETE` to the registration client URI with the registration access token (a 2xx, 401 or 404 counts as gone), then forgets the row whatever the answer, warning under `[auth]` when it could not confirm.
 
@@ -258,7 +258,7 @@ Every call goes through one `call()` with `AbortSignal.timeout(AUTH_DEFAULTS.oid
 
 **The admin** (`auth/admin.ts`): `users.is_admin`. better-auth's `databaseHooks.user.create.after` runs `claimFirstAdmin(db, userId)` for every new account, whichever way it signed in: one `UPDATE … WHERE NOT EXISTS (an admin)`, and the partial unique index `uq_users_one_admin` refuses the later of two first sign-ups that commit together. The `oidc_pairing` migration made the oldest account the admin on an instance that already had accounts. The column is readable like the rest of `users`, and the users update hook keeps it out of `updateUser`.
 
-Rate limit: `signInMagicLink`, `magicLinkVerify` and `verifyOneTimeToken` call `throttle(ctx, flow, email?)` first. The limiter (`RATE_LIMIT_DEFAULTS`, 5 per 15 minutes per key) counts by client address and, for `signInMagicLink`, by normalized email, and refuses past the budget as `TOO_MANY_REQUESTS`. better-auth's own limiter only runs on its REST routes, which are not mounted. The counts are in process.
+Rate limit: `signInMagicLink`, `magicLinkVerify` and `verifyOneTimeToken` call `throttle(ctx, flow, email?)` first, and so do `pairSso` and `unpairSso` (by address, each with its own budget: they change how people sign in, and anyone may call them while there are no accounts). The limiter (`RATE_LIMIT_DEFAULTS`, 5 per 15 minutes per key) counts by client address and, for `signInMagicLink`, by normalized email, and refuses past the budget as `TOO_MANY_REQUESTS`. better-auth's own limiter only runs on its REST routes, which are not mounted. The counts are in process.
 
 ## Email Service
 
@@ -274,8 +274,8 @@ Rate limit: `signInMagicLink`, `magicLinkVerify` and `verifyOneTimeToken` call `
 - `__tests__/auth/rate-limit.test.ts`: the limiter's window, and the sixth sign-in refused by address and by email
 - `__tests__/auth/admin.test.ts`: the first account becomes the admin and no other, even signing up at once; a second admin is refused; the `oidc_pairing` migration on PGlite makes the oldest account the admin
 - `__tests__/http/app.test.ts`: the real `createApp` over HTTP against PGlite: health, the body cap, the operation limits (with introspection and every document in `app/src` let through), masking, the SPA and CORS
-- `__tests__/http/sso.test.ts`: Google and Facebook sign-in through the real app over HTTP, against a stand-in for both on a loopback port (`http/fixtures/fake-provider.ts`: Google's half is `http/fixtures/oidc-issuer.ts`, discovery, a JWKS from jose and a token endpoint checking the client secret and PKCE; Facebook's a Graph-style `/me`). The one-time token, linking by address, the first proof of an address, connecting and disconnecting, `sso_off`, `authConfig.providers` and `AuthHost.rebuild()`
-- `__tests__/sso/pairing.test.ts`: pairing through the real app over HTTP against a Dynamic Client Registration stand-in (`sso/fixtures/fake-dcr.ts`, whose sign-in half is `oidc-issuer.ts`): setup URLs, the registered redirect URI and the button without a restart, each failure reason, a forged issuer refused before the token is sent, who may pair, unpairing (a 404 as gone, the row forgotten on a refusal), signing in through the paired provider with both linking outcomes, and the setup token in no log line or response
+- `__tests__/http/sso.test.ts`: Google, Facebook and an `OIDC_ISSUER` provider's sign-in through the real app over HTTP, against a stand-in for all three on a loopback port (`http/fixtures/fake-provider.ts`: Google's and the OIDC half are `http/fixtures/oidc-issuer.ts`, discovery, a JWKS from jose, a userinfo endpoint and a token endpoint checking PKCE and the client the way it was registered, a Basic or a form secret or none; Facebook's a Graph-style `/me`, which can be made to never answer). The one-time token and where it may go, each client auth method, a reader with no address, a Graph that hangs, linking by address, the first proof of an address, connecting and disconnecting, `sso_off`, `authConfig.providers` and `AuthHost.rebuild()`
+- `__tests__/sso/pairing.test.ts`: pairing through the real app over HTTP against a Dynamic Client Registration stand-in (`sso/fixtures/fake-dcr.ts`, whose sign-in half is `oidc-issuer.ts`): setup URLs, the registered redirect URI and the button without a restart, each failure reason, a forged issuer refused before the token is sent, who may pair, unpairing (a 404 as gone, the row forgotten on a refusal), signing in through the paired provider with both linking outcomes, with no address, and as a client registered for `client_secret_post`, a registration endpoint that redirects, the throttle, a public `http:` issuer in production, and the setup token in no log line or response
 - `__tests__/http/shutdown.test.ts`: `stopOnSignals` in a child process, sent SIGTERM mid-request
 
 ## Running the Server

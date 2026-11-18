@@ -91,6 +91,11 @@ export interface AuthSettings {
   oidcClientAuth: 'client_secret_basic' | 'client_secret_post';
   /** How long pairing waits on each call to the provider (discovery, registration, deletion). */
   oidcPairingTimeoutMs: number;
+  /**
+   * How long a provider's sign-in waits on a profile endpoint Ravocal calls itself (Facebook's Graph `/me`). Past it,
+   * the reader counts as having no profile and is sent back to the login page.
+   */
+  providerTimeoutMs: number;
 }
 
 export const AUTH_DEFAULTS: Readonly<AuthSettings> = Object.freeze({
@@ -102,6 +107,7 @@ export const AUTH_DEFAULTS: Readonly<AuthSettings> = Object.freeze({
   oidcName: 'SSO',
   oidcClientAuth: 'client_secret_basic',
   oidcPairingTimeoutMs: 10_000,
+  providerTimeoutMs: 10_000,
 });
 
 /** Limits on what a user may call themselves. */
