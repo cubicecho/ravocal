@@ -1,9 +1,13 @@
 import { useMutation, useQuery } from '@apollo/client';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import type { GroupDetailQuery } from '@/__generated__/graphql.js';
+import { useState } from 'react';
 import { graphql } from '@/__generated__/index.js';
 import { ConfirmButton } from '@/components/confirm-button';
-import { EmptyState } from '@/components/empty-state';
+import { UserPlus } from '@/components/domain/app-icons';
+import { FreeTimeSection } from '@/components/domain/group/free-time-section';
+import { GroupSettingsDialog } from '@/components/domain/group/group-settings-dialog';
+import { InviteDialog } from '@/components/domain/group/invite-dialog';
+import { VoteSection } from '@/components/domain/group/vote-section';
 import { List } from '@/components/list';
 import { ListItem } from '@/components/list-item';
 import { LoadState } from '@/components/load-state';
@@ -12,10 +16,11 @@ import { Section } from '@/components/section';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from '@/components/ui/icons';
+import { ArrowLeft, Settings } from '@/components/ui/icons';
 import { asQuery } from '@/lib/as-query';
 import { describeError } from '@/lib/error-message';
-import { byStart, formatDay, formatWindow } from '@/lib/time-window';
+import { formatDay } from '@/lib/time-window';
+import { useDialog } from '@/lib/use-dialog';
 
 export const Route = createFileRoute('/groups/$groupId')({
   component: GroupPage,
@@ -50,14 +55,11 @@ const GROUP_DETAIL = graphql(`
         email
         expiresAt
       }
-      timeBlocks {
+      # Every block, not the first page of 50. Each list is priced by its page size, so a block's owner is looked up
+      # in members rather than read again for every block.
+      timeBlocks(limit: 500) {
         id
         userId
-        user {
-          id
-          name
-          email
-        }
         startsAt
         endsAt
       }
@@ -72,7 +74,8 @@ const GROUP_DETAIL = graphql(`
           endsAt
           overlapCount
         }
-        rankings {
+        # The reader's ballot, which can rank every candidate.
+        rankings(limit: 500) {
           id
           slotId
           rank
@@ -100,63 +103,16 @@ const CANCEL_INVITE = graphql(`
   }
 `);
 
-type Group = NonNullable<GroupDetailQuery['group']>;
-type Vote = Group['votes'][number];
-
-function plural(count: number, one: string, many: string): string {
-  return `${count} ${count === 1 ? one : many}`;
-}
-
-/**
- * The group's newest vote: the times still being ranked, or, once the owner has closed it, which one won.
- *
- * @param props - The vote, and how many are in the group.
- * @returns The section.
- */
-function VoteSection({ vote, memberCount }: { vote: Vote; memberCount: number }) {
-  const isOpen = vote.status === 'active';
-  const kind = vote.isForced ? 'Forced vote' : 'Vote';
-  const winner = vote.slots.find((slot) => slot.id === vote.winnerSlotId);
-  const closedResult = winner
-    ? `Closed. The winning time is ${formatWindow(winner.startsAt, winner.endsAt)}.`
-    : 'Closed with no winner: nobody ranked a time.';
-  return (
-    <Section
-      title={isOpen ? 'Active vote' : 'Last vote'}
-      description={
-        isOpen ? `${kind} over ${plural(vote.slots.length, 'candidate time', 'candidate times')}` : closedResult
-      }
-      contentSlot={
-        <List
-          label="Candidate times"
-          contentSlot={vote.slots.map((slot) => (
-            <ListItem
-              key={slot.id}
-              title={formatWindow(slot.startsAt, slot.endsAt)}
-              meta={
-                slot.id === vote.winnerSlotId ? (
-                  <Badge variant="positive-soft">Winner</Badge>
-                ) : // A slot's count is from when the vote opened; once it has closed, the group may be another size.
-                isOpen ? (
-                  `${slot.overlapCount} of ${memberCount} free`
-                ) : (
-                  `${slot.overlapCount} were free`
-                )
-              }
-            />
-          ))}
-        />
-      }
-    />
-  );
-}
-
 function GroupPage() {
   const { groupId } = Route.useParams();
   const result = useQuery(GROUP_DETAIL, { variables: { id: groupId } });
   const group = result.data?.group;
-  const isOwner = group !== undefined && group !== null && result.data?.getSession?.user.id === group.ownerId;
-  const [vote] = group?.votes ?? [];
+  const readerId = result.data?.getSession?.user.id;
+  const isOwner = group !== undefined && group !== null && readerId === group.ownerId;
+  const inviteDialog = useDialog();
+  const settingsDialog = useDialog();
+  // The address the last invite went to, said once above the list it joined.
+  const [invited, setInvited] = useState<string | null>(null);
 
   // Removing a member takes their free time and ballot with them, so the whole page is read again.
   const refetch = { refetchQueries: [GROUP_DETAIL], awaitRefetchQueries: true };
@@ -173,6 +129,20 @@ function GroupPage() {
       // A section's heading sits gap-6 over its rows, so the sections need more room than that
       // between them, or each heading reads as the end of the list above it.
       contentClassName="gap-10"
+      actionSlot={
+        isOwner ? (
+          <>
+            <Button
+              size="sm"
+              variant="outline"
+              iconSlot={<Settings />}
+              onClick={settingsDialog.show}
+              content="Settings"
+            />
+            <Button size="sm" variant="info" iconSlot={<UserPlus />} onClick={inviteDialog.show} content="Invite" />
+          </>
+        ) : undefined
+      }
       backSlot={
         <Button
           variant="outline"
@@ -196,8 +166,20 @@ function GroupPage() {
           {failure ? (
             <Alert variant="destructive" title="That didn't work" description={describeError(failure)} />
           ) : null}
+          {invited ? (
+            <Alert
+              variant="info"
+              title={`Invite sent to ${invited}`}
+              description="They're listed under Invited until they open the link."
+              actionSlot={<Button size="sm" variant="ghost" onClick={() => setInvited(null)} content="Dismiss" />}
+            />
+          ) : null}
           {group ? (
             <>
+              <VoteSection group={group} isOwner={isOwner} />
+
+              <FreeTimeSection group={group} readerId={readerId} />
+
               <Section
                 title={`Members (${group.members.length})`}
                 contentSlot={
@@ -267,29 +249,23 @@ function GroupPage() {
                 />
               )}
 
-              <Section
-                title="Free time"
-                contentSlot={
-                  group.timeBlocks.length === 0 ? (
-                    <EmptyState compact title="No one has added free time yet." />
-                  ) : (
-                    <List
-                      label="Free time"
-                      contentSlot={[...group.timeBlocks]
-                        .sort(byStart)
-                        .map((tb) => (
-                          <ListItem
-                            key={tb.id}
-                            title={formatWindow(tb.startsAt, tb.endsAt)}
-                            description={tb.user.name || tb.user.email}
-                          />
-                        ))}
-                    />
-                  )
-                }
-              />
-
-              {vote ? <VoteSection vote={vote} memberCount={group.members.length} /> : null}
+              {isOwner ? (
+                <>
+                  <InviteDialog
+                    key={`invite-${inviteDialog.key}`}
+                    groupId={group.id}
+                    open={inviteDialog.open}
+                    onOpenChange={inviteDialog.onOpenChange}
+                    onInvited={setInvited}
+                  />
+                  <GroupSettingsDialog
+                    key={`settings-${settingsDialog.key}`}
+                    group={group}
+                    open={settingsDialog.open}
+                    onOpenChange={settingsDialog.onOpenChange}
+                  />
+                </>
+              ) : null}
             </>
           ) : null}
         </>
