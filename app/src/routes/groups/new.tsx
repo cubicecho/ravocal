@@ -31,7 +31,7 @@ function NewGroupPage() {
     // The cached groups list lacks this one, and its page is not mounted to be refetched: drop it,
     // so the page asks again when it opens.
     update: (cache) => {
-      cache.evict({ fieldName: 'myGroups' });
+      cache.evict({ fieldName: 'groups' });
       cache.gc();
     },
     // The failure is drawn from `error` under the fields; handling it here keeps the submit's

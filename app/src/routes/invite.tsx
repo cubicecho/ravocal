@@ -29,7 +29,7 @@ function InvitePage() {
     // The cached groups list lacks the group just joined, and its page is not mounted to be
     // refetched: drop it, so the page asks again when it opens.
     update: (cache) => {
-      cache.evict({ fieldName: 'myGroups' });
+      cache.evict({ fieldName: 'groups' });
       cache.gc();
     },
     onCompleted: (data) => {

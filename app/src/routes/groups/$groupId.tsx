@@ -1,34 +1,40 @@
-import { useQuery } from '@apollo/client';
+import { useMutation, useQuery } from '@apollo/client';
 import { createFileRoute, Link } from '@tanstack/react-router';
+import type { GroupDetailQuery } from '@/__generated__/graphql.js';
 import { graphql } from '@/__generated__/index.js';
+import { ConfirmButton } from '@/components/confirm-button';
 import { EmptyState } from '@/components/empty-state';
 import { List } from '@/components/list';
 import { ListItem } from '@/components/list-item';
 import { LoadState } from '@/components/load-state';
 import { PageLayout } from '@/components/page-layout';
 import { Section } from '@/components/section';
+import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from '@/components/ui/icons';
 import { asQuery } from '@/lib/as-query';
+import { describeError } from '@/lib/error-message';
 import { byStart, formatDay, formatWindow } from '@/lib/time-window';
 
 export const Route = createFileRoute('/groups/$groupId')({
   component: GroupPage,
 });
 
+// `group` answers null to a reader who is not a member, which the page shows as "Group not found". Invites come
+// back for the owner alone, and each vote's rankings are the reader's own ballot.
 const GROUP_DETAIL = graphql(`
-  query GroupDetail($id: ID!) {
-    group(id: $id) {
+  query GroupDetail($id: UUID!) {
+    getSession {
+      user {
+        id
+      }
+    }
+    group(where: { id: { eq: $id } }) {
       id
       name
       ownerId
       overlapThreshold
-      owner {
-        id
-        email
-        name
-      }
       members {
         id
         userId
@@ -39,7 +45,7 @@ const GROUP_DETAIL = graphql(`
         }
         joinedAt
       }
-      pendingInvites {
+      invites(where: { acceptedAt: { isNull: true } }) {
         id
         email
         expiresAt
@@ -55,17 +61,18 @@ const GROUP_DETAIL = graphql(`
         startsAt
         endsAt
       }
-      activeVote {
+      # The newest vote: the open one, or the last one's result. Every candidate, in ballot order.
+      votes(limit: 1) {
         id
         status
         isForced
-        slots {
+        slots(limit: 500) {
           id
           startsAt
           endsAt
           overlapCount
         }
-        myRankings {
+        rankings {
           id
           slotId
           rank
@@ -77,15 +84,82 @@ const GROUP_DETAIL = graphql(`
   }
 `);
 
+const REMOVE_MEMBER = graphql(`
+  mutation RemoveMember($groupId: UUID!, $userId: UUID!) {
+    removeMember(groupId: $groupId, userId: $userId) {
+      id
+    }
+  }
+`);
+
+const CANCEL_INVITE = graphql(`
+  mutation CancelInvite($id: UUID!) {
+    cancelInvite(id: $id) {
+      id
+    }
+  }
+`);
+
+type Group = NonNullable<GroupDetailQuery['group']>;
+type Vote = Group['votes'][number];
+
 function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
+}
+
+/**
+ * The group's newest vote: the times still being ranked, or, once the owner has closed it, which one won.
+ *
+ * @param props - The vote, and how many are in the group.
+ * @returns The section.
+ */
+function VoteSection({ vote, memberCount }: { vote: Vote; memberCount: number }) {
+  const isOpen = vote.status === 'active';
+  const kind = vote.isForced ? 'Forced vote' : 'Vote';
+  const winner = vote.slots.find((slot) => slot.id === vote.winnerSlotId);
+  const closedResult = winner
+    ? `Closed. The winning time is ${formatWindow(winner.startsAt, winner.endsAt)}.`
+    : 'Closed with no winner: nobody ranked a time.';
+  return (
+    <Section
+      title={isOpen ? 'Active vote' : 'Last vote'}
+      description={
+        isOpen ? `${kind} over ${plural(vote.slots.length, 'candidate time', 'candidate times')}` : closedResult
+      }
+      contentSlot={
+        <List
+          label="Candidate times"
+          contentSlot={vote.slots.map((slot) => (
+            <ListItem
+              key={slot.id}
+              title={formatWindow(slot.startsAt, slot.endsAt)}
+              meta={
+                slot.id === vote.winnerSlotId ? (
+                  <Badge variant="positive-soft">Winner</Badge>
+                ) : (
+                  `${slot.overlapCount} of ${memberCount} free`
+                )
+              }
+            />
+          ))}
+        />
+      }
+    />
+  );
 }
 
 function GroupPage() {
   const { groupId } = Route.useParams();
   const result = useQuery(GROUP_DETAIL, { variables: { id: groupId } });
   const group = result.data?.group;
-  const vote = group?.activeVote;
+  const isOwner = group !== undefined && group !== null && result.data?.getSession?.user.id === group.ownerId;
+  const [vote] = group?.votes ?? [];
+
+  // Removing a member takes their free time and ballot with them, so the whole page is read again.
+  const refetch = { refetchQueries: [GROUP_DETAIL], awaitRefetchQueries: true };
+  const [removeMember, removing] = useMutation(REMOVE_MEMBER, { ...refetch, onError: () => {} });
+  const [cancelInvite, cancelling] = useMutation(CANCEL_INVITE, { ...refetch, onError: () => {} });
+  const failure = removing.error ?? cancelling.error;
 
   return (
     <PageLayout
@@ -116,6 +190,9 @@ function GroupPage() {
             actionSlot={<Button variant="outline" linkSlot={<Link to="/groups" />} content="Back to your groups" />}
             level={2}
           />
+          {failure ? (
+            <Alert variant="destructive" title="That didn't work" description={describeError(failure)} />
+          ) : null}
           {group ? (
             <>
               <Section
@@ -123,30 +200,63 @@ function GroupPage() {
                 contentSlot={
                   <List
                     label="Members"
-                    contentSlot={group.members.map((m) => (
-                      <ListItem
-                        key={m.id}
-                        title={m.user.name ?? m.user.email}
-                        description={m.user.name ? m.user.email : undefined}
-                        meta={m.userId === group.ownerId ? <Badge variant="outline">Owner</Badge> : undefined}
-                      />
-                    ))}
+                    contentSlot={group.members.map((m) => {
+                      const name = m.user.name || m.user.email;
+                      const isGroupOwner = m.userId === group.ownerId;
+                      return (
+                        <ListItem
+                          key={m.id}
+                          title={name}
+                          description={m.user.name ? m.user.email : undefined}
+                          meta={isGroupOwner ? <Badge variant="outline">Owner</Badge> : undefined}
+                          actionSlot={
+                            isOwner && isGroupOwner === false ? (
+                              <ConfirmButton
+                                size="sm"
+                                loading={removing.loading}
+                                title={`Remove ${name}?`}
+                                description="They lose the group, and their free time in it and their ballot in the open vote go with them. A closed vote's result stays."
+                                confirmLabel="Remove"
+                                onConfirm={() =>
+                                  void removeMember({ variables: { groupId: group.id, userId: m.userId } })
+                                }
+                                content="Remove"
+                              />
+                            ) : undefined
+                          }
+                        />
+                      );
+                    })}
                   />
                 }
               />
 
-              {group.pendingInvites.length > 0 && (
+              {group.invites.length > 0 && (
                 <Section
-                  title={`Invited (${group.pendingInvites.length})`}
-                  description="They join once they open the link in their invite email."
+                  title={`Invited (${group.invites.length})`}
+                  description="Whoever opens an invite's link while signed in joins, once."
                   contentSlot={
                     <List
                       label="Invited"
-                      contentSlot={group.pendingInvites.map((invite) => (
+                      contentSlot={group.invites.map((invite) => (
                         <ListItem
                           key={invite.id}
                           title={invite.email}
                           meta={`Expires ${formatDay(invite.expiresAt)}`}
+                          actionSlot={
+                            isOwner ? (
+                              <ConfirmButton
+                                size="sm"
+                                loading={cancelling.loading}
+                                title={`Cancel the invite to ${invite.email}?`}
+                                description="Its link stops working, so nobody can join with it. You can invite them again."
+                                confirmLabel="Cancel invite"
+                                cancelLabel="Keep it"
+                                onConfirm={() => void cancelInvite({ variables: { id: invite.id } })}
+                                content="Cancel invite"
+                              />
+                            ) : undefined
+                          }
                         />
                       ))}
                     />
@@ -168,7 +278,7 @@ function GroupPage() {
                           <ListItem
                             key={tb.id}
                             title={formatWindow(tb.startsAt, tb.endsAt)}
-                            description={tb.user.name ?? tb.user.email}
+                            description={tb.user.name || tb.user.email}
                           />
                         ))}
                     />
@@ -176,26 +286,7 @@ function GroupPage() {
                 }
               />
 
-              {vote && (
-                <Section
-                  title="Active vote"
-                  description={`${vote.isForced ? 'Forced vote' : 'Vote'} over ${plural(vote.slots.length, 'candidate time', 'candidate times')}`}
-                  contentSlot={
-                    <List
-                      label="Candidate times"
-                      contentSlot={[...vote.slots]
-                        .sort(byStart)
-                        .map((slot) => (
-                          <ListItem
-                            key={slot.id}
-                            title={formatWindow(slot.startsAt, slot.endsAt)}
-                            meta={`${slot.overlapCount} of ${group.members.length} free`}
-                          />
-                        ))}
-                    />
-                  }
-                />
-              )}
+              {vote ? <VoteSection vote={vote} memberCount={group.members.length} /> : null}
             </>
           ) : null}
         </>
