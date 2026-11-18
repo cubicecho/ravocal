@@ -1,6 +1,7 @@
 import type { DB } from '@cubicecho/ravocal-db';
 import express, { type Express } from 'express';
 import type { AuthHost } from '../auth/auth-host.ts';
+import type { Mailer } from '../auth/email.ts';
 import { createRateLimiter, type RateLimiter } from '../auth/rate-limit.ts';
 import { trustProxy } from '../core/config.ts';
 import { HTTP_DEFAULTS } from '../core/defaults.ts';
@@ -23,6 +24,11 @@ export interface AppDeps {
    * @defaultValue `createRateLimiter()`
    */
   limiter?: RateLimiter;
+  /**
+   * Sends the invite and vote emails. Tests pass one that captures them.
+   * @defaultValue `sendMail`, over `SMTP_URL`
+   */
+  mailer?: Mailer;
   /** The built SPA's directory. Left out in tests that don't serve it. */
   staticDir?: string;
 }
@@ -33,11 +39,11 @@ export interface AppDeps {
  * @param deps - What the app talks to.
  * @returns The app, not listening.
  */
-export function createApp({ db, authHost, limiter = createRateLimiter(), staticDir }: AppDeps): Express {
+export function createApp({ db, authHost, limiter = createRateLimiter(), mailer, staticDir }: AppDeps): Express {
   const app = express();
   // Which proxy hops may set X-Forwarded-For, and so what `ctx.ip` is. The sign-in throttle keys on it.
   app.set('trust proxy', trustProxy());
-  const graphql = createGraphQLHandler({ db, authHost, limiter });
+  const graphql = createGraphQLHandler({ db, authHost, limiter, mailer });
 
   // Yoga reads a body Express already parsed, so this is where the size cap goes. Over it: 413.
   app.use(graphql.graphqlEndpoint, express.json({ limit: HTTP_DEFAULTS.bodyLimit }));

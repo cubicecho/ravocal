@@ -25,7 +25,7 @@ const SIGN_OUT = 'mutation { signOut { success } }';
 const SESSION = 'query { getSession { user { id email } session { userId } } }';
 const SESSIONS = 'query { listSessions { token } }';
 const REVOKE_OTHERS = 'mutation { revokeOtherSessions { status } }';
-const MY_GROUPS = 'query { myGroups { id } }';
+const MY_GROUPS = 'query { groups { id } }';
 
 /** What an instance without SMTP_URL answers a request for a link. */
 const NO_LINKS =

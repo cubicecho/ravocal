@@ -15,6 +15,7 @@ import { HttpStatus } from '../../core/wire.ts';
 import { createApp } from '../../http/app.ts';
 import {
   closeTestDb,
+  createGroup,
   createSessionToken,
   createTestAuth,
   createTestDb,
@@ -24,8 +25,8 @@ import {
   type TestDb,
 } from '../helpers.ts';
 
-const { maxTokens, maxDepth, maxAliases, maxCost } = OPERATION_LIMIT_DEFAULTS;
-/** The tokens around the repeated field in `{ me { id id … } }`: two braces each side and `me`. */
+const { maxTokens, maxDepth, maxAliases, maxCost, maxPageSize } = OPERATION_LIMIT_DEFAULTS;
+/** The tokens around the repeated field in `{ authConfig { magicLink magicLink … } }`: two braces each side and `authConfig`. */
 const TOKENS_AROUND_FIELDS = 5;
 /** How many copies of one field the repeated-field document holds: enough for seconds of CPU without the token limit. */
 const REPEATED_FIELDS = 10_000;
@@ -70,31 +71,33 @@ function close(server: Server): Promise<void> {
  * Builds a selection that is `levels` inline fragments deep. Each one is a level to the depth rule.
  *
  * @param levels - How many fragments to nest.
- * @returns The selection, ending in `id`.
+ * @returns The selection, ending in `magicLink`.
  */
 function nestedFragments(levels: number): string {
-  return levels === 0 ? 'id' : `... on User { ${nestedFragments(levels - 1)} }`;
+  return levels === 0 ? 'magicLink' : `... on AuthConfig { ${nestedFragments(levels - 1)} }`;
 }
 
 /**
- * Builds a query priced at `1 + spreads * fields`: `me`, holding a fragment of `fields` ids spread `spreads` times.
+ * Builds a query priced at `1 + spreads * fields`: `authConfig`, holding a fragment of `fields` fields spread `spreads`
+ * times.
  *
  * @param spreads - How many times the fragment is spread.
- * @param fields - How many `id`s the fragment selects.
+ * @param fields - How many `magicLink`s the fragment selects.
  * @returns The query.
  */
 function pricedQuery(spreads: number, fields: number): string {
-  return `{ me { ${'...Ids '.repeat(spreads)}} } fragment Ids on User { ${'id '.repeat(fields)}}`;
+  return `{ authConfig { ${'...Fields '.repeat(spreads)}} } fragment Fields on AuthConfig { ${'magicLink '.repeat(fields)}}`;
 }
 
 /**
- * Builds `{ me { id id … } }` with `count` copies of `id`, which is `count + TOKENS_AROUND_FIELDS` tokens.
+ * Builds `{ authConfig { magicLink magicLink … } }` with `count` copies of `magicLink`, which is
+ * `count + TOKENS_AROUND_FIELDS` tokens.
  *
- * @param count - How many times `id` is selected.
+ * @param count - How many times `magicLink` is selected.
  * @returns The document.
  */
 function repeatedFields(count: number): string {
-  return `{ me { ${'id '.repeat(count)}} }`;
+  return `{ authConfig { ${'magicLink '.repeat(count)}} }`;
 }
 
 /**
@@ -182,10 +185,11 @@ describe('app over HTTP', () => {
 
   describe('operation limits', () => {
     // Unauthenticated on purpose: every bound runs before any resolver, so it refuses a caller who couldn't
-    // read the data anyway.
+    // read the data anyway. `authConfig` is the one field an anonymous caller is answered, and it is priced at
+    // defaultFieldCost, as each of its fields is.
     it('accepts a document of exactly maxTokens tokens', async () => {
       const body = await query(repeatedFields(maxTokens - TOKENS_AROUND_FIELDS));
-      expect(body).toEqual({ data: { me: null } });
+      expect(body.errors).toBeUndefined();
     });
 
     it('refuses a document one token past maxTokens', async () => {
@@ -229,36 +233,43 @@ describe('app over HTTP', () => {
     });
 
     it('accepts a query exactly maxDepth deep', async () => {
-      // `me` and `id` are a level each, so maxDepth - 2 fragments between them make maxDepth.
-      const body = await query(`{ me { ${nestedFragments(maxDepth - 2)} } }`);
-      expect(body).toEqual({ data: { me: null } });
+      // `authConfig` and `magicLink` are a level each, so maxDepth - 2 fragments between them make maxDepth.
+      const body = await query(`{ authConfig { ${nestedFragments(maxDepth - 2)} } }`);
+      expect(body.errors).toBeUndefined();
     });
 
     it('refuses a query one level deeper than maxDepth', async () => {
-      const body = await query(`{ me { ${nestedFragments(maxDepth - 1)} } }`);
+      const body = await query(`{ authConfig { ${nestedFragments(maxDepth - 1)} } }`);
       expect(body.errors[0].extensions.code).toBe(ErrorCode.QueryTooComplex);
       expect(body.data).toBeUndefined();
     });
 
     it('accepts maxAliases aliases', async () => {
-      const aliases = Array.from({ length: maxAliases }, (_, index) => `a${index}: me { id }`);
+      const aliases = Array.from({ length: maxAliases }, (_, index) => `a${index}: authConfig { magicLink }`);
       const body = await query(`{ ${aliases.join(' ')} }`);
       expect(body.errors).toBeUndefined();
     });
 
     it('refuses one alias more than maxAliases', async () => {
-      const aliases = Array.from({ length: maxAliases + 1 }, (_, index) => `a${index}: me { id }`);
+      const aliases = Array.from({ length: maxAliases + 1 }, (_, index) => `a${index}: authConfig { magicLink }`);
       const body = await query(`{ ${aliases.join(' ')} }`);
       expect(body.errors[0].extensions.code).toBe(ErrorCode.QueryTooComplex);
       expect(body.data).toBeUndefined();
     });
 
-    // Nothing in the hand-written schema carries a cost hint, so every field costs defaultFieldCost (1), and
-    // `me` with `spreads` copies of a fragment holding `fields` ids costs 1 + spreads * fields. Spreads, not
-    // ten thousand ids in a row: graphql-js compares repeated fields pairwise, which takes seconds at that size.
+    // `authConfig` carries no cost hint, so it and each of its fields cost defaultFieldCost (1), and it with
+    // `spreads` copies of a fragment holding `fields` fields costs 1 + spreads * fields. Spreads, not ten thousand
+    // fields in a row: graphql-js compares repeated fields pairwise, which takes seconds at that size.
     it('accepts a query that costs exactly maxCost', async () => {
       const body = await query(pricedQuery(99, 101));
-      expect(body).toEqual({ data: { me: null } });
+      expect(body.errors).toBeUndefined();
+    });
+
+    it('prices a generated list by its page, through the permission layer', async () => {
+      // A full page of groups times a full page of members each is far past maxCost.
+      const body = await query(`{ groups(limit: ${maxPageSize}) { members(limit: ${maxPageSize}) { id } } }`);
+      expect(body.errors[0].extensions.code).toBe(ErrorCode.QueryTooComplex);
+      expect(body.data).toBeUndefined();
     });
 
     it('refuses a query that costs one more than maxCost', async () => {
@@ -271,7 +282,7 @@ describe('app over HTTP', () => {
 
   describe('errors', () => {
     it('passes a coded error through with its code and message', async () => {
-      const body = await query('{ myGroups { id } }');
+      const body = await query('{ groups { id } }');
       expect(body.errors[0]).toMatchObject({
         message: 'Not authenticated',
         extensions: { code: ErrorCode.Unauthenticated },
@@ -282,14 +293,18 @@ describe('app over HTTP', () => {
       const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
       const userId = await createUser(db, 'alice@example.com');
       const token = await createSessionToken(auth, userId);
-      // Postgres refuses an id that is not a uuid, which no resolver expects.
-      const body = await query('{ group(id: "not-a-uuid") { id } }', { authorization: `Bearer ${token}` });
+      // Postgres checks the pattern as it compares a row, so there has to be one.
+      await createGroup(db, userId);
+      // Postgres refuses a LIKE pattern that ends in its escape character, which nothing checks for it.
+      const body = await query('{ groups(where: { name: { like: "\\\\" } }) { id } }', {
+        authorization: `Bearer ${token}`,
+      });
       expect(body.errors[0]).toMatchObject({ message: MASKED_MESSAGE, extensions: { code: INTERNAL_SERVER_ERROR } });
       const [[tag, path, cause] = []] = logged.mock.calls;
       expect(tag).toBe('[graphql]');
-      expect(path).toBe('group');
+      expect(path).toBe('groups');
       // Drizzle's own message is the SQL; Postgres's reason is on its cause.
-      expect(errorMessage(cause)).toMatch(/invalid input syntax for type uuid/);
+      expect(errorMessage(cause)).toMatch(/LIKE pattern must not end with escape character/);
     });
   });
 
@@ -322,7 +337,7 @@ describe('app over HTTP', () => {
     });
 
     it('sends no CORS headers on a cross-origin request', async () => {
-      const response = await post({ query: '{ me { id } }' }, { origin: FOREIGN_ORIGIN });
+      const response = await post({ query: '{ authConfig { magicLink } }' }, { origin: FOREIGN_ORIGIN });
       expect(response.headers.get('access-control-allow-origin')).toBeNull();
       expect(response.headers.get('access-control-allow-credentials')).toBeNull();
     });

@@ -24,6 +24,10 @@ export const HTTP_DEFAULTS: Readonly<HttpSettings> = Object.freeze({
 
 /** Bounds on one GraphQL operation. */
 export interface OperationLimitSettings {
+  /** Rows a list returns when the request names no `limit`: root lists and to-many relations alike. */
+  defaultPageSize: number;
+  /** The largest `limit` a request may ask for. A larger one is refused, never trimmed. */
+  maxPageSize: number;
   /**
    * Tokens per document, counted while it is parsed. graphql-js compares repeated fields pairwise, so ten thousand
    * copies of one field (about 30 kB) cost seconds of CPU before depth or cost is checked. The app's largest
@@ -36,11 +40,13 @@ export interface OperationLimitSettings {
   maxAliases: number;
   /** Cost per operation. */
   maxCost: number;
-  /** What a field costs when nothing prices it. The hand-written schema prices nothing yet. */
+  /** What a field costs when nothing prices it: the generated lists price themselves by their page size. */
   defaultFieldCost: number;
 }
 
 export const OPERATION_LIMIT_DEFAULTS: Readonly<OperationLimitSettings> = Object.freeze({
+  defaultPageSize: 50,
+  maxPageSize: 500,
   maxTokens: 1000,
   maxDepth: 8,
   maxAliases: 15,
@@ -89,20 +95,30 @@ export const AUTH_DEFAULTS: Readonly<AuthSettings> = Object.freeze({
   oneTimeTokenTtlMinutes: 3,
 });
 
+/** Limits on what a user may call themselves. */
+export interface UserSettings {
+  /** Longest name, in characters. */
+  maxNameLength: number;
+}
+
+export const USER_DEFAULTS: Readonly<UserSettings> = Object.freeze({
+  maxNameLength: 100,
+});
+
 /** Limits on a group and its invites. */
 export interface GroupSettings {
   /** Longest group name, in characters. */
   maxNameLength: number;
-  /** How long an emailed invite works. */
+  /** How long an invite link works. */
   inviteTtlDays: number;
-  /** Random bytes in an invite's token. */
-  inviteTokenBytes: number;
+  /** Longest address an invite is sent to, in characters: the most an address may hold. */
+  maxInviteEmailLength: number;
 }
 
 export const GROUP_DEFAULTS: Readonly<GroupSettings> = Object.freeze({
   maxNameLength: 100,
   inviteTtlDays: 7,
-  inviteTokenBytes: 32,
+  maxInviteEmailLength: 254,
 });
 
 /** How free time is cut into slots. */

@@ -12,8 +12,8 @@ const PRINT_ONLY_DATABASE_URL = 'postgres://codegen@localhost/codegen';
 // Printing runs no query, and postgres-js connects only on the first one.
 process.env.DATABASE_URL ||= PRINT_ONLY_DATABASE_URL;
 const { db } = await import('@cubicecho/ravocal-db');
-const { buildSchema } = await import('../schema/index.ts');
+const { createSchema } = await import('./build-schema.ts');
 
 const outputDir = join(dirname(fileURLToPath(import.meta.url)), '../__generated__');
 await mkdir(outputDir, { recursive: true });
-await writeFile(join(outputDir, 'schema.graphql'), printSchema(buildSchema(db)), 'utf-8');
+await writeFile(join(outputDir, 'schema.graphql'), printSchema(createSchema(db).schema), 'utf-8');
