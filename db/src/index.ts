@@ -14,20 +14,24 @@ const isPostgres =
 export type DB = any;
 export let db!: DB;
 
+// drizzle-orm 0.x finds the relations for `db.query.*.findFirst({ with })` in the schema object
+// it is handed; a separate `relations` option is ignored.
+const schemaWithRelations = { ...schema, ...relations };
+
 if (isPostgres) {
   const { drizzle } = (await import("drizzle-orm/postgres-js")) as any;
   const isProduction = process.env.NODE_ENV === "production";
   const connection = isProduction ? { url: DATABASE_URL, ssl: "require" } : DATABASE_URL;
-  db = drizzle({ connection, schema });
+  db = drizzle({ connection, schema: schemaWithRelations });
 } else {
   const { drizzle } = (await import("drizzle-orm/pglite")) as any;
   const { PGlite } = await import("@electric-sql/pglite");
   const dataDir = DATABASE_URL.startsWith("file:") ? DATABASE_URL.slice(5) : DATABASE_URL;
   const client = new PGlite(dataDir);
   await client.waitReady;
-  db = drizzle({ client, schema, relations });
+  db = drizzle({ client, schema: schemaWithRelations });
 }
 
 export { schema };
-export * from "./schema.ts";
 export * from "./relations.ts";
+export * from "./schema.ts";
