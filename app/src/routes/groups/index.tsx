@@ -9,7 +9,7 @@ import { LoadState } from '@/components/load-state';
 import { PageLayout } from '@/components/page-layout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus } from '@/components/ui/icons';
+import { Plus, Settings } from '@/components/ui/icons';
 import { asQuery } from '@/lib/as-query';
 import { clearToken, LOGIN_PATH } from '@/lib/auth';
 
@@ -67,6 +67,13 @@ function GroupsPage() {
       title="Your groups"
       actionSlot={
         <>
+          <Button
+            size="sm"
+            variant="outline"
+            iconSlot={<Settings />}
+            linkSlot={<Link to="/settings" />}
+            content="Settings"
+          />
           <Button size="sm" variant="outline" onClick={() => void leave()} content="Sign out" />
           <Button
             size="sm"
