@@ -69,7 +69,7 @@ Adding a new domain:
 
 ## Operation limits
 
-`useOperationLimits` refuses an operation as `QUERY_TOO_COMPLEX` before any resolver runs when it is deeper than `maxDepth` (8; inline fragments and spreads count as a level), has more than `maxAliases` aliases (15), or costs more than `maxCost` (10,000). No field has a cost hint yet, so each costs `defaultFieldCost` (1). The numbers are `OPERATION_LIMIT_DEFAULTS` in `core/defaults.ts`.
+`useOperationLimits` refuses an operation as `QUERY_TOO_COMPLEX` before any resolver runs when its document is longer than `maxTokens` (1,000, counted while parsing, so ten thousand copies of one field are refused before graphql-js's pairwise field comparison can spend seconds on them), is deeper than `maxDepth` (8; inline fragments and spreads count as a level), has more than `maxAliases` aliases (15), or costs more than `maxCost` (10,000). No field has a cost hint yet, so each costs `defaultFieldCost` (1). The numbers are `OPERATION_LIMIT_DEFAULTS` in `core/defaults.ts`.
 
 ## Context
 
@@ -146,7 +146,7 @@ Configure via env: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FR
 ## Testing
 
 - `__tests__/helpers.ts`: `createClient(db, userId)` runs operations in-process; `expectError` returns `{ message, code }`
-- `__tests__/http/app.test.ts`: the real `createApp` over HTTP against PGlite: health, the body cap, the operation limits, masking, the SPA and CORS
+- `__tests__/http/app.test.ts`: the real `createApp` over HTTP against PGlite: health, the body cap, the operation limits (with introspection and every document in `app/src` let through), masking, the SPA and CORS
 - `__tests__/http/shutdown.test.ts`: `stopOnSignals` in a child process, sent SIGTERM mid-request
 
 ## Running the Server

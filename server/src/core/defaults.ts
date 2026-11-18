@@ -24,6 +24,12 @@ export const HTTP_DEFAULTS: Readonly<HttpSettings> = Object.freeze({
 
 /** Bounds on one GraphQL operation. */
 export interface OperationLimitSettings {
+  /**
+   * Tokens per document, counted while it is parsed. graphql-js compares repeated fields pairwise, so ten thousand
+   * copies of one field (about 30 kB) cost seconds of CPU before depth or cost is checked. The app's largest
+   * operation is about 80 tokens and a full introspection query about 190.
+   */
+  maxTokens: number;
   /** Deepest selection accepted. Inline fragments and fragment spreads count as a level each. */
   maxDepth: number;
   /** Aliases per operation. */
@@ -35,6 +41,7 @@ export interface OperationLimitSettings {
 }
 
 export const OPERATION_LIMIT_DEFAULTS: Readonly<OperationLimitSettings> = Object.freeze({
+  maxTokens: 1000,
   maxDepth: 8,
   maxAliases: 15,
   maxCost: 10_000,

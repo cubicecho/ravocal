@@ -1,9 +1,10 @@
 import { once } from 'node:events';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Express } from 'express';
+import { getIntrospectionQuery } from 'graphql';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { version } from '../../core/config.ts';
 import { OPERATION_LIMIT_DEFAULTS } from '../../core/defaults.ts';
@@ -13,7 +14,15 @@ import { createApp } from '../../http/app.ts';
 import { signSessionToken } from '../../services/auth.ts';
 import { closeTestDb, createTestDb, createUser, portOf, resetTestDb, type TestDb } from '../helpers.ts';
 
-const { maxDepth, maxAliases, maxCost } = OPERATION_LIMIT_DEFAULTS;
+const { maxTokens, maxDepth, maxAliases, maxCost } = OPERATION_LIMIT_DEFAULTS;
+/** The tokens around the repeated field in `{ me { id id … } }`: two braces each side and `me`. */
+const TOKENS_AROUND_FIELDS = 5;
+/** How many copies of one field the repeated-field document holds: enough for seconds of CPU without the token limit. */
+const REPEATED_FIELDS = 10_000;
+/** How long the repeated-field document may take to be refused. Without the token limit it took about 8 s. */
+const QUICK_REFUSAL_MS = 500;
+/** Where the app's GraphQL documents live, written as `graphql(\`…\`)`. */
+const APP_SOURCE = join(import.meta.dirname, '../../../../app/src');
 /** Past `HTTP_DEFAULTS.bodyLimit`, which is 1 MB. */
 const OVERSIZED_PADDING_BYTES = 1_100_000;
 /** What Yoga answers in place of an error it masks. */
@@ -66,6 +75,33 @@ function nestedFragments(levels: number): string {
  */
 function pricedQuery(spreads: number, fields: number): string {
   return `{ me { ${'...Ids '.repeat(spreads)}} } fragment Ids on User { ${'id '.repeat(fields)}}`;
+}
+
+/**
+ * Builds `{ me { id id … } }` with `count` copies of `id`, which is `count + TOKENS_AROUND_FIELDS` tokens.
+ *
+ * @param count - How many times `id` is selected.
+ * @returns The document.
+ */
+function repeatedFields(count: number): string {
+  return `{ me { ${'id '.repeat(count)}} }`;
+}
+
+/**
+ * Reads every GraphQL document the app sends, from its source.
+ *
+ * @returns Each document, by the file it is in.
+ */
+async function appDocuments(): Promise<Array<[string, string]>> {
+  const files = await readdir(APP_SOURCE, { recursive: true });
+  const sources = files.filter((file) => /\.tsx?$/.test(file) && file.includes('__generated__') === false);
+  const documents = await Promise.all(
+    sources.map(async (file) => {
+      const text = await readFile(join(APP_SOURCE, file), 'utf8');
+      return [...text.matchAll(/graphql\(`([\s\S]*?)`\)/g)].map(([, document]): [string, string] => [file, document]);
+    }),
+  );
+  return documents.flat();
 }
 
 describe('app over HTTP', () => {
@@ -135,6 +171,51 @@ describe('app over HTTP', () => {
   describe('operation limits', () => {
     // Unauthenticated on purpose: every bound runs before any resolver, so it refuses a caller who couldn't
     // read the data anyway.
+    it('accepts a document of exactly maxTokens tokens', async () => {
+      const body = await query(repeatedFields(maxTokens - TOKENS_AROUND_FIELDS));
+      expect(body).toEqual({ data: { me: null } });
+    });
+
+    it('refuses a document one token past maxTokens', async () => {
+      const body = await query(repeatedFields(maxTokens - TOKENS_AROUND_FIELDS + 1));
+      expect(body.errors[0].extensions.code).toBe(ErrorCode.QueryTooComplex);
+      expect(body.errors[0].message).toBe(`Token limit of ${maxTokens} exceeded.`);
+      expect(body.data).toBeUndefined();
+    });
+
+    it('refuses ten thousand copies of one field quickly, before validation compares them', async () => {
+      const started = performance.now();
+      const body = await query(repeatedFields(REPEATED_FIELDS));
+      expect(performance.now() - started).toBeLessThan(QUICK_REFUSAL_MS);
+      expect(body.errors[0].extensions.code).toBe(ErrorCode.QueryTooComplex);
+    });
+
+    it('lets a full introspection query through', async () => {
+      const introspection = getIntrospectionQuery({
+        descriptions: true,
+        specifiedByUrl: true,
+        directiveIsRepeatable: true,
+        schemaDescription: true,
+        inputValueDeprecation: true,
+        oneOf: true,
+      });
+      const body = await query(introspection);
+      expect(body.errors).toBeUndefined();
+      expect(body.data.__schema.queryType.name).toBe('Query');
+    });
+
+    it("lets every one of the app's own documents past the limits", async () => {
+      const documents = await appDocuments();
+      expect(documents.length).toBeGreaterThan(0);
+      for (const [file, document] of documents) {
+        // Sent without variables or a session, so most are refused, but by their resolver or a missing
+        // variable, never by a limit.
+        const body = await query(document);
+        const codes = (body.errors ?? []).map((error: { extensions?: { code?: unknown } }) => error.extensions?.code);
+        expect(codes, file).not.toContain(ErrorCode.QueryTooComplex);
+      }
+    });
+
     it('accepts a query exactly maxDepth deep', async () => {
       // `me` and `id` are a level each, so maxDepth - 2 fragments between them make maxDepth.
       const body = await query(`{ me { ${nestedFragments(maxDepth - 2)} } }`);
