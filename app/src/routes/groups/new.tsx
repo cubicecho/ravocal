@@ -9,6 +9,9 @@ import { PageLayout } from '@/components/page-layout';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from '@/components/ui/icons';
 
+/** Longest group name the server accepts (its `GROUP_DEFAULTS.maxNameLength`). */
+const MAX_NAME_LENGTH = 100;
+
 export const Route = createFileRoute('/groups/new')({
   component: NewGroupPage,
 });
@@ -92,9 +95,8 @@ function NewGroupPage() {
                     if (name === '') {
                       return 'Give the group a name.';
                     }
-                    // The server's limit.
-                    if (name.length > 100) {
-                      return 'Keep the name to 100 characters or fewer.';
+                    if (name.length > MAX_NAME_LENGTH) {
+                      return `Keep the name to ${MAX_NAME_LENGTH} characters or fewer.`;
                     }
                     return undefined;
                   },
