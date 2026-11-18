@@ -254,7 +254,7 @@ Every call goes through one `call()` with `AbortSignal.timeout(AUTH_DEFAULTS.oid
 
 **The admin** (`auth/admin.ts`): `users.is_admin`. better-auth's `databaseHooks.user.create.after` runs `claimFirstAdmin(db, userId)` for every new account, whichever way it signed in: one `UPDATE … WHERE NOT EXISTS (an admin)`, and the partial unique index `uq_users_one_admin` refuses the later of two first sign-ups that commit together. The `oidc_pairing` migration made the oldest account the admin on an instance that already had accounts. The column is readable like the rest of `users`, and the users update hook keeps it out of `updateUser`.
 
-Rate limit: `signInMagicLink`, `magicLinkVerify` and `verifyOneTimeToken` call `throttle(ctx, flow, email?)` first. The limiter (`RATE_LIMIT_DEFAULTS`, 5 per 15 minutes per key) counts by client address and, for `signInMagicLink`, by normalized email, and refuses past the budget as `TOO_MANY_REQUESTS`. better-auth's own limiter only runs on its REST routes, which are not mounted. The counts are in process.
+Rate limit: `signInMagicLink`, `magicLinkVerify` and `verifyOneTimeToken` call `throttle(ctx, flow, email?)` first, and so do `pairSso` and `unpairSso` (by address, each with its own budget: they change how people sign in, and anyone may call them while there are no accounts). The limiter (`RATE_LIMIT_DEFAULTS`, 5 per 15 minutes per key) counts by client address and, for `signInMagicLink`, by normalized email, and refuses past the budget as `TOO_MANY_REQUESTS`. better-auth's own limiter only runs on its REST routes, which are not mounted. The counts are in process.
 
 ## Email Service
 

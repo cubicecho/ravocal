@@ -17,6 +17,7 @@ import { PairingFailure, parseSetupUrl } from '../../sso/pairing.ts';
 import { readPairedOidc, SsoSource } from '../../sso/settings.ts';
 import {
   closeTestDb,
+  createClient,
   createSessionToken,
   createTestDb,
   createUser,
@@ -384,6 +385,30 @@ describe('who may pair', () => {
       });
     }
     expect(dcr.deletions).toEqual([]);
+  });
+});
+
+describe('the sign-in throttle', () => {
+  /**
+   * Builds an anonymous caller whose address may change sign-in once per flow.
+   *
+   * @returns The caller, in process, on the running server's auth host.
+   */
+  const throttled = () => createClient(db, null, { authHost: host, limiter: createRateLimiter({ maxAttempts: 1 }) });
+
+  it('refuses pairSso past the budget before anything reaches the provider', async () => {
+    const caller = throttled();
+    expect((await caller.expectError(PAIR, { url: 'not a url' })).code).toBe(ErrorCode.BadUserInput);
+    expect((await caller.expectError(PAIR, { url: dcr.setupUrl() })).code).toBe(ErrorCode.TooManyRequests);
+    expect(dcr.registrations).toEqual([]);
+    expect(await readPairedOidc(db)).toBeNull();
+  });
+
+  it('refuses unpairSso past its own budget', async () => {
+    const caller = throttled();
+    await caller.expectError(PAIR, { url: 'not a url' });
+    expect((await caller.expectOk(UNPAIR)).unpairSso.source).toBe(SsoSource.None);
+    expect((await caller.expectError(UNPAIR)).code).toBe(ErrorCode.TooManyRequests);
   });
 });
 
