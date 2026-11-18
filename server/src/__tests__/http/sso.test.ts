@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import express from 'express';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type AuthHost, createAuthHost, fixedAuthHost } from '../../auth/auth-host.ts';
-import type { Auth } from '../../auth/better-auth.ts';
+import type { Auth, MagicLink } from '../../auth/better-auth.ts';
 import { createRateLimiter } from '../../auth/rate-limit.ts';
 import { ProviderId } from '../../core/config.ts';
 import { AUTH_DEFAULTS } from '../../core/defaults.ts';
@@ -38,10 +38,13 @@ const LINK = 'mutation ($provider: String!) { linkSocialAccount(provider: $provi
 const ACCOUNTS = '{ listUserAccounts { id providerId } }';
 const UNLINK = 'mutation ($accountId: String!) { unlinkAccount(accountId: $accountId) { status } }';
 const SIGN_IN = 'mutation ($email: String!) { signInMagicLink(email: $email) { token userId } }';
+const REQUEST_LINK = 'mutation ($email: String!) { signInMagicLink(email: $email) { status } }';
+const VERIFY_LINK = 'mutation ($token: String!) { magicLinkVerify(token: $token) { token user { id } } }';
 
 let db: TestDb;
 let provider: FakeProvider;
 let auth: Auth;
+let links: MagicLink[];
 let authHost: AuthHost;
 let server: Server;
 let appUrl: string;
@@ -77,7 +80,7 @@ beforeEach(async () => {
   // Refusals are logged by better-auth and by http/sso.ts; keep them out of the run's output.
   vi.spyOn(console, 'error').mockImplementation(() => {});
   authHost = await serve(async () => {
-    auth = createTestAuth(db, { providers: FAKE_PROVIDERS, providerEndpoints: provider.endpoints }).auth;
+    ({ auth, links } = createTestAuth(db, { providers: FAKE_PROVIDERS, providerEndpoints: provider.endpoints }));
     return fixedAuthHost(auth, FAKE_PROVIDERS);
   });
 });
@@ -305,22 +308,47 @@ describe('signing in with Facebook', () => {
   });
 });
 
-describe('connecting a provider in Settings', () => {
-  /**
-   * Starts a link over GraphQL as the app does, then follows it through the provider back to the app.
-   *
-   * @param id - The provider to connect.
-   * @param token - The reader's session.
-   * @returns Where the callback sent the browser.
-   */
-  async function connect(id: ProviderId, token: string): Promise<URL> {
-    const { response, body } = await graphqlOverHttp(LINK, { provider: id }, token);
-    expect(body.errors).toBeUndefined();
-    const cookie = cookiesFrom(response);
-    expect(cookie).toContain('state=');
-    return locationOf(await returnFromProvider(body.data.linkSocialAccount.url, cookie));
-  }
+/**
+ * Starts a link over GraphQL as the app does, then follows it through the provider back to the app.
+ *
+ * @param id - The provider to connect.
+ * @param token - The reader's session.
+ * @returns Where the callback sent the browser.
+ */
+async function connect(id: ProviderId, token: string): Promise<URL> {
+  const { response, body } = await graphqlOverHttp(LINK, { provider: id }, token);
+  expect(body.errors).toBeUndefined();
+  const cookie = cookiesFrom(response);
+  expect(cookie).toContain('state=');
+  return locationOf(await returnFromProvider(body.data.linkSocialAccount.url, cookie));
+}
 
+/**
+ * Signs an address in by magic link over HTTP, as its owner following the email would.
+ *
+ * @param email - The address.
+ * @returns The session's token and user.
+ */
+async function signInByLink(email: string): Promise<{ token: string; userId: string }> {
+  const requested = await graphqlOverHttp(REQUEST_LINK, { email });
+  expect(requested.body.errors).toBeUndefined();
+  const { body } = await graphqlOverHttp(VERIFY_LINK, { token: links.at(-1)?.token });
+  expect(body.errors).toBeUndefined();
+  return { token: body.data.magicLinkVerify.token, userId: body.data.magicLinkVerify.user.id };
+}
+
+/**
+ * Asks better-auth whose a bearer session is.
+ *
+ * @param token - The session token.
+ * @returns The user's id, or null when the session is gone.
+ */
+async function sessionOwner(token: string): Promise<string | null> {
+  const session = await auth.api.getSession({ headers: bearer(token) });
+  return session?.user.id ?? null;
+}
+
+describe('connecting a provider in Settings', () => {
   it('connects Facebook to the signed-in reader, after which Facebook signs them in', async () => {
     const reader = await createUser(db, 'ada@example.com');
     const location = await connect(ProviderId.Facebook, await createSessionToken(auth, reader));
@@ -350,6 +378,61 @@ describe('connecting a provider in Settings', () => {
     });
     const { code } = await client.expectError(LINK, { provider: ProviderId.Facebook });
     expect(code).toBe(ErrorCode.BadUserInput);
+  });
+});
+
+describe('proving the address of an account nobody had proven', () => {
+  const VICTIM = 'victim@example.com';
+
+  /**
+   * Signs up at Facebook with someone else's address, as an attacker waiting for its owner would.
+   *
+   * @returns The attacker's session.
+   */
+  async function facebookSignUp(): Promise<{ token: string; userId: string }> {
+    provider.facebook = { id: 'fb-mallory', name: 'Mallory', email: VICTIM };
+    return verified((await signIn(ProviderId.Facebook)).location);
+  }
+
+  it('ends the Facebook sign-up and its sessions when a magic link proves the address', async () => {
+    const attacker = await facebookSignUp();
+    const owner = await signInByLink(VICTIM);
+    expect(owner.userId).toBe(attacker.userId);
+    expect(await sessionOwner(attacker.token)).toBeNull();
+    expect(await sessionOwner(owner.token)).toBe(owner.userId);
+    expect(await providersOf(owner.userId)).toEqual([]);
+    expect((await userByEmail(VICTIM))?.emailVerified).toBe(true);
+
+    // Facebook cannot get back in: it never vouches for an address an account has.
+    const { location } = await signIn(ProviderId.Facebook);
+    expect(location.searchParams.get('error')).toBe('account_not_linked');
+  });
+
+  it('ends them when a Google sign-in that Google checked proves the address, and keeps that Google', async () => {
+    const attacker = await facebookSignUp();
+    provider.google = { sub: 'g-victim', email: VICTIM, email_verified: true, name: 'Victim' };
+    const owner = await verified((await signIn(ProviderId.Google)).location);
+    expect(owner.userId).toBe(attacker.userId);
+    expect(await sessionOwner(attacker.token)).toBeNull();
+    expect(await sessionOwner(owner.token)).toBe(owner.userId);
+    expect(await providersOf(owner.userId)).toEqual([ProviderId.Google]);
+  });
+
+  it('ends a Google sign-up whose address Google had not checked', async () => {
+    provider.google = { sub: 'g-mallory', email: VICTIM, email_verified: false, name: 'Mallory' };
+    const attacker = await verified((await signIn(ProviderId.Google)).location);
+    const owner = await signInByLink(VICTIM);
+    expect(await sessionOwner(attacker.token)).toBeNull();
+    expect(await providersOf(owner.userId)).toEqual([]);
+  });
+
+  it('keeps Facebook connected from Settings by a session that had proven the address', async () => {
+    const reader = await signInByLink(VICTIM);
+    await connect(ProviderId.Facebook, reader.token);
+    const again = await signInByLink(VICTIM);
+    expect(again.userId).toBe(reader.userId);
+    expect(await providersOf(reader.userId)).toEqual([ProviderId.Facebook]);
+    expect(await sessionOwner(reader.token)).toBe(reader.userId);
   });
 });
 

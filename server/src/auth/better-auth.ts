@@ -8,6 +8,7 @@ import { AUTH_DEFAULTS } from '../core/defaults.ts';
 import { SECONDS_PER_DAY, SECONDS_PER_MINUTE } from '../core/wire.ts';
 import { sendMagicLinkEmail } from './email.ts';
 import { PROVIDER_ENDPOINTS, type ProviderEndpoints, providersPlugin } from './providers.ts';
+import { revokeUnprovenAccess } from './unproven-access.ts';
 
 /** better-auth's id for the magic-link plugin. */
 const MAGIC_LINK_PLUGIN_ID = 'magic-link';
@@ -99,6 +100,8 @@ export function createAuth(
         allowUnlinkingAll: true,
       },
     },
+    // When an address is first proven, the ways in it did not vouch for stop working (unproven-access.ts).
+    databaseHooks: revokeUnprovenAccess,
     // Where a callback goes when it cannot tell where the sign-in came from: the login page, which says so.
     onAPIError: { errorURL: `${appUrl()}${LOGIN_PATH}` },
     plugins: [
