@@ -1,3 +1,11 @@
+# [1.3.0](https://github.com/cubicecho/ravocal/compare/v1.2.0...v1.3.0) (2026-11-18)
+
+### Features
+
+* **app:** let free time run past midnight ([0b74ba4](https://github.com/cubicecho/ravocal/commit/0b74ba4bb4aa1eed502a200acace33cba0ccea1c))
+* **app:** show ranking progress in an open vote ([6dc376b](https://github.com/cubicecho/ravocal/commit/6dc376b6f9c18a3be3d7d7dba3a9de79c8216a27))
+* **server:** tell members how many have ranked a vote ([848a7c3](https://github.com/cubicecho/ravocal/commit/848a7c3399a4998d0068a649ecd16b2e3ae424ea))
+
 # [1.2.0](https://github.com/cubicecho/ravocal/compare/v1.1.0...v1.2.0) (2026-11-18)
 
 ### Bug Fixes
