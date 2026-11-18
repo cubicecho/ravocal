@@ -8,8 +8,8 @@ import { storeToken, takeAfterSignIn } from '@/lib/auth';
 
 const searchSchema = z.object({ token: z.string().optional() });
 
-// Public (lib/auth.ts, PUBLIC_PATHS): the server's callback for Google or Facebook lands here, with a one-time token
-// for the session it opened.
+// Public (lib/auth.ts, PUBLIC_PATHS): the server's callback for Google, Facebook or the OIDC provider lands here, with a
+// one-time token for the session it opened.
 export const Route = createFileRoute('/auth/sso')({
   validateSearch: searchSchema,
   component: SsoPage,
