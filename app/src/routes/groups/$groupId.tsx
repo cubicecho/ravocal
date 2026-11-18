@@ -136,8 +136,11 @@ function VoteSection({ vote, memberCount }: { vote: Vote; memberCount: number })
               meta={
                 slot.id === vote.winnerSlotId ? (
                   <Badge variant="positive-soft">Winner</Badge>
-                ) : (
+                ) : // A slot's count is from when the vote opened; once it has closed, the group may be another size.
+                isOpen ? (
                   `${slot.overlapCount} of ${memberCount} free`
+                ) : (
+                  `${slot.overlapCount} were free`
                 )
               }
             />
