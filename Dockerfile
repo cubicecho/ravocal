@@ -10,6 +10,11 @@ RUN npm run codegen && npm run build:app
 FROM node:26-slim AS runtime
 WORKDIR /app
 
+# Links the GHCR package to the repository. The release workflow adds the version and revision.
+LABEL org.opencontainers.image.source="https://github.com/cubicecho/ravocal" \
+      org.opencontainers.image.title="Ravocal" \
+      org.opencontainers.image.description="Group scheduling and ranked-choice voting"
+
 # Only the runtime workspaces are installed: the app's dependencies exist to produce app/dist.
 COPY package.json package-lock.json ./
 COPY db/package.json db/
