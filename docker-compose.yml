@@ -1,15 +1,59 @@
+# The self-host install: the app and its Postgres. Put a .env beside this file with at least
+# BETTER_AUTH_SECRET (`openssl rand -hex 32`), then `docker compose up -d`. The server applies the
+# migrations at boot, so a fresh volume needs no setup step. Every variable is described in .env.example.
+#
+# It pulls the published image. To run what a clone builds instead, tag it the same first:
+#   docker build -t vantreeseba/ravocal:latest . && docker compose up -d
+name: ravocal
+
 services:
   ravocal:
     image: vantreeseba/ravocal:latest
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Each is described in .env.example. One left unset in .env is passed empty, and the server takes its default.
     environment:
-      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required. The image no longer embeds a database; point it at a Postgres}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required. Generate one with openssl rand -hex 32}
+      DATABASE_URL: postgres://ravocal:${POSTGRES_PASSWORD:-ravocal}@postgres:5432/ravocal
+      # The address people open. Sign-in and invite links are built from it.
       APP_URL: ${APP_URL:-http://localhost:3001}
-      NODE_ENV: production
-      PORT: 3001
-      # A nodemailer URL (smtp://user:pass@host:587). Without it nobody can sign in, unless SECURE_LOCAL_NET is on.
+      # Where a browser reaches this server for a provider's sign-in. Default APP_URL.
+      SERVER_URL: ${SERVER_URL:-}
+      # How people sign in. SMTP_URL emails a link; SECURE_LOCAL_NET needs none and is for a private network only.
       SMTP_URL: ${SMTP_URL:-}
       SMTP_FROM: ${SMTP_FROM:-}
+      SECURE_LOCAL_NET: ${SECURE_LOCAL_NET:-}
+      I_KNOW_SECURE_LOCAL_NET_IS_PUBLIC: ${I_KNOW_SECURE_LOCAL_NET_IS_PUBLIC:-}
+      # Sign in with Google or Facebook: each pair both set or both unset.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      FACEBOOK_CLIENT_ID: ${FACEBOOK_CLIENT_ID:-}
+      FACEBOOK_CLIENT_SECRET: ${FACEBOOK_CLIENT_SECRET:-}
+      # 1 behind one reverse proxy, so sign-in is throttled per visitor and not per proxy.
+      TRUST_PROXY: ${TRUST_PROXY:-}
+      DB_CONNECT_TIMEOUT_MS: ${DB_CONNECT_TIMEOUT_MS:-}
+      NODE_ENV: production
+      PORT: 3001
     ports:
       - "${PORT:-3001}:3001"
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ravocal
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ravocal}
+      POSTGRES_DB: ravocal
+    # No ports: the database is for the app beside it on the compose network, and nothing else reaches it.
+    volumes:
+      - ravocal_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ravocal -d ravocal"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  ravocal_pgdata:
