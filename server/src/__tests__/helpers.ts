@@ -112,14 +112,21 @@ export async function addMember(testDb: TestDb, groupId: string, userId: string)
   await testDb.insert(dbSchema.groupMembers).values({ groupId, userId });
 }
 
+/** What `expectError` hands back. */
+export interface RefusedOperation {
+  message: string;
+  /** `extensions.code`, to compare with `ErrorCode`. */
+  code: unknown;
+}
+
 /** A GraphQL client bound to one caller. */
 export interface TestClient {
   /** Executes an operation in-process and returns the raw result. */
   run: (query: string, variables?: Variables) => Promise<ExecutionResult>;
   /** Runs and returns `data`. Throws the first error's original cause, so a failure reads as the real bug. */
   expectOk: (query: string, variables?: Variables) => Promise<AnyData>;
-  /** Runs and returns the first error's message. Throws on success. */
-  expectError: (query: string, variables?: Variables) => Promise<string>;
+  /** Runs and returns the first error. Throws on success. */
+  expectError: (query: string, variables?: Variables) => Promise<RefusedOperation>;
 }
 
 let cachedSchema: GraphQLSchema | undefined;
@@ -160,7 +167,7 @@ export function createClient(testDb: TestDb, userId: string | null): TestClient 
     if (first === undefined) {
       throw new Error('Expected an error, got a successful result.');
     }
-    return first.message;
+    return { message: first.message, code: first.extensions.code };
   };
 
   return { run, expectOk, expectError };
