@@ -3,12 +3,12 @@
 # migrations at boot, so a fresh volume needs no setup step. Every variable is described in .env.example.
 #
 # It pulls the published image. To run what a clone builds instead, tag it the same first:
-#   docker build -t vantreeseba/ravocal:latest . && docker compose up -d
+#   docker build -t ghcr.io/cubicecho/ravocal:latest . && docker compose up -d
 name: ravocal
 
 services:
   ravocal:
-    image: vantreeseba/ravocal:latest
+    image: ghcr.io/cubicecho/ravocal:latest
     restart: unless-stopped
     depends_on:
       postgres:
