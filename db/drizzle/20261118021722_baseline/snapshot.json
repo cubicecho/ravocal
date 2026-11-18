@@ -1,0 +1,2097 @@
+{
+  "type": "base",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "bdaf03b0-8b5a-462f-99db-af22541f0aa6",
+  "prevIds": [
+    "00000000-0000-0000-0000-000000000000"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "group_invites"
+      ],
+      "writes": [
+        "s|tbl|public.group_invites",
+        "n|tbl|public.group_invites",
+        "e|tbl|public.group_invites",
+        "n|rel|public.group_invites",
+        "n|type|public.group_invites",
+        "n|rel|public.group_invites_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "group_members"
+      ],
+      "writes": [
+        "s|tbl|public.group_members",
+        "n|tbl|public.group_members",
+        "e|tbl|public.group_members",
+        "n|rel|public.group_members",
+        "n|type|public.group_members",
+        "n|rel|public.group_members_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "groups"
+      ],
+      "writes": [
+        "s|tbl|public.groups",
+        "n|tbl|public.groups",
+        "e|tbl|public.groups",
+        "n|rel|public.groups",
+        "n|type|public.groups",
+        "n|rel|public.groups_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "magic_links"
+      ],
+      "writes": [
+        "s|tbl|public.magic_links",
+        "n|tbl|public.magic_links",
+        "e|tbl|public.magic_links",
+        "n|rel|public.magic_links",
+        "n|type|public.magic_links",
+        "n|rel|public.magic_links_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "time_blocks"
+      ],
+      "writes": [
+        "s|tbl|public.time_blocks",
+        "n|tbl|public.time_blocks",
+        "e|tbl|public.time_blocks",
+        "n|rel|public.time_blocks",
+        "n|type|public.time_blocks",
+        "n|rel|public.time_blocks_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "users"
+      ],
+      "writes": [
+        "s|tbl|public.users",
+        "n|tbl|public.users",
+        "e|tbl|public.users",
+        "n|rel|public.users",
+        "n|type|public.users",
+        "n|rel|public.users_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "vote_rankings"
+      ],
+      "writes": [
+        "s|tbl|public.vote_rankings",
+        "n|tbl|public.vote_rankings",
+        "e|tbl|public.vote_rankings",
+        "n|rel|public.vote_rankings",
+        "n|type|public.vote_rankings",
+        "n|rel|public.vote_rankings_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "vote_slots"
+      ],
+      "writes": [
+        "s|tbl|public.vote_slots",
+        "n|tbl|public.vote_slots",
+        "e|tbl|public.vote_slots",
+        "n|rel|public.vote_slots",
+        "n|type|public.vote_slots",
+        "n|rel|public.vote_slots_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "votes"
+      ],
+      "writes": [
+        "s|tbl|public.votes",
+        "n|tbl|public.votes",
+        "e|tbl|public.votes",
+        "n|rel|public.votes",
+        "n|type|public.votes",
+        "n|rel|public.votes_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "group_invites",
+        "uq_group_invites_token"
+      ],
+      "writes": [
+        "s|idx|public.uq_group_invites_token",
+        "n|idx|public.uq_group_invites_token",
+        "e|idx|public.uq_group_invites_token",
+        "n|rel|public.uq_group_invites_token"
+      ],
+      "reads": [
+        "n|tbl|public.group_invites",
+        "n|sch|public",
+        "n|col|public.group_invites.token"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "group_invites",
+        "idx_group_invites_group_id"
+      ],
+      "writes": [
+        "s|idx|public.idx_group_invites_group_id",
+        "n|idx|public.idx_group_invites_group_id",
+        "e|idx|public.idx_group_invites_group_id",
+        "n|rel|public.idx_group_invites_group_id"
+      ],
+      "reads": [
+        "n|tbl|public.group_invites",
+        "n|sch|public",
+        "n|col|public.group_invites.group_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "group_members",
+        "uq_group_members_group_id_user_id"
+      ],
+      "writes": [
+        "s|idx|public.uq_group_members_group_id_user_id",
+        "n|idx|public.uq_group_members_group_id_user_id",
+        "e|idx|public.uq_group_members_group_id_user_id",
+        "n|rel|public.uq_group_members_group_id_user_id"
+      ],
+      "reads": [
+        "n|tbl|public.group_members",
+        "n|sch|public",
+        "n|col|public.group_members.group_id",
+        "n|col|public.group_members.user_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "group_members",
+        "idx_group_members_user_id"
+      ],
+      "writes": [
+        "s|idx|public.idx_group_members_user_id",
+        "n|idx|public.idx_group_members_user_id",
+        "e|idx|public.idx_group_members_user_id",
+        "n|rel|public.idx_group_members_user_id"
+      ],
+      "reads": [
+        "n|tbl|public.group_members",
+        "n|sch|public",
+        "n|col|public.group_members.user_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "groups",
+        "idx_groups_owner_id"
+      ],
+      "writes": [
+        "s|idx|public.idx_groups_owner_id",
+        "n|idx|public.idx_groups_owner_id",
+        "e|idx|public.idx_groups_owner_id",
+        "n|rel|public.idx_groups_owner_id"
+      ],
+      "reads": [
+        "n|tbl|public.groups",
+        "n|sch|public",
+        "n|col|public.groups.owner_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "magic_links",
+        "uq_magic_links_token"
+      ],
+      "writes": [
+        "s|idx|public.uq_magic_links_token",
+        "n|idx|public.uq_magic_links_token",
+        "e|idx|public.uq_magic_links_token",
+        "n|rel|public.uq_magic_links_token"
+      ],
+      "reads": [
+        "n|tbl|public.magic_links",
+        "n|sch|public",
+        "n|col|public.magic_links.token"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "magic_links",
+        "idx_magic_links_user_id"
+      ],
+      "writes": [
+        "s|idx|public.idx_magic_links_user_id",
+        "n|idx|public.idx_magic_links_user_id",
+        "e|idx|public.idx_magic_links_user_id",
+        "n|rel|public.idx_magic_links_user_id"
+      ],
+      "reads": [
+        "n|tbl|public.magic_links",
+        "n|sch|public",
+        "n|col|public.magic_links.user_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "time_blocks",
+        "idx_time_blocks_group_id"
+      ],
+      "writes": [
+        "s|idx|public.idx_time_blocks_group_id",
+        "n|idx|public.idx_time_blocks_group_id",
+        "e|idx|public.idx_time_blocks_group_id",
+        "n|rel|public.idx_time_blocks_group_id"
+      ],
+      "reads": [
+        "n|tbl|public.time_blocks",
+        "n|sch|public",
+        "n|col|public.time_blocks.group_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "time_blocks",
+        "idx_time_blocks_user_id"
+      ],
+      "writes": [
+        "s|idx|public.idx_time_blocks_user_id",
+        "n|idx|public.idx_time_blocks_user_id",
+        "e|idx|public.idx_time_blocks_user_id",
+        "n|rel|public.idx_time_blocks_user_id"
+      ],
+      "reads": [
+        "n|tbl|public.time_blocks",
+        "n|sch|public",
+        "n|col|public.time_blocks.user_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "users",
+        "uq_users_email"
+      ],
+      "writes": [
+        "s|idx|public.uq_users_email",
+        "n|idx|public.uq_users_email",
+        "e|idx|public.uq_users_email",
+        "n|rel|public.uq_users_email"
+      ],
+      "reads": [
+        "n|tbl|public.users",
+        "n|sch|public",
+        "n|col|public.users.email"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "vote_rankings",
+        "uq_vote_rankings_vote_id_user_id_slot_id"
+      ],
+      "writes": [
+        "s|idx|public.uq_vote_rankings_vote_id_user_id_slot_id",
+        "n|idx|public.uq_vote_rankings_vote_id_user_id_slot_id",
+        "e|idx|public.uq_vote_rankings_vote_id_user_id_slot_id",
+        "n|rel|public.uq_vote_rankings_vote_id_user_id_slot_id"
+      ],
+      "reads": [
+        "n|tbl|public.vote_rankings",
+        "n|sch|public",
+        "n|col|public.vote_rankings.vote_id",
+        "n|col|public.vote_rankings.user_id",
+        "n|col|public.vote_rankings.slot_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "vote_rankings",
+        "idx_vote_rankings_user_id"
+      ],
+      "writes": [
+        "s|idx|public.idx_vote_rankings_user_id",
+        "n|idx|public.idx_vote_rankings_user_id",
+        "e|idx|public.idx_vote_rankings_user_id",
+        "n|rel|public.idx_vote_rankings_user_id"
+      ],
+      "reads": [
+        "n|tbl|public.vote_rankings",
+        "n|sch|public",
+        "n|col|public.vote_rankings.user_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "vote_rankings",
+        "idx_vote_rankings_slot_id"
+      ],
+      "writes": [
+        "s|idx|public.idx_vote_rankings_slot_id",
+        "n|idx|public.idx_vote_rankings_slot_id",
+        "e|idx|public.idx_vote_rankings_slot_id",
+        "n|rel|public.idx_vote_rankings_slot_id"
+      ],
+      "reads": [
+        "n|tbl|public.vote_rankings",
+        "n|sch|public",
+        "n|col|public.vote_rankings.slot_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "vote_slots",
+        "idx_vote_slots_vote_id"
+      ],
+      "writes": [
+        "s|idx|public.idx_vote_slots_vote_id",
+        "n|idx|public.idx_vote_slots_vote_id",
+        "e|idx|public.idx_vote_slots_vote_id",
+        "n|rel|public.idx_vote_slots_vote_id"
+      ],
+      "reads": [
+        "n|tbl|public.vote_slots",
+        "n|sch|public",
+        "n|col|public.vote_slots.vote_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "votes",
+        "idx_votes_group_id"
+      ],
+      "writes": [
+        "s|idx|public.idx_votes_group_id",
+        "n|idx|public.idx_votes_group_id",
+        "e|idx|public.idx_votes_group_id",
+        "n|rel|public.idx_votes_group_id"
+      ],
+      "reads": [
+        "n|tbl|public.votes",
+        "n|sch|public",
+        "n|col|public.votes.group_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "group_invites"
+      ],
+      "writes": [
+        "s|fk|public.group_invites.group_invites_group_id_groups_id_fkey",
+        "n|fk|public.group_invites.group_invites_group_id_groups_id_fkey",
+        "e|fk|public.group_invites.group_invites_group_id_groups_id_fkey",
+        "n|con|public.group_invites.group_invites_group_id_groups_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.group_invites",
+        "n|sch|public",
+        "n|tbl|public.groups",
+        "n|sch|public",
+        "n|col|public.group_invites.group_id",
+        "n|col|public.groups.id",
+        "e|uniqueness|public.groups.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "group_members"
+      ],
+      "writes": [
+        "s|fk|public.group_members.group_members_group_id_groups_id_fkey",
+        "n|fk|public.group_members.group_members_group_id_groups_id_fkey",
+        "e|fk|public.group_members.group_members_group_id_groups_id_fkey",
+        "n|con|public.group_members.group_members_group_id_groups_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.group_members",
+        "n|sch|public",
+        "n|tbl|public.groups",
+        "n|sch|public",
+        "n|col|public.group_members.group_id",
+        "n|col|public.groups.id",
+        "e|uniqueness|public.groups.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "group_members"
+      ],
+      "writes": [
+        "s|fk|public.group_members.group_members_user_id_users_id_fkey",
+        "n|fk|public.group_members.group_members_user_id_users_id_fkey",
+        "e|fk|public.group_members.group_members_user_id_users_id_fkey",
+        "n|con|public.group_members.group_members_user_id_users_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.group_members",
+        "n|sch|public",
+        "n|tbl|public.users",
+        "n|sch|public",
+        "n|col|public.group_members.user_id",
+        "n|col|public.users.id",
+        "e|uniqueness|public.users.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "groups"
+      ],
+      "writes": [
+        "s|fk|public.groups.groups_owner_id_users_id_fkey",
+        "n|fk|public.groups.groups_owner_id_users_id_fkey",
+        "e|fk|public.groups.groups_owner_id_users_id_fkey",
+        "n|con|public.groups.groups_owner_id_users_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.groups",
+        "n|sch|public",
+        "n|tbl|public.users",
+        "n|sch|public",
+        "n|col|public.groups.owner_id",
+        "n|col|public.users.id",
+        "e|uniqueness|public.users.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "magic_links"
+      ],
+      "writes": [
+        "s|fk|public.magic_links.magic_links_user_id_users_id_fkey",
+        "n|fk|public.magic_links.magic_links_user_id_users_id_fkey",
+        "e|fk|public.magic_links.magic_links_user_id_users_id_fkey",
+        "n|con|public.magic_links.magic_links_user_id_users_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.magic_links",
+        "n|sch|public",
+        "n|tbl|public.users",
+        "n|sch|public",
+        "n|col|public.magic_links.user_id",
+        "n|col|public.users.id",
+        "e|uniqueness|public.users.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "time_blocks"
+      ],
+      "writes": [
+        "s|fk|public.time_blocks.time_blocks_group_id_groups_id_fkey",
+        "n|fk|public.time_blocks.time_blocks_group_id_groups_id_fkey",
+        "e|fk|public.time_blocks.time_blocks_group_id_groups_id_fkey",
+        "n|con|public.time_blocks.time_blocks_group_id_groups_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.time_blocks",
+        "n|sch|public",
+        "n|tbl|public.groups",
+        "n|sch|public",
+        "n|col|public.time_blocks.group_id",
+        "n|col|public.groups.id",
+        "e|uniqueness|public.groups.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "time_blocks"
+      ],
+      "writes": [
+        "s|fk|public.time_blocks.time_blocks_user_id_users_id_fkey",
+        "n|fk|public.time_blocks.time_blocks_user_id_users_id_fkey",
+        "e|fk|public.time_blocks.time_blocks_user_id_users_id_fkey",
+        "n|con|public.time_blocks.time_blocks_user_id_users_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.time_blocks",
+        "n|sch|public",
+        "n|tbl|public.users",
+        "n|sch|public",
+        "n|col|public.time_blocks.user_id",
+        "n|col|public.users.id",
+        "e|uniqueness|public.users.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "vote_rankings"
+      ],
+      "writes": [
+        "s|fk|public.vote_rankings.vote_rankings_vote_id_votes_id_fkey",
+        "n|fk|public.vote_rankings.vote_rankings_vote_id_votes_id_fkey",
+        "e|fk|public.vote_rankings.vote_rankings_vote_id_votes_id_fkey",
+        "n|con|public.vote_rankings.vote_rankings_vote_id_votes_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.vote_rankings",
+        "n|sch|public",
+        "n|tbl|public.votes",
+        "n|sch|public",
+        "n|col|public.vote_rankings.vote_id",
+        "n|col|public.votes.id",
+        "e|uniqueness|public.votes.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "vote_rankings"
+      ],
+      "writes": [
+        "s|fk|public.vote_rankings.vote_rankings_user_id_users_id_fkey",
+        "n|fk|public.vote_rankings.vote_rankings_user_id_users_id_fkey",
+        "e|fk|public.vote_rankings.vote_rankings_user_id_users_id_fkey",
+        "n|con|public.vote_rankings.vote_rankings_user_id_users_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.vote_rankings",
+        "n|sch|public",
+        "n|tbl|public.users",
+        "n|sch|public",
+        "n|col|public.vote_rankings.user_id",
+        "n|col|public.users.id",
+        "e|uniqueness|public.users.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "vote_rankings"
+      ],
+      "writes": [
+        "s|fk|public.vote_rankings.vote_rankings_slot_id_vote_slots_id_fkey",
+        "n|fk|public.vote_rankings.vote_rankings_slot_id_vote_slots_id_fkey",
+        "e|fk|public.vote_rankings.vote_rankings_slot_id_vote_slots_id_fkey",
+        "n|con|public.vote_rankings.vote_rankings_slot_id_vote_slots_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.vote_rankings",
+        "n|sch|public",
+        "n|tbl|public.vote_slots",
+        "n|sch|public",
+        "n|col|public.vote_rankings.slot_id",
+        "n|col|public.vote_slots.id",
+        "e|uniqueness|public.vote_slots.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "vote_slots"
+      ],
+      "writes": [
+        "s|fk|public.vote_slots.vote_slots_vote_id_votes_id_fkey",
+        "n|fk|public.vote_slots.vote_slots_vote_id_votes_id_fkey",
+        "e|fk|public.vote_slots.vote_slots_vote_id_votes_id_fkey",
+        "n|con|public.vote_slots.vote_slots_vote_id_votes_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.vote_slots",
+        "n|sch|public",
+        "n|tbl|public.votes",
+        "n|sch|public",
+        "n|col|public.vote_slots.vote_id",
+        "n|col|public.votes.id",
+        "e|uniqueness|public.votes.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "votes"
+      ],
+      "writes": [
+        "s|fk|public.votes.votes_group_id_groups_id_fkey",
+        "n|fk|public.votes.votes_group_id_groups_id_fkey",
+        "e|fk|public.votes.votes_group_id_groups_id_fkey",
+        "n|con|public.votes.votes_group_id_groups_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.votes",
+        "n|sch|public",
+        "n|tbl|public.groups",
+        "n|sch|public",
+        "n|col|public.votes.group_id",
+        "n|col|public.groups.id",
+        "e|uniqueness|public.groups.id"
+      ]
+    }
+  ],
+  "ddl": [
+    {
+      "schema": "public",
+      "name": "group_invites",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "group_members",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "groups",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "magic_links",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "time_blocks",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "users",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "vote_rankings",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "vote_slots",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "votes",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "table": "group_invites",
+      "name": "id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "group_invites",
+      "name": "group_id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "group_invites",
+      "name": "email",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "group_invites",
+      "name": "token",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "group_invites",
+      "name": "expires_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "group_invites",
+      "name": "accepted_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "group_invites",
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "group_members",
+      "name": "id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "group_members",
+      "name": "group_id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "group_members",
+      "name": "user_id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "group_members",
+      "name": "joined_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "groups",
+      "name": "id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "groups",
+      "name": "name",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "groups",
+      "name": "owner_id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "groups",
+      "name": "overlap_threshold",
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "50",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "groups",
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "magic_links",
+      "name": "id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "magic_links",
+      "name": "user_id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "magic_links",
+      "name": "token",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "magic_links",
+      "name": "expires_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "magic_links",
+      "name": "used_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "magic_links",
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "time_blocks",
+      "name": "id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "time_blocks",
+      "name": "group_id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "time_blocks",
+      "name": "user_id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "time_blocks",
+      "name": "starts_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "time_blocks",
+      "name": "ends_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "time_blocks",
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "users",
+      "name": "id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "users",
+      "name": "email",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "users",
+      "name": "name",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "users",
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "vote_rankings",
+      "name": "id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "vote_rankings",
+      "name": "vote_id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "vote_rankings",
+      "name": "user_id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "vote_rankings",
+      "name": "slot_id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "vote_rankings",
+      "name": "rank",
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "vote_rankings",
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "vote_slots",
+      "name": "id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "vote_slots",
+      "name": "vote_id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "vote_slots",
+      "name": "starts_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "vote_slots",
+      "name": "ends_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "vote_slots",
+      "name": "overlap_count",
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "votes",
+      "name": "id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "votes",
+      "name": "group_id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "votes",
+      "name": "status",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'active'",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "votes",
+      "name": "is_forced",
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "votes",
+      "name": "winner_slot_id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "votes",
+      "name": "closed_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "votes",
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "group_invites",
+      "name": "uq_group_invites_token",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "token",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "group_invites",
+      "name": "idx_group_invites_group_id",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "group_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "group_members",
+      "name": "uq_group_members_group_id_user_id",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "group_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "group_members",
+      "name": "idx_group_members_user_id",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "groups",
+      "name": "idx_groups_owner_id",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "owner_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "magic_links",
+      "name": "uq_magic_links_token",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "token",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "magic_links",
+      "name": "idx_magic_links_user_id",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "time_blocks",
+      "name": "idx_time_blocks_group_id",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "group_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "time_blocks",
+      "name": "idx_time_blocks_user_id",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "users",
+      "name": "uq_users_email",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "email",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "vote_rankings",
+      "name": "uq_vote_rankings_vote_id_user_id_slot_id",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "vote_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "slot_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "vote_rankings",
+      "name": "idx_vote_rankings_user_id",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "vote_rankings",
+      "name": "idx_vote_rankings_slot_id",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "slot_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "vote_slots",
+      "name": "idx_vote_slots_vote_id",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "vote_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "votes",
+      "name": "idx_votes_group_id",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "group_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "group_invites",
+      "name": "group_invites_group_id_groups_id_fkey",
+      "nameExplicit": false,
+      "columns": [
+        "group_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "groups",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "entityType": "fks"
+    },
+    {
+      "schema": "public",
+      "table": "group_members",
+      "name": "group_members_group_id_groups_id_fkey",
+      "nameExplicit": false,
+      "columns": [
+        "group_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "groups",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "entityType": "fks"
+    },
+    {
+      "schema": "public",
+      "table": "group_members",
+      "name": "group_members_user_id_users_id_fkey",
+      "nameExplicit": false,
+      "columns": [
+        "user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "users",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "entityType": "fks"
+    },
+    {
+      "schema": "public",
+      "table": "groups",
+      "name": "groups_owner_id_users_id_fkey",
+      "nameExplicit": false,
+      "columns": [
+        "owner_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "users",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "entityType": "fks"
+    },
+    {
+      "schema": "public",
+      "table": "magic_links",
+      "name": "magic_links_user_id_users_id_fkey",
+      "nameExplicit": false,
+      "columns": [
+        "user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "users",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "entityType": "fks"
+    },
+    {
+      "schema": "public",
+      "table": "time_blocks",
+      "name": "time_blocks_group_id_groups_id_fkey",
+      "nameExplicit": false,
+      "columns": [
+        "group_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "groups",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "entityType": "fks"
+    },
+    {
+      "schema": "public",
+      "table": "time_blocks",
+      "name": "time_blocks_user_id_users_id_fkey",
+      "nameExplicit": false,
+      "columns": [
+        "user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "users",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "entityType": "fks"
+    },
+    {
+      "schema": "public",
+      "table": "vote_rankings",
+      "name": "vote_rankings_vote_id_votes_id_fkey",
+      "nameExplicit": false,
+      "columns": [
+        "vote_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "votes",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "entityType": "fks"
+    },
+    {
+      "schema": "public",
+      "table": "vote_rankings",
+      "name": "vote_rankings_user_id_users_id_fkey",
+      "nameExplicit": false,
+      "columns": [
+        "user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "users",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "entityType": "fks"
+    },
+    {
+      "schema": "public",
+      "table": "vote_rankings",
+      "name": "vote_rankings_slot_id_vote_slots_id_fkey",
+      "nameExplicit": false,
+      "columns": [
+        "slot_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "vote_slots",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "entityType": "fks"
+    },
+    {
+      "schema": "public",
+      "table": "vote_slots",
+      "name": "vote_slots_vote_id_votes_id_fkey",
+      "nameExplicit": false,
+      "columns": [
+        "vote_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "votes",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "entityType": "fks"
+    },
+    {
+      "schema": "public",
+      "table": "votes",
+      "name": "votes_group_id_groups_id_fkey",
+      "nameExplicit": false,
+      "columns": [
+        "group_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "groups",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "entityType": "fks"
+    },
+    {
+      "schema": "public",
+      "table": "group_invites",
+      "name": "group_invites_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "group_members",
+      "name": "group_members_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "groups",
+      "name": "groups_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "magic_links",
+      "name": "magic_links_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "time_blocks",
+      "name": "time_blocks_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "users",
+      "name": "users_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "vote_rankings",
+      "name": "vote_rankings_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "vote_slots",
+      "name": "vote_slots_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "votes",
+      "name": "votes_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    }
+  ]
+}
