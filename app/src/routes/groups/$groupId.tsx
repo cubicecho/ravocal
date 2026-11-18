@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "@/components/ui/icons";
 import { asQuery } from "@/lib/as-query";
+import { byStart, formatDay, formatWindow } from "@/lib/time-window";
 
 export const Route = createFileRoute("/groups/$groupId")({
   component: GroupPage,
@@ -76,14 +77,15 @@ const GROUP_DETAIL = graphql(`
   }
 `);
 
-function formatWindow(startsAt: string, endsAt: string): string {
-  return `${new Date(startsAt).toLocaleString()} – ${new Date(endsAt).toLocaleString()}`;
+function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
 }
 
 function GroupPage() {
   const { groupId } = Route.useParams();
   const result = useQuery(GROUP_DETAIL, { variables: { id: groupId } });
   const group = result.data?.group;
+  const vote = group?.activeVote;
 
   return (
     <PageLayout
@@ -91,6 +93,9 @@ function GroupPage() {
       description={group ? `Overlap threshold: ${group.overlapThreshold}%` : undefined}
       loading={result.loading}
       width="prose"
+      // A section's heading sits gap-6 over its rows, so the sections need more room than that
+      // between them, or each heading reads as the end of the list above it.
+      contentClassName="gap-10"
       backSlot={
         <Button
           variant="outline"
@@ -128,6 +133,7 @@ function GroupPage() {
                       <ListItem
                         key={m.id}
                         title={m.user.name ?? m.user.email}
+                        description={m.user.name ? m.user.email : undefined}
                         meta={
                           m.userId === group.ownerId ? (
                             <Badge variant="outline">Owner</Badge>
@@ -139,40 +145,63 @@ function GroupPage() {
                 }
               />
 
-              <Section
-                title="Free Time Blocks"
-                contentSlot={
-                  group.timeBlocks.length === 0 ? (
-                    <EmptyState compact title="No time blocks submitted yet." />
-                  ) : (
+              {group.pendingInvites.length > 0 && (
+                <Section
+                  title={`Invited (${group.pendingInvites.length})`}
+                  description="They join once they open the link in their invite email."
+                  contentSlot={
                     <List
-                      label="Free time blocks"
-                      contentSlot={group.timeBlocks.map((tb) => (
+                      label="Invited"
+                      contentSlot={group.pendingInvites.map((invite) => (
                         <ListItem
-                          key={tb.id}
-                          title={tb.user.name ?? tb.user.email}
-                          description={formatWindow(tb.startsAt, tb.endsAt)}
+                          key={invite.id}
+                          title={invite.email}
+                          meta={`Expires ${formatDay(invite.expiresAt)}`}
                         />
                       ))}
+                    />
+                  }
+                />
+              )}
+
+              <Section
+                title="Free time"
+                contentSlot={
+                  group.timeBlocks.length === 0 ? (
+                    <EmptyState compact title="No one has added free time yet." />
+                  ) : (
+                    <List
+                      label="Free time"
+                      contentSlot={[...group.timeBlocks]
+                        .sort(byStart)
+                        .map((tb) => (
+                          <ListItem
+                            key={tb.id}
+                            title={formatWindow(tb.startsAt, tb.endsAt)}
+                            description={tb.user.name ?? tb.user.email}
+                          />
+                        ))}
                     />
                   )
                 }
               />
 
-              {group.activeVote && (
+              {vote && (
                 <Section
-                  title="Active Vote"
-                  description={`${group.activeVote.isForced ? "Forced vote" : "Regular vote"} · ${group.activeVote.slots.length} candidate slots`}
+                  title="Active vote"
+                  description={`${vote.isForced ? "Forced vote" : "Vote"} over ${plural(vote.slots.length, "candidate time", "candidate times")}`}
                   contentSlot={
                     <List
-                      label="Candidate slots"
-                      contentSlot={group.activeVote.slots.map((slot) => (
-                        <ListItem
-                          key={slot.id}
-                          title={formatWindow(slot.startsAt, slot.endsAt)}
-                          meta={`${slot.overlapCount} free`}
-                        />
-                      ))}
+                      label="Candidate times"
+                      contentSlot={[...vote.slots]
+                        .sort(byStart)
+                        .map((slot) => (
+                          <ListItem
+                            key={slot.id}
+                            title={formatWindow(slot.startsAt, slot.endsAt)}
+                            meta={`${slot.overlapCount} of ${group.members.length} free`}
+                          />
+                        ))}
                     />
                   }
                 />

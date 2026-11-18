@@ -13,7 +13,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as InviteRouteImport } from './routes/invite'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GroupsIndexRouteImport } from './routes/groups/index'
-import { Route as LoginVerifyRouteImport } from './routes/login.verify'
+import { Route as LoginVerifyRouteImport } from './routes/login_.verify'
 import { Route as GroupsNewRouteImport } from './routes/groups/new'
 import { Route as GroupsGroupIdRouteImport } from './routes/groups/$groupId'
 
@@ -38,9 +38,9 @@ const GroupsIndexRoute = GroupsIndexRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginVerifyRoute = LoginVerifyRouteImport.update({
-  id: '/verify',
-  path: '/verify',
-  getParentRoute: () => LoginRoute,
+  id: '/login_/verify',
+  path: '/login/verify',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const GroupsNewRoute = GroupsNewRouteImport.update({
   id: '/groups/new',
@@ -56,7 +56,7 @@ const GroupsGroupIdRoute = GroupsGroupIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/invite': typeof InviteRoute
-  '/login': typeof LoginRouteWithChildren
+  '/login': typeof LoginRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/groups/new': typeof GroupsNewRoute
   '/login/verify': typeof LoginVerifyRoute
@@ -65,7 +65,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/invite': typeof InviteRoute
-  '/login': typeof LoginRouteWithChildren
+  '/login': typeof LoginRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/groups/new': typeof GroupsNewRoute
   '/login/verify': typeof LoginVerifyRoute
@@ -75,10 +75,10 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/invite': typeof InviteRoute
-  '/login': typeof LoginRouteWithChildren
+  '/login': typeof LoginRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/groups/new': typeof GroupsNewRoute
-  '/login/verify': typeof LoginVerifyRoute
+  '/login_/verify': typeof LoginVerifyRoute
   '/groups/': typeof GroupsIndexRoute
 }
 export interface FileRouteTypes {
@@ -107,16 +107,17 @@ export interface FileRouteTypes {
     | '/login'
     | '/groups/$groupId'
     | '/groups/new'
-    | '/login/verify'
+    | '/login_/verify'
     | '/groups/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   InviteRoute: typeof InviteRoute
-  LoginRoute: typeof LoginRouteWithChildren
+  LoginRoute: typeof LoginRoute
   GroupsGroupIdRoute: typeof GroupsGroupIdRoute
   GroupsNewRoute: typeof GroupsNewRoute
+  LoginVerifyRoute: typeof LoginVerifyRoute
   GroupsIndexRoute: typeof GroupsIndexRoute
 }
 
@@ -150,12 +151,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GroupsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/login/verify': {
-      id: '/login/verify'
-      path: '/verify'
+    '/login_/verify': {
+      id: '/login_/verify'
+      path: '/login/verify'
       fullPath: '/login/verify'
       preLoaderRoute: typeof LoginVerifyRouteImport
-      parentRoute: typeof LoginRoute
+      parentRoute: typeof rootRouteImport
     }
     '/groups/new': {
       id: '/groups/new'
@@ -174,22 +175,13 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface LoginRouteChildren {
-  LoginVerifyRoute: typeof LoginVerifyRoute
-}
-
-const LoginRouteChildren: LoginRouteChildren = {
-  LoginVerifyRoute: LoginVerifyRoute,
-}
-
-const LoginRouteWithChildren = LoginRoute._addFileChildren(LoginRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   InviteRoute: InviteRoute,
-  LoginRoute: LoginRouteWithChildren,
+  LoginRoute: LoginRoute,
   GroupsGroupIdRoute: GroupsGroupIdRoute,
   GroupsNewRoute: GroupsNewRoute,
+  LoginVerifyRoute: LoginVerifyRoute,
   GroupsIndexRoute: GroupsIndexRoute,
 }
 export const routeTree = rootRouteImport

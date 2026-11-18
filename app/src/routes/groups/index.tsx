@@ -1,5 +1,5 @@
-import { useQuery } from "@apollo/client";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { useApolloClient, useQuery } from "@apollo/client";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { graphql } from "@/__generated__/index.js";
 import { Users } from "@/components/domain/app-icons";
 import { EmptyState } from "@/components/empty-state";
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Plus } from "@/components/ui/icons";
 import { asQuery } from "@/lib/as-query";
+import { signOut } from "@/lib/auth";
 
 export const Route = createFileRoute("/groups/")({
   component: GroupsPage,
@@ -36,18 +37,30 @@ const MY_GROUPS = graphql(`
 function GroupsPage() {
   const result = useQuery(MY_GROUPS);
   const groups = result.data?.myGroups ?? [];
+  const client = useApolloClient();
+  const navigate = useNavigate();
+
+  const leave = async () => {
+    signOut();
+    // Nothing the last account fetched may show to the next one.
+    await client.clearStore();
+    await navigate({ to: "/login" });
+  };
 
   return (
     <PageLayout
-      title="Your Groups"
+      title="Your groups"
       actionSlot={
-        <Button
-          size="sm"
-          variant="info"
-          iconSlot={<Plus />}
-          linkSlot={<Link to="/groups/new" />}
-          content="New Group"
-        />
+        <>
+          <Button size="sm" variant="outline" onClick={() => void leave()} content="Sign out" />
+          <Button
+            size="sm"
+            variant="info"
+            iconSlot={<Plus />}
+            linkSlot={<Link to="/groups/new" />}
+            content="New group"
+          />
+        </>
       }
       width="prose"
       contentSlot={
@@ -70,15 +83,9 @@ function GroupsPage() {
               <ListItem
                 key={group.id}
                 title={group.name}
+                description={`${group.members.length} ${group.members.length === 1 ? "member" : "members"}`}
                 linkSlot={<Link to="/groups/$groupId" params={{ groupId: group.id }} />}
-                meta={
-                  <>
-                    {group.activeVote && <Badge variant="info-soft">Vote active</Badge>}
-                    <span className="text-xs text-foreground/60">
-                      {group.members.length} member{group.members.length !== 1 ? "s" : ""}
-                    </span>
-                  </>
-                }
+                meta={group.activeVote ? <Badge variant="info-soft">Vote active</Badge> : undefined}
               />
             ))}
           />

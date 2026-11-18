@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { CenteredCardLayout } from "@/components/centered-card-layout";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { isSignedIn } from "@/lib/auth";
 import { describeError } from "@/lib/error-message";
 
 interface PendingScreenProps {
@@ -23,7 +24,16 @@ export function PendingScreen({ title, failedTitle, error }: PendingScreenProps)
         title={failedTitle}
         description={describeError(error)}
         footerActionsSlot={
-          <Button variant="outline" linkSlot={<Link to="/login" />} content="Back to sign in" />
+          // A failed invite leaves its reader signed in, and /login would only bounce them on.
+          isSignedIn() ? (
+            <Button
+              variant="outline"
+              linkSlot={<Link to="/groups" />}
+              content="Go to your groups"
+            />
+          ) : (
+            <Button variant="outline" linkSlot={<Link to="/login" />} content="Back to sign in" />
+          )
         }
       />
     );
