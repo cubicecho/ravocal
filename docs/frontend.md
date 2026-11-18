@@ -84,12 +84,14 @@ import { graphql } from "@/__generated__/index.js";
 
 const MY_QUERY = graphql(`
   query MyGroups {
-    myGroups { id name }
+    groups { id name }
   }
 `);
 ```
 
 Colocate operations with the component that uses them. After adding/changing operations, run `npm run codegen:app`.
+
+The API is mostly generated (`docs/graphql.md`): `groups` is already only the reader's own, `group(where: { id: { eq: $id } })` is `null` for a group they aren't in (the page shows "Group not found"), and the reader's own user comes from `getSession { user { id name email } }`. Owner-only actions are drawn only when `getSession.user.id` is the group's `ownerId`; the server refuses them anyway.
 
 ## Path Alias
 

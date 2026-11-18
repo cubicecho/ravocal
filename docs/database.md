@@ -80,10 +80,10 @@ better-auth reads and writes these through its Drizzle adapter (`server/src/auth
 |--------|------|-------|
 | id | uuid PK | |
 | group_id | uuid FK → groups | cascade delete |
-| email | text NOT NULL | |
-| token | text UNIQUE NOT NULL | 32-byte hex |
+| email | text NOT NULL | where the link was sent; anyone holding it may join |
+| token | text UNIQUE NOT NULL | 32 random bytes, hex; made by the model (`$defaultFn`) when the row is inserted. Never served through the schema |
 | expires_at | timestamptz NOT NULL | 7 days |
-| accepted_at | timestamptz | null until accepted |
+| accepted_at | timestamptz | null until the link is used; it works once. A cancelled invite's row is deleted |
 | created_at | timestamptz NOT NULL | auto |
 
 ### `time_blocks`
@@ -92,31 +92,34 @@ better-auth reads and writes these through its Drizzle adapter (`server/src/auth
 | id | uuid PK | |
 | group_id | uuid FK → groups | cascade delete |
 | user_id | uuid FK → users | cascade delete |
-| starts_at | timestamptz NOT NULL | must be :00 or :30 |
-| ends_at | timestamptz NOT NULL | must be :00 or :30 |
+| starts_at | timestamptz NOT NULL | on the 30-minute grid in UTC |
+| ends_at | timestamptz NOT NULL | on the 30-minute grid in UTC, after `starts_at` |
 | created_at | timestamptz NOT NULL | auto |
 
-Validation: `starts_at` and `ends_at` must be 30-min aligned; `ends_at - starts_at >= 30 min`. Enforced in the Zod validator in `server/src/schema/resolvers/time-blocks.ts`.
+Validation: both ends sit on the 30-minute grid in UTC (`:00` or `:30`, no seconds), and `ends_at` is after `starts_at`. Enforced by the write hook in `server/src/time-blocks/hooks.ts`, on the row as written.
 
 ### `votes`
 | Column | Type | Notes |
 |--------|------|-------|
 | id | uuid PK | |
 | group_id | uuid FK → groups | cascade delete |
-| status | text NOT NULL DEFAULT 'active' | enum: active \| closed |
+| status | text NOT NULL DEFAULT 'active' | `VOTE_STATUSES`: active \| closed (a Drizzle text enum, so GraphQL's `VotesStatusEnum`) |
 | is_forced | boolean NOT NULL DEFAULT false | |
 | winner_slot_id | uuid nullable | set on closeVote |
 | closed_at | timestamptz | null until closed |
 | created_at | timestamptz NOT NULL | auto |
+| — | UNIQUE(group_id) WHERE status = 'active' | `uq_votes_group_id_active`: one open vote per group |
 
 ### `vote_slots`
 | Column | Type | Notes |
 |--------|------|-------|
 | id | uuid PK | |
 | vote_id | uuid FK → votes | cascade delete |
+| position | integer NOT NULL | the slot's place on the ballot, from 0. A forced vote puts the owner's free slots first; the API orders `Vote.slots` by it |
 | starts_at | timestamptz NOT NULL | |
 | ends_at | timestamptz NOT NULL | 30 min after starts_at |
 | overlap_count | integer NOT NULL DEFAULT 0 | members free during this slot |
+| — | UNIQUE(vote_id, position) | `uq_vote_slots_vote_id_position`, which also indexes the foreign key |
 
 ### `vote_rankings`
 | Column | Type | Notes |
@@ -163,6 +166,8 @@ npm run db:studio     # GUI explorer
 Each migration is a folder under `db/drizzle/` (`<timestamp>_<name>/migration.sql` plus `snapshot.json`). Commit them, and never edit one that has been applied: generate a new one. The server applies pending migrations on boot with `drizzle-orm/postgres-js/migrator`. `db:push` is for throwaway experiments only.
 
 The history was restarted at `20261118021722_baseline` (Phase 1 of the cubicecho move). There was no live data to preserve.
+
+`20261118050252_vote_slot_positions` is edited by hand around what drizzle-kit generated, so it applies to a database that has rows: it fills `position` for existing slots from their stored order before making the column `NOT NULL`, and closes all but each group's newest open vote before adding `uq_votes_group_id_active`. `drizzle-kit check` and a fresh `generate` still report nothing to do.
 
 ## Tests
 
