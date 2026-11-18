@@ -38,7 +38,7 @@ export function applyVoteResolvers(
     if (!group) throw new Error(`Group ${args.groupId} not found`);
     if (group.ownerId !== ctx.userId) throw new Error("Forbidden");
 
-    const slots = computeVoteSlots(group.members, group.timeBlocks, 0, true);
+    const slots = computeVoteSlots(group.members, group.timeBlocks, 0, true, group.ownerId);
     if (slots.length === 0) throw new Error("No time blocks have been submitted yet.");
     return createVote(ctx, args.groupId, group, slots, true);
   };
@@ -103,6 +103,22 @@ export function applyVoteResolvers(
     return closed;
   };
 }
+
+/**
+ * Vote's derived fields. The resolvers above return bare vote rows, and the
+ * group query's activeVote is one too, so slots and rankings load here.
+ */
+export const voteFields = {
+  // Insertion order, which is computeVoteSlots' order (owner-free first in a forced vote).
+  slots: (vote: { id: string }, _: unknown, ctx: Context) =>
+    ctx.db.query.voteSlots.findMany({ where: eq(voteSlots.voteId, vote.id) }),
+  myRankings: (vote: { id: string }, _: unknown, ctx: Context) => {
+    if (!ctx.userId) return [];
+    return ctx.db.query.voteRankings.findMany({
+      where: and(eq(voteRankings.voteId, vote.id), eq(voteRankings.userId, ctx.userId)),
+    });
+  },
+};
 
 async function createVote(
   ctx: Context,

@@ -38,12 +38,14 @@ export function computeVoteSlots(
     }
   }
 
-  const threshold = (thresholdPct / 100) * memberCount;
   const slots: SlotCandidate[] = [];
 
   for (const [tsStr, userIds] of windowMap) {
     const overlapCount = userIds.size;
-    if (!isForced && overlapCount < threshold) continue;
+    // overlapCount / memberCount >= thresholdPct / 100, in integers: the float
+    // form drops exact matches (7 of 25 at 28% computes 7.000000000000001).
+    const meetsThreshold = overlapCount * 100 >= thresholdPct * memberCount;
+    if (!isForced && !meetsThreshold) continue;
     const startsAt = new Date(Number(tsStr));
     const endsAt = new Date(Number(tsStr) + windowMs);
     slots.push({ startsAt, endsAt, overlapCount });
