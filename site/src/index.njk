@@ -1,0 +1,64 @@
+---
+layout: base.njk
+---
+<section class="hero project-hero">
+  <h1>{{ site.name }}</h1>
+  <p>{{ site.tagline }}</p>
+  <p class="cta">
+    <a class="button" href="#start">Get started</a>
+    <a class="button secondary" href="{{ site.repo }}" rel="noopener">GitHub ↗</a>
+  </p>
+</section>
+
+<section class="section">
+  <h2>What it does</h2>
+  <p class="section-intro">
+    Picking a time for a group usually means a long thread and one person's best
+    guess. In Ravocal, members mark when they're free, the group votes on the
+    times they share, and the winner is the meeting. When there isn't enough
+    overlap, the owner can force a vote that puts their own free times first.
+  </p>
+
+  <ul class="card-grid">
+    <li>
+      <article class="card">
+        <h3>Find the shared time</h3>
+        <p>Each member marks the blocks they're free, and Ravocal finds the slots enough of the group has in common.</p>
+      </article>
+    </li>
+    <li>
+      <article class="card">
+        <h3>Vote with ranked choice</h3>
+        <p>Members rank the overlapping slots instead of picking one, and the winning slot becomes the meeting.</p>
+      </article>
+    </li>
+    <li>
+      <article class="card">
+        <h3>Sign in without passwords</h3>
+        <p>An emailed sign-in link, Google, Facebook, or your own OpenID Connect provider.</p>
+      </article>
+    </li>
+  </ul>
+</section>
+
+<section class="section" id="start">
+  <h2>Get started</h2>
+  <div class="prose">
+    <pre class="code"><code>mkdir ravocal &amp;&amp; cd ravocal
+curl -fsSLO https://raw.githubusercontent.com/cubicecho/ravocal/main/docker-compose.yml
+printf 'BETTER_AUTH_SECRET=%s\nSECURE_LOCAL_NET=true\n' "$(openssl rand -hex 32)" &gt; .env
+docker compose up -d</code></pre>
+    <p>
+      Then open <a href="http://localhost:3001">http://localhost:3001</a>. It pulls
+      <a href="{{ site.docker }}" rel="noopener"><code>ghcr.io/cubicecho/ravocal</code></a>
+      and Postgres, and migrations run at boot. <code>SECURE_LOCAL_NET</code> signs in
+      by address alone, which is for your own machine; the README covers email
+      links and the other sign-in methods.
+    </p>
+  </div>
+
+  <p class="readme-link">
+    Full documentation lives in the project README:
+    <a href="{{ site.repo }}#readme" rel="noopener">{{ site.repo }}</a>
+  </p>
+</section>
