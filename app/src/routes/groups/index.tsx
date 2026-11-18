@@ -1,7 +1,7 @@
 import { useQuery } from "@apollo/client";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Users } from "lucide-react";
 import { graphql } from "@/__generated__/index.js";
+import { Users } from "@/components/domain/app-icons";
 import { EmptyState } from "@/components/empty-state";
 import { List } from "@/components/list";
 import { ListItem } from "@/components/list-item";
