@@ -33,6 +33,11 @@ export default defineConfig({
     },
     // Threads share one process, where a fork per file each loads its own copy of everything.
     pool: 'threads',
+    // Every test db is a fresh in-memory PGlite, and starting one takes about 2 s on PGlite 0.5
+    // (1.5 s on 0.2). With every file starting its own at once, a test or hook that makes a db
+    // can pass Vitest's 5 s / 10 s defaults under load without anything being wrong.
+    testTimeout: 20_000,
+    hookTimeout: 30_000,
     projects: [
       {
         extends: true,
