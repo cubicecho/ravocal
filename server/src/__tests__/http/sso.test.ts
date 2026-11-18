@@ -42,6 +42,9 @@ const SIGN_IN = 'mutation ($email: String!) { signInMagicLink(email: $email) { t
 const REQUEST_LINK = 'mutation ($email: String!) { signInMagicLink(email: $email) { status } }';
 const VERIFY_LINK = 'mutation ($token: String!) { magicLinkVerify(token: $token) { token user { id } } }';
 
+/** How long a test lets a provider's profile endpoint take: far under the test's own timeout. */
+const PROFILE_TIMEOUT_MS = 100;
+
 let db: TestDb;
 let provider: FakeProvider;
 let auth: Auth;
@@ -281,6 +284,22 @@ describe('signing in with Facebook', () => {
     const { location } = await signIn(ProviderId.Facebook);
     expect(location.pathname).toBe('/login');
     expect(location.searchParams.get('error')).toBe('email_not_found');
+    expect(await db.select().from(users)).toEqual([]);
+  });
+
+  it('sends the reader back to the login page when Graph never answers for the profile', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await serve(async () => {
+      const settings = { providerTimeoutMs: PROFILE_TIMEOUT_MS };
+      ({ auth } = createTestAuth(db, { providers: FAKE_PROVIDERS, providerEndpoints: provider.endpoints, settings }));
+      return fixedAuthHost(auth, FAKE_PROVIDERS);
+    });
+    provider.hangFacebookProfile = true;
+    const { location } = await signIn(ProviderId.Facebook);
+    expect(`${location.origin}${location.pathname}`).toBe(`${appUrl}/login`);
+    expect(location.searchParams.get('token')).toBeNull();
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/^\[auth\] could not read the Facebook profile/));
     expect(await db.select().from(users)).toEqual([]);
   });
 });

@@ -50,6 +50,8 @@ export interface FakeProvider {
   google: GoogleProfile;
   /** Who the next Facebook sign-in is. */
   facebook: FacebookProfile;
+  /** When true, Facebook's `/me` takes the request and never answers. */
+  hangFacebookProfile: boolean;
   /**
    * Plays the browser at an authorize page the app sent it to: the reader agrees, and the provider would redirect
    * back with these.
@@ -105,6 +107,7 @@ export async function startFakeProvider(): Promise<FakeProvider> {
       google.profile = profile;
     },
     facebook: { id: 'fb-ada', name: 'Ada', email: 'ada@example.com' },
+    hangFacebookProfile: false,
     authorize(url) {
       if (url.startsWith(google.issuer)) {
         return google.authorize(url);
@@ -117,7 +120,12 @@ export async function startFakeProvider(): Promise<FakeProvider> {
       grants.set(code, { redirectUri: params.get('redirect_uri') ?? '', facebook: { ...fake.facebook } });
       return { code, state: params.get('state') ?? '' };
     },
-    close: () => new Promise((resolve) => server.close(() => resolve())),
+    close: () =>
+      new Promise((resolve) => {
+        // A request left hanging on purpose would otherwise hold the server open.
+        server.closeAllConnections();
+        server.close(() => resolve());
+      }),
   };
 
   app.post('/facebook/oauth/access_token', express.urlencoded({ extended: false }), (req, res) => {
@@ -137,6 +145,9 @@ export async function startFakeProvider(): Promise<FakeProvider> {
     res.json({ access_token: accessToken, token_type: 'bearer', expires_in: 5_183_944 });
   });
   app.get('/facebook/me', (req, res) => {
+    if (fake.hangFacebookProfile) {
+      return;
+    }
     const profile = facebookTokens.get(String(req.headers.authorization).replace('Bearer ', ''));
     if (profile === undefined) {
       res.status(BAD_REQUEST).json({ error: { message: 'Invalid OAuth access token.', type: 'OAuthException' } });
