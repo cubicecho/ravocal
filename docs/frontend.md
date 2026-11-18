@@ -32,12 +32,24 @@ A refusal comes back as `/login?error=<code>&provider=<id>`, and `lib/provider-e
 (`describeProviderError`) says what each code means, naming the provider. "Sign-in is not set up"
 shows only with no links, no `SECURE_LOCAL_NET` and no provider.
 
+Setting sign-in up: `/login` also reads `ssoSetup`. On an instance with no accounts and nothing paired
+(`canPair`, source `NONE`) it offers "Set up sign-in", which swaps the card for
+`components/domain/sso/pair-sso-form.tsx`: paste the setup URL, `pairSso`, and back on the sign-in card the
+"Continue with <name>" button is there (`AuthConfig` and `SsoSetup` are refetched by name), with a note that the
+first account becomes the admin. `lib/sso.ts` holds the documents and `describePairingError`, which heads each
+`extensions.reason` (`BAD_URL`, `EXPIRED`, …) with its own title over the server's sentence.
+
 Settings (`/settings`, the Settings button on `/groups`): "Connected accounts" lists the email link
 and each provider with `SettingRow`s. Connect calls `linkSocialAccount(provider)` and follows the
 URL it answers with; the provider sends the reader back to `/settings?connected=<id>` or
 `?error=<code>&provider=<id>`. Disconnect is a `ConfirmButton` calling `unlinkAccount`, held back
 (with the reason as its hint) when it is the last way to sign in: no other provider connected and
 no confirmed address for a link. The server enforces the same rule.
+
+"Single sign-on" (`components/domain/sso/sso-settings.tsx`) shows only to the admin: the Settings query
+reads `users(where: { isAdmin: { eq: true } })` and looks for the reader's own id. It shows the paired
+provider and its issuer with a Disconnect `ConfirmButton` (`unpairSso`), or the setup URL form, or, when
+`OIDC_ISSUER` sets it, that the server's environment does, with the redirect URI to register.
 
 Auth guard: the root route's `beforeLoad` (`app/src/routes/__root.tsx`) redirects a signed-out
 reader to `/login`, except on `PUBLIC_PATHS` (`/login`, `/auth/verify` and `/auth/sso`). It first remembers where
@@ -64,10 +76,10 @@ TanStack Router with file-based routes. The Vite plugin regenerates `app/src/rou
 | Route | File | Purpose |
 |-------|------|---------|
 | `/` | `routes/index.tsx` | Redirect → `/groups` or `/login` |
-| `/login` | `routes/login.tsx` | Magic link request form, provider buttons, `?error=` messages |
+| `/login` | `routes/login.tsx` | Magic link request form, provider buttons, `?error=` messages, setting sign-in up on a new instance |
 | `/auth/verify` | `routes/auth/verify.tsx` | Spend a magic link's token for a session |
 | `/auth/sso` | `routes/auth/sso.tsx` | Spend a provider sign-in's one-time token for a session |
-| `/settings` | `routes/settings.tsx` | Connected accounts: connect and disconnect providers |
+| `/settings` | `routes/settings.tsx` | Connected accounts: connect and disconnect providers; Single sign-on for the admin |
 | `/invite` | `routes/invite.tsx` | Accept group invite via token |
 | `/groups` | `routes/groups/index.tsx` | List user's groups |
 | `/groups/new` | `routes/groups/new.tsx` | Create group form |

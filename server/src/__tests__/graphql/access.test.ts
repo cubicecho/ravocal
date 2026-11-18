@@ -380,12 +380,14 @@ describe('access rules', () => {
       expect(code).toBe(ErrorCode.BadUserInput);
     });
 
-    it('refuses changing anything but the name', async () => {
-      const set = { email: 'bob@elsewhere.example' };
+    it.each([
+      ['the address', { email: 'bob@elsewhere.example' }],
+      ['being the admin', { isAdmin: true }],
+    ])('refuses changing anything but the name: %s', async (_what, set) => {
       const { code } = await bob.expectError(UPDATE_USER, { where: { id: { eq: bobId } }, set });
       expect(code).toBe(ErrorCode.BadUserInput);
       const [unchanged] = await db.select().from(users).where(eq(users.id, bobId));
-      expect(unchanged.email).toBe('bob@example.com');
+      expect(unchanged).toMatchObject({ email: 'bob@example.com', isAdmin: false });
     });
   });
 });

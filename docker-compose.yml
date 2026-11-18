@@ -31,6 +31,12 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       FACEBOOK_CLIENT_ID: ${FACEBOOK_CLIENT_ID:-}
       FACEBOOK_CLIENT_SECRET: ${FACEBOOK_CLIENT_SECRET:-}
+      # Your own OpenID Connect provider, pinned here instead of paired from the app: issuer and client id both or neither.
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_CLIENT_AUTH: ${OIDC_CLIENT_AUTH:-}
+      OIDC_NAME: ${OIDC_NAME:-}
       # 1 behind one reverse proxy, so sign-in is throttled per visitor and not per proxy.
       TRUST_PROXY: ${TRUST_PROXY:-}
       DB_CONNECT_TIMEOUT_MS: ${DB_CONNECT_TIMEOUT_MS:-}

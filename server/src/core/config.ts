@@ -218,29 +218,58 @@ export const smtpFrom = (): string =>
 export const AUTH_BASE_PATH = '/api/auth';
 
 /** The providers a reader can sign in with besides an email link, by the id better-auth registers each under. */
-export const ProviderId = { Google: 'google', Facebook: 'facebook' } as const;
+export const ProviderId = { Google: 'google', Facebook: 'facebook', Oidc: 'oidc' } as const;
 export type ProviderId = (typeof ProviderId)[keyof typeof ProviderId];
+/** The providers whose client is a pair of variables: a client id and its secret. */
+type ClientProviderId = typeof ProviderId.Google | typeof ProviderId.Facebook;
 
-/** A provider this instance has an OAuth client with. */
-export interface ProviderConfig {
-  id: ProviderId;
+/** Google or Facebook: a provider this instance has an OAuth client with. */
+export interface ClientProviderConfig {
+  id: ClientProviderId;
   /** What the login page's button calls it: "Continue with Google". */
   name: string;
   clientId: string;
   clientSecret: string;
 }
 
+/** How a confidential OIDC client sends its secret to the token endpoint. The provider must expect the same. */
+export type OidcClientAuth = 'client_secret_basic' | 'client_secret_post';
+/** The `OIDC_CLIENT_AUTH` values a provider can expect. */
+export const OIDC_CLIENT_AUTH_METHODS: readonly OidcClientAuth[] = ['client_secret_basic', 'client_secret_post'];
+
+/** An OpenID Connect provider to sign in with, from the environment or a pairing (sso/settings.ts). */
+export interface OidcConfig {
+  /** The issuer URL, no trailing slash. Its discovery document is `/.well-known/openid-configuration` under it. */
+  issuer: string;
+  clientId: string;
+  /** Unset for a public client, which proves itself with PKCE alone. */
+  clientSecret: string | undefined;
+  clientAuth: OidcClientAuth;
+  /** What the login page's button calls the provider. */
+  name: string;
+}
+
+/** The OIDC provider, as one of the providers sign-in offers. */
+export interface OidcProviderConfig extends OidcConfig {
+  id: typeof ProviderId.Oidc;
+}
+
+/** A provider sign-in offers. */
+export type ProviderConfig = ClientProviderConfig | OidcProviderConfig;
+
 /** What a provider is called, and the variables its client is read from. */
 interface ProviderVariables {
+  id: ClientProviderId;
   name: string;
   clientId: string;
   clientSecret: string;
 }
 
-const PROVIDER_VARIABLES: Readonly<Record<ProviderId, ProviderVariables>> = Object.freeze({
-  [ProviderId.Google]: { name: 'Google', clientId: 'GOOGLE_CLIENT_ID', clientSecret: 'GOOGLE_CLIENT_SECRET' },
-  [ProviderId.Facebook]: { name: 'Facebook', clientId: 'FACEBOOK_CLIENT_ID', clientSecret: 'FACEBOOK_CLIENT_SECRET' },
-});
+/** Google and Facebook, in the order the login page lists them. */
+const PROVIDER_VARIABLES: readonly ProviderVariables[] = Object.freeze([
+  { id: ProviderId.Google, name: 'Google', clientId: 'GOOGLE_CLIENT_ID', clientSecret: 'GOOGLE_CLIENT_SECRET' },
+  { id: ProviderId.Facebook, name: 'Facebook', clientId: 'FACEBOOK_CLIENT_ID', clientSecret: 'FACEBOOK_CLIENT_SECRET' },
+]);
 
 /**
  * Reads one provider's client from the environment.
@@ -256,16 +285,17 @@ function providerClient(variables: ProviderVariables): { clientId?: string; clie
 }
 
 /**
- * The providers sign-in offers. A provider is on when both its client id and its secret are set.
+ * The providers set in the environment by a client id and secret: Google and Facebook. A provider is on when both its
+ * client id and its secret are set. The OIDC provider is not among them: it may be paired, so it is read from the
+ * database too (sso/settings.ts).
  *
  * @returns Each provider with a whole client, in the order the login page lists them.
  */
-export function providerConfigs(): ProviderConfig[] {
-  return Object.values(ProviderId).flatMap((id) => {
-    const variables = PROVIDER_VARIABLES[id];
+export function providerConfigs(): ClientProviderConfig[] {
+  return PROVIDER_VARIABLES.flatMap((variables) => {
     const { clientId, clientSecret } = providerClient(variables);
     const isOff = clientId === undefined || clientSecret === undefined;
-    return isOff ? [] : [{ id, name: variables.name, clientId, clientSecret }];
+    return isOff ? [] : [{ id: variables.id, name: variables.name, clientId, clientSecret }];
   });
 }
 
@@ -275,7 +305,7 @@ export function providerConfigs(): ProviderConfig[] {
  * @returns One sentence per such provider, naming the variable that is missing.
  */
 export function halfSetProviders(): string[] {
-  return Object.values(PROVIDER_VARIABLES).flatMap((variables) => {
+  return PROVIDER_VARIABLES.flatMap((variables) => {
     const { clientId, clientSecret } = providerClient(variables);
     const isHalfSet = (clientId === undefined) !== (clientSecret === undefined);
     if (isHalfSet === false) {
@@ -295,4 +325,66 @@ export function halfSetProviders(): string[] {
  */
 export function providerRedirectUri(id: ProviderId): string {
   return `${serverUrl()}${AUTH_BASE_PATH}/callback/${id}`;
+}
+
+/** A trailing slash, which an issuer is compared and stored without. */
+const TRAILING_SLASHES = /\/+$/;
+
+/**
+ * Writes an issuer the one way it is compared and stored: without trailing slashes.
+ *
+ * @param issuer - The issuer as given.
+ * @returns The same issuer with no trailing slash.
+ */
+export function normalizeIssuer(issuer: string): string {
+  return issuer.replace(TRAILING_SLASHES, '');
+}
+
+/**
+ * Reads the OIDC provider set in the environment. Preflight refuses one of `OIDC_ISSUER` and `OIDC_CLIENT_ID` without
+ * the other, an issuer that is not a URL, and an `OIDC_CLIENT_AUTH` it does not know (`oidcConfigProblems`).
+ *
+ * @returns The provider when `OIDC_ISSUER` and `OIDC_CLIENT_ID` are both set, otherwise null.
+ */
+export function oidcConfig(): OidcConfig | null {
+  const issuer = envString(process.env.OIDC_ISSUER?.trim());
+  const clientId = envString(process.env.OIDC_CLIENT_ID?.trim());
+  if (issuer === undefined || clientId === undefined) {
+    return null;
+  }
+  const clientAuth = OIDC_CLIENT_AUTH_METHODS.find((method) => method === process.env.OIDC_CLIENT_AUTH?.trim());
+  return {
+    issuer: normalizeIssuer(issuer),
+    clientId,
+    clientSecret: envString(process.env.OIDC_CLIENT_SECRET?.trim()),
+    clientAuth: clientAuth ?? AUTH_DEFAULTS.oidcClientAuth,
+    name: envString(process.env.OIDC_NAME?.trim()) ?? AUTH_DEFAULTS.oidcName,
+  };
+}
+
+/**
+ * Says what is wrong with the OIDC provider set in the environment, for preflight to refuse.
+ *
+ * @returns One sentence per problem: an issuer without a client id or the reverse, an issuer that is not a URL, an
+ *   `OIDC_CLIENT_AUTH` that is not one of `OIDC_CLIENT_AUTH_METHODS`.
+ */
+export function oidcConfigProblems(): string[] {
+  const issuer = envString(process.env.OIDC_ISSUER?.trim());
+  const clientId = envString(process.env.OIDC_CLIENT_ID?.trim());
+  const clientAuth = envString(process.env.OIDC_CLIENT_AUTH?.trim());
+  const problems: string[] = [];
+  const isHalfSet = (issuer === undefined) !== (clientId === undefined);
+  if (isHalfSet) {
+    const [set, missing] = issuer === undefined ? ['OIDC_CLIENT_ID', 'OIDC_ISSUER'] : ['OIDC_ISSUER', 'OIDC_CLIENT_ID'];
+    problems.push(`${set} is set but ${missing} is not. Set both to sign in with an OIDC provider, or neither.`);
+  }
+  const isBadIssuer = issuer !== undefined && /^https?:$/.test(URL.parse(issuer)?.protocol ?? '') === false;
+  if (isBadIssuer) {
+    problems.push(`OIDC_ISSUER (${issuer}) is not an http(s) URL. Set it to the provider's issuer URL.`);
+  }
+  const isKnownClientAuth = OIDC_CLIENT_AUTH_METHODS.some((method) => method === clientAuth);
+  if (clientAuth !== undefined && isKnownClientAuth === false) {
+    problems.push(`OIDC_CLIENT_AUTH (${clientAuth}) must be one of ${OIDC_CLIENT_AUTH_METHODS.join(', ')}, or unset.`);
+  }
+  return problems;
 }

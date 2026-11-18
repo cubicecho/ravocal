@@ -24,6 +24,11 @@ export default defineConfig({
       GOOGLE_CLIENT_SECRET: '',
       FACEBOOK_CLIENT_ID: '',
       FACEBOOK_CLIENT_SECRET: '',
+      OIDC_ISSUER: '',
+      OIDC_CLIENT_ID: '',
+      OIDC_CLIENT_SECRET: '',
+      OIDC_CLIENT_AUTH: '',
+      OIDC_NAME: '',
       SERVER_URL: '',
     },
     // Threads share one process, where a fork per file each loads its own copy of everything.

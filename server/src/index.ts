@@ -7,7 +7,15 @@ import { waitForDatabase } from '@cubicecho/ravocal-db/wait';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { createAuthHost } from './auth/auth-host.ts';
 import { sendsMagicLinks } from './auth/better-auth.ts';
-import { appUrl, dbConnectTimeoutMs, port, providerRedirectUri, secureLocalNet, serverUrl } from './core/config.ts';
+import {
+  appUrl,
+  dbConnectTimeoutMs,
+  ProviderId,
+  port,
+  providerRedirectUri,
+  secureLocalNet,
+  serverUrl,
+} from './core/config.ts';
 import { errorMessage } from './core/errors.ts';
 import { createApp } from './http/app.ts';
 import { stopOnSignals } from './http/shutdown.ts';
@@ -44,13 +52,15 @@ const server = app.listen(port(), LISTEN_HOST, (error) => {
   console.log(`[server] links in emails point at ${appUrl()}, provider sign-in at ${serverUrl()}`);
   const providers = authHost.providers();
   for (const provider of providers) {
-    console.log(`[auth] sign-in with ${provider.name}; redirect URI ${providerRedirectUri(provider.id)}`);
+    const from = provider.id === ProviderId.Oidc ? ` (${provider.issuer})` : '';
+    console.log(`[auth] sign-in with ${provider.name}${from}; redirect URI ${providerRedirectUri(provider.id)}`);
   }
+
   if (secureLocalNet()) {
     console.warn('[auth] SECURE_LOCAL_NET is on: any email signs in without a link. Private networks only.');
   } else if (sendsMagicLinks(authHost.current()) === false && providers.length === 0) {
     console.warn(
-      '[auth] nobody can sign in: set SMTP_URL to email sign-in links, GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET or FACEBOOK_CLIENT_ID and FACEBOOK_CLIENT_SECRET for a provider, or SECURE_LOCAL_NET=true on a private network.',
+      '[auth] nobody can sign in: set SMTP_URL to email sign-in links, GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET or FACEBOOK_CLIENT_ID and FACEBOOK_CLIENT_SECRET for a provider, OIDC_ISSUER and OIDC_CLIENT_ID or pair a provider from the login page, or SECURE_LOCAL_NET=true on a private network.',
     );
   }
 });

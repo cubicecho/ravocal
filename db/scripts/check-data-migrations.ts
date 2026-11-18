@@ -15,6 +15,8 @@ import postgres from 'postgres';
 const MIGRATIONS = join(dirname(fileURLToPath(import.meta.url)), '../drizzle');
 /** It numbers each vote's slots in the order they were written, and closes all but each group's newest open vote. */
 const SLOT_POSITIONS = '_vote_slot_positions';
+/** It adds `users.is_admin`, and makes the oldest account the admin when an instance already has accounts. */
+const OIDC_PAIRING = '_oidc_pairing';
 
 /** Slots in ballot order, which isn't time order, so a position can only have come from the order they were written. */
 const NEWER_SLOTS = ['2026-12-03T18:00:00.000Z', '2026-12-01T18:00:00.000Z', '2026-12-02T18:00:00.000Z'];
@@ -73,6 +75,16 @@ async function voteOf(voteId: string): Promise<{ status: string; closedAt: strin
   return { status: row.status, closedAt: row.closedAt?.toISOString() ?? null };
 }
 
+/**
+ * Reads which accounts are admins.
+ *
+ * @returns Their ids.
+ */
+async function adminIds(): Promise<string[]> {
+  const rows = await client<Row[]>`SELECT id FROM users WHERE is_admin`;
+  return rows.map((row) => row.id);
+}
+
 try {
   const [{ exists }] = await client<{ exists: boolean }[]>`SELECT to_regclass('public.users') IS NOT NULL AS exists`;
   assert.equal(exists, false, 'the database is not empty: run this against a fresh one');
@@ -111,6 +123,12 @@ try {
       VALUES (${slot.voteId}, ${slot.startsAt}, ${slot.startsAt}::timestamptz + interval '30 minutes')`;
   }
 
+  await migrateUpTo(names, OIDC_PAIRING);
+  // Made after the owner but dated before them, so only created_at can say it is the oldest.
+  const [oldest] = await client<Row[]>`
+    INSERT INTO users (email, name, created_at) VALUES ('first@example.com', 'First', now() - interval '1 year')
+    RETURNING id`;
+
   await migrate(db, { migrationsFolder: MIGRATIONS });
 
   const inOrder = (starts: string[]) => starts.map((startsAt, position) => ({ startsAt, position }));
@@ -125,6 +143,9 @@ try {
   assert.deepEqual(await voteOf(done.id), doneBefore, 'a vote already closed is untouched');
 
   console.log('[db] vote_slot_positions: positions follow the order slots were written; one open vote per group');
+
+  assert.deepEqual(await adminIds(), [oldest.id], 'the oldest account, and only it, is the admin');
+  console.log('[db] oidc_pairing: the oldest account is the admin');
 } finally {
   await client.end();
   await db.$client.end();

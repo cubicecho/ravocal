@@ -8,6 +8,7 @@ import { notFound } from '../core/errors.ts';
 import { groupWriteHooks } from '../groups/hooks.ts';
 import { applyGroupsExtension } from '../groups/resolvers.ts';
 import { applyInvitesExtension } from '../invites/resolvers.ts';
+import { applySsoExtension } from '../sso/resolvers.ts';
 import { timeBlockWriteHooks } from '../time-blocks/hooks.ts';
 import { userWriteHooks } from '../users/hooks.ts';
 import { applyVotesExtension } from '../votes/resolvers.ts';
@@ -61,8 +62,8 @@ export function createSchema(db: DB): { schema: GraphQLSchema } {
   });
 
   const withNotFound = answerMissingRowsNotFound(generated);
-  // authConfig, then better-auth's own endpoints.
-  const withAuth = applyBetterAuthExtension(applyAuthExtension(withNotFound), db);
+  // authConfig, better-auth's own endpoints, then pairing the OIDC provider.
+  const withAuth = applySsoExtension(applyBetterAuthExtension(applyAuthExtension(withNotFound), db));
   const extended = applyVotesExtension(applyInvitesExtension(applyGroupsExtension(withAuth)));
   return { schema: applyAppPermissions(extended) };
 }

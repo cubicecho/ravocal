@@ -7,6 +7,7 @@ import {
   describeWeakSecret,
   halfSetProviders,
   isProduction,
+  oidcConfigProblems,
   secureLocalNet,
 } from './config.ts';
 
@@ -48,6 +49,12 @@ if (secureLocalNet()) {
 const [halfSet] = halfSetProviders();
 if (halfSet !== undefined) {
   fatal(halfSet);
+}
+
+// Half an OIDC setup leaves the login page without its button, and an unknown client auth fails at the first sign-in.
+const [oidcProblem] = oidcConfigProblems();
+if (oidcProblem !== undefined) {
+  fatal(oidcProblem);
 }
 
 // Every redirect URI a provider is given is built from it.

@@ -44,6 +44,7 @@ Constraint names are explicit: `uq_<table>_<cols>` for unique indexes and `idx_<
 | name | text NOT NULL | the address's local part until the user sets one |
 | email_verified | boolean NOT NULL | false until a sign-in link proves the address |
 | image | text | better-auth's; unused |
+| is_admin | boolean NOT NULL DEFAULT false | runs the instance: may pair a sign-in provider. The first account claims it; at most one row (`uq_users_one_admin`, partial on `is_admin`) |
 | created_at | timestamptz NOT NULL | auto |
 | updated_at | timestamptz NOT NULL | auto |
 
@@ -56,6 +57,24 @@ better-auth reads and writes these through its Drizzle adapter (`server/src/auth
 | `sessions` | One row per signed-in browser: `user_id` (cascade), `token` (the bearer token, unique `uq_sessions_token`), `expires_at` (`AUTH_DEFAULTS.sessionTtlDays` after last use), `ip_address`, `user_agent`. Deleting a row signs that browser out |
 | `accounts` | One row per outside provider a user signs in with. Empty until provider sign-in arrives; magic links make none |
 | `verifications` | A pending sign-in link: the hash of its token in `identifier`, until it is spent or `expires_at` (`AUTH_DEFAULTS.magicLinkTtlMinutes`) passes |
+
+### `oidc_settings`
+
+The OIDC provider this instance paired with (`server/src/sso/pairing.ts`): one row or none (`CHECK (id = 'oidc')`), written only by the server and never in the GraphQL schema (`SERVER_TABLES`), since it holds credentials. `OIDC_ISSUER` in the environment wins over it.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | text PK DEFAULT 'oidc' | the singleton's key |
+| issuer | text NOT NULL | no trailing slash |
+| client_id | text NOT NULL | what the provider registered |
+| client_secret | text | null for a public client |
+| client_auth | text NOT NULL DEFAULT 'client_secret_basic' | the method the provider registered, or `client_secret_post` |
+| name | text NOT NULL | the login button's label, from the setup URL (default `SSO`) |
+| registration_access_token | text | RFC 7592: deletes the client at the provider on unpairing |
+| registration_client_uri | text | where that `DELETE` goes |
+| updated_at | timestamptz NOT NULL | auto |
+
+The setup URL's initial access token is never stored.
 
 ### `groups`
 | Column | Type | Notes |
@@ -171,7 +190,7 @@ The history was restarted at `20261118021722_baseline` (Phase 1 of the cubicecho
 
 `20261118050252_vote_slot_positions` is edited by hand around what drizzle-kit generated, so it applies to a database that has rows: it fills `position` for existing slots from their stored order before making the column `NOT NULL`, and closes all but each group's newest open vote before adding `uq_votes_group_id_active`. `drizzle-kit check` and a fresh `generate` still report nothing to do.
 
-A migration that rewrites rows can't be tested by the suite, whose database is built from the models. `db/scripts/check-data-migrations.ts` tests it on a real Postgres instead: it applies the migrations before `vote_slot_positions`, writes slots out of time order and two open votes in one group, applies the rest, and asserts the positions follow the order the slots were written, the older open vote is closed, and every other vote is untouched. When you hand-edit another migration to carry data, add its rows and assertions there.
+A migration that rewrites rows can't be tested by the suite, whose database is built from the models. `db/scripts/check-data-migrations.ts` tests it on a real Postgres instead: it applies the migrations before `vote_slot_positions`, writes slots out of time order and two open votes in one group, applies the rest, and asserts the positions follow the order the slots were written, the older open vote is closed, and every other vote is untouched. `20261118063338_oidc_pairing` is hand-edited too: after adding `users.is_admin` it makes the oldest account (by `created_at`, then id) the admin, so an instance that already had accounts has someone who can pair a provider; the script checks that as well, and `server/src/__tests__/auth/admin.test.ts` runs the same migration on PGlite. When you hand-edit another migration to carry data, add its rows and assertions there.
 
 CI's `postgres` job (`.github/workflows/ci.yml`) runs all of this against `postgres:17-alpine`: `db:migrate` from empty, `drizzle-kit check`, a `db:generate` that must leave `db/drizzle` unchanged, and the data check on a second, empty database.
 

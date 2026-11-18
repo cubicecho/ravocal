@@ -80,6 +80,12 @@ const HAND_WRITTEN_MUTATIONS = [
   'closeVote',
 ];
 
+/**
+ * Changing how the instance signs people in. Open, because a brand-new instance is set up signed out: the resolvers
+ * decide who may (sso/resolvers.ts `canPairSso`), and refuse everyone else as FORBIDDEN.
+ */
+export const SSO_MUTATIONS = ['pairSso', 'unpairSso'];
+
 /** The generated writes that are served. Every other one, the bulk forms included, is refused. */
 const GENERATED_MUTATIONS: Record<string, Rule> = {
   // A new block's group is checked by its hook, and its owner is the caller (contextValues).
@@ -110,10 +116,11 @@ function authMutations(schema: GraphQLSchema): string[] {
  */
 export function permissionsFor(schema: GraphQLSchema): PermissionsMap {
   // Signing in is for callers who aren't yet.
-  const signIn = authMutations(schema).map((name) => [name, accept]);
+  const signIn = [...authMutations(schema), ...SSO_MUTATIONS].map((name) => [name, accept]);
   const handWritten = HAND_WRITTEN_MUTATIONS.map((name) => [name, signedIn]);
   return {
-    // Reads are confined by `scope`, which refuses an anonymous caller itself. authConfig and getSession are open.
+    // Reads are confined by `scope`, which refuses an anonymous caller itself. authConfig, ssoSetup and getSession are
+    // open.
     '*': accept,
     Mutation: {
       // An allow-list: a write a new table generates arrives shut, and so does every bulk form.

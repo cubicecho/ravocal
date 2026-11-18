@@ -10,7 +10,7 @@ import { createRateLimiter } from '../../auth/rate-limit.ts';
 import { ProviderId } from '../../core/config.ts';
 import { AUTH_DEFAULTS } from '../../core/defaults.ts';
 import { ErrorCode } from '../../core/errors.ts';
-import { HttpStatus, MS_PER_MINUTE } from '../../core/wire.ts';
+import { MS_PER_MINUTE } from '../../core/wire.ts';
 import { createApp } from '../../http/app.ts';
 import { SsoError } from '../../http/sso.ts';
 import {
@@ -26,6 +26,7 @@ import {
   TEST_SECRET,
   type TestDb,
 } from '../helpers.ts';
+import { cookiesFrom, locationOf } from './fixtures/browser.ts';
 import { FAKE_PROVIDERS, type FakeProvider, startFakeProvider } from './fixtures/fake-provider.ts';
 
 // A provider's whole sign-in through the real app, over HTTP, against a stand-in for Google and Facebook on a loopback
@@ -92,30 +93,6 @@ afterEach(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()));
   await provider.close();
 });
-
-/**
- * Reads the cookies a response set, as a request's Cookie header.
- *
- * @param response - The response.
- * @returns The header value.
- */
-function cookiesFrom(response: Response): string {
-  return response.headers
-    .getSetCookie()
-    .map((cookie) => cookie.split(';')[0])
-    .join('; ');
-}
-
-/**
- * Reads where a redirect points.
- *
- * @param response - A 302.
- * @returns Its location.
- */
-function locationOf(response: Response): URL {
-  expect(response.status).toBe(HttpStatus.Found);
-  return new URL(response.headers.get('location') ?? '');
-}
 
 /**
  * Follows a provider's authorize page back to the app's callback, as the browser would once the reader agreed.

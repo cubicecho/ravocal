@@ -6,6 +6,7 @@ import { bearer, magicLink, oneTimeToken } from 'better-auth/plugins';
 import { appUrl, authSecret, type ProviderConfig, providerConfigs, serverUrl, smtpConfigured } from '../core/config.ts';
 import { AUTH_DEFAULTS } from '../core/defaults.ts';
 import { SECONDS_PER_DAY, SECONDS_PER_MINUTE } from '../core/wire.ts';
+import { claimFirstAdmin } from './admin.ts';
 import { sendMagicLinkEmail } from './email.ts';
 import { PROVIDER_ENDPOINTS, type ProviderEndpoints, providersPlugin } from './providers.ts';
 import { revokeUnprovenAccess } from './unproven-access.ts';
@@ -91,8 +92,9 @@ export function createAuth(
       accountLinking: {
         enabled: true,
         // No provider is trusted by name: a sign-in reaches the account that has its address only when the provider
-        // says it checked the address (Google's email_verified; Facebook never does, providers.ts).
-        // So a Google-checked address reaches an account made under SECURE_LOCAL_NET too, whose address nobody checked.
+        // says it checked the address (Google's and the OIDC provider's email_verified; Facebook never does,
+        // providers.ts). So a checked address reaches an account made under SECURE_LOCAL_NET too, whose address nobody
+        // checked. One rule, whichever providers are set up.
         requireLocalEmailVerified: false,
         // Connecting a provider in Settings links it to the signed-in reader, whatever address it has.
         allowDifferentEmails: true,
@@ -100,8 +102,16 @@ export function createAuth(
         allowUnlinkingAll: true,
       },
     },
-    // When an address is first proven, the ways in it did not vouch for stop working (unproven-access.ts).
-    databaseHooks: revokeUnprovenAccess,
+    databaseHooks: {
+      // When an address is first proven, the ways in it did not vouch for stop working (unproven-access.ts).
+      ...revokeUnprovenAccess,
+      user: {
+        ...revokeUnprovenAccess.user,
+        // Every way an account is made (a link, SECURE_LOCAL_NET, a provider) goes through better-auth's adapter, so
+        // this is the one place the first one becomes the admin (admin.ts).
+        create: { after: async (user) => claimFirstAdmin(db, user.id) },
+      },
+    },
     // Where a callback goes when it cannot tell where the sign-in came from: the login page, which says so.
     onAPIError: { errorURL: `${appUrl()}${LOGIN_PATH}` },
     plugins: [

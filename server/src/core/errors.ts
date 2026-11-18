@@ -7,6 +7,7 @@ export const ErrorCode = {
   BadUserInput: 'BAD_USER_INPUT',
   TooManyRequests: 'TOO_MANY_REQUESTS',
   Forbidden: 'FORBIDDEN',
+  Conflict: 'CONFLICT',
   QueryTooComplex: 'QUERY_TOO_COMPLEX',
 } as const;
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
@@ -26,8 +27,13 @@ const withCode =
 export const badInput = withCode(ErrorCode.BadUserInput);
 /** Missing, or out of the caller's reach. Deliberately one code, so callers can't probe for ids. */
 export const notFound = withCode(ErrorCode.NotFound);
-/** This kind of caller may never do this: a mutation off the allow-list. Never for a row they can't reach. */
+/**
+ * This kind of caller may never do this: a mutation off the allow-list, or changing the instance's sign-in without
+ * being its admin. Never for a row they can't reach.
+ */
 export const forbidden = withCode(ErrorCode.Forbidden);
+/** The instance is not in a state that allows this, and the caller has to change that first (unpair, then pair). */
+export const conflict = withCode(ErrorCode.Conflict);
 /** The operation is too deep, too aliased or too costly. Thrown only by operation-limits.ts. */
 export const tooComplex = withCode(ErrorCode.QueryTooComplex);
 
