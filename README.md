@@ -148,7 +148,8 @@ Every push to `main` and every pull request runs three jobs (`.github/workflows/
 
 ## Releases
 
-Every push to `main`, a merged pull request included, runs the release workflow (`.github/workflows/release.yml`).
+Once CI passes on a push to `main`, a merged pull request included, the release workflow runs
+(`.github/workflows/release.yml`); a commit that fails CI is never released.
 [semantic-release](https://semantic-release.gitbook.io) reads the conventional commit messages since the last
 release. A `feat:` makes a minor version, a `fix:` or `perf:` a patch, and a `BREAKING CHANGE:` footer a major.
 `chore:`, `docs:`, `ci:`, `build:`, `refactor:` and `test:` make none, so a push carrying only those releases
@@ -160,5 +161,5 @@ nothing. When there is a version, the workflow:
 
 It needs no secrets: the workflow's own `GITHUB_TOKEN` pushes the tag, the commit and the image. The first run cuts
 `1.0.0`. After it, make the package public once, in its settings on GitHub (**Package settings > Change
-visibility**), so `docker compose pull` works without signing in. **Actions > Release > Run workflow** on `main`
-reruns it by hand.
+visibility**), so `docker compose pull` works without signing in. **Actions > Release > Run workflow** with a
+version pushes the image for that release again, built from its tag, without cutting a new one.
