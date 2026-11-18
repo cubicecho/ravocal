@@ -26,3 +26,5 @@ docs
 Dockerfile
 .dockerignore
 docker-compose*.yml
+# The landing page, built and deployed by its own workflow.
+site
