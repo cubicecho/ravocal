@@ -10,16 +10,16 @@ The repo follows the cubicecho skills (`cubicecho_typescript`, `cubicecho_backen
 
 ## Tech Stack
 
-| Layer    | Technology                                        |
-| -------- | ------------------------------------------------- |
-| Frontend | React 19, Vite, TanStack Router, Apollo Client    |
-| UI       | Tailwind CSS 4, cubeui (shadcn registry), Radix UI |
-| API      | graphql-yoga 5 on Express 5, drizzle-graphql 19 (generated), graphql-casl |
-| Database | Drizzle ORM 1.0.0-rc.5 on Postgres (postgres-js)   |
+| Layer    | Technology                                                                                                   |
+| -------- | ------------------------------------------------------------------------------------------------------------ |
+| Frontend | React 19, Vite, TanStack Router, Apollo Client                                                               |
+| UI       | Tailwind CSS 4, cubeui (shadcn registry), Radix UI                                                           |
+| API      | graphql-yoga 5 on Express 5, drizzle-graphql 19 (generated), graphql-casl                                    |
+| Database | Drizzle ORM 1.0.0-rc.5 on Postgres (postgres-js)                                                             |
 | Auth     | better-auth: magic links, Google, Facebook and an OIDC provider (env or paired), bearer sessions in Postgres |
-| Testing  | Vitest 4, in-memory PGlite                         |
-| Linting  | Biome 2.5 (formatter + linter), TypeScript 7       |
-| Runtime  | Node.js 26+, ESM, TypeScript run directly (no build) |
+| Testing  | Vitest 4, in-memory PGlite                                                                                   |
+| Linting  | Biome 2.5 (formatter + linter), TypeScript 7                                                                 |
+| Runtime  | Node.js 26+, ESM, TypeScript run directly (no build)                                                         |
 
 ## Domain Model
 
@@ -149,6 +149,7 @@ ravocal/
 All commands run from the **project root**.
 
 ### Development
+
 ```bash
 cp .env.example .env     # Once. DATABASE_URL points at the dev Postgres
 npm run db:up            # Start the dev Postgres (port 5436) and Mailpit (SMTP 1036, web UI 8036)
@@ -169,6 +170,7 @@ Google and Facebook need real clients (`.env.example` walks through both console
 The app talks to the API through Vite's proxy in development (`/graphql`, `/sso/`, `/api/auth/`) and from the same origin in production, so the server sends no CORS headers, and `SERVER_URL` (where a provider sends the reader back) defaults to `APP_URL` in both. Every variable is described in `.env.example`; the server reads them only through `server/src/core/config.ts`.
 
 ### Building
+
 ```bash
 npm run build            # codegen, then the app's Vite build
 npm run build:app        # Frontend only
@@ -177,6 +179,7 @@ npm run build:app        # Frontend only
 The server and db are not compiled: Node 26 runs their TypeScript directly.
 
 ### GraphQL Codegen
+
 ```bash
 npm run codegen          # Generate types for app and server, and the route tree
 npm run codegen:app      # Client-side types (app/src/__generated__/)
@@ -187,12 +190,14 @@ npm run codegen:routes   # TanStack route tree (app/src/routeTree.gen.ts)
 > Generated files are gitignored. Run `npm run codegen` after a fresh clone, after changing a model or a hand-written SDL extension, after adding or changing GraphQL documents in `app/src/`, and after adding a route.
 
 ### Testing
+
 ```bash
 npm test                 # Run all tests once
 npm run test:watch       # Watch mode
 ```
 
 ### Linting & Formatting (Biome)
+
 ```bash
 npm run check            # codegen + check:biome + check:types
 npm run check:biome      # Biome format, lint and import order, with fixes applied
@@ -203,6 +208,7 @@ npm run check:types      # tsc --noEmit across all packages
 ```
 
 ### Database
+
 ```bash
 npm run db:up            # Start the dev Postgres
 npm run db:down          # Stop it
@@ -226,24 +232,24 @@ The image (`Dockerfile`) is the only deliverable. The builder stage runs `npm ci
 
 Each is described in full in `.env.example`, read only through `server/src/core/config.ts` (and `DATABASE_URL` by the db package and preflight).
 
-| Variable | Default | Read by |
-|---|---|---|
-| `DATABASE_URL` | none (required) | db package, preflight. Compose builds it from `POSTGRES_PASSWORD` |
-| `BETTER_AUTH_SECRET` | dev secret; required in production (32+ chars, not the placeholder) | auth |
-| `APP_URL` | `http://localhost:3001` | links in emails, the providers' redirect URIs |
-| `SERVER_URL` | `APP_URL` | provider sign-in (`/sso/<id>`, `/api/auth/callback/<id>`) |
-| `PORT` | `3001` | the server; the host port under compose |
-| `SMTP_URL`, `SMTP_FROM` | unset; `ravocal@<APP_URL host>` | email (magic links, invites, votes) |
-| `SECURE_LOCAL_NET`, `I_KNOW_SECURE_LOCAL_NET_IS_PUBLIC` | `false`, `false` | sign-in by address alone; preflight |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | unset | `auth/providers.ts`; both or neither (preflight) |
-| `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET` | unset | as Google |
-| `OIDC_ISSUER`, `OIDC_CLIENT_ID` | unset | `sso/settings.ts` via `config.ts`; both or neither (preflight); win over a pairing |
-| `OIDC_CLIENT_SECRET`, `OIDC_CLIENT_AUTH`, `OIDC_NAME` | unset, `client_secret_basic`, `SSO` (`AUTH_DEFAULTS`) | the OIDC client: a public one without a secret; preflight refuses an unknown auth |
-| `TRUST_PROXY` | `false` | Express `trust proxy`, so the sign-in limiter's `ctx.ip` |
-| `DB_CONNECT_TIMEOUT_MS` | `60000` | `waitForDatabase` at boot |
-| `NODE_ENV` | unset; `production` in the image | preflight's secret check, GraphiQL off |
-| `POSTGRES_PASSWORD` | `ravocal` | `docker-compose.yml` only |
-| `POSTGRES_PORT`, `MAILPIT_SMTP_PORT`, `MAILPIT_UI_PORT`, `DEV_BIND` | `5436`, `1036`, `8036`, `127.0.0.1` | `docker-compose.dev.yml` only |
+| Variable                                                            | Default                                                             | Read by                                                                            |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                                      | none (required)                                                     | db package, preflight. Compose builds it from `POSTGRES_PASSWORD`                  |
+| `BETTER_AUTH_SECRET`                                                | dev secret; required in production (32+ chars, not the placeholder) | auth                                                                               |
+| `APP_URL`                                                           | `http://localhost:3001`                                             | links in emails, the providers' redirect URIs                                      |
+| `SERVER_URL`                                                        | `APP_URL`                                                           | provider sign-in (`/sso/<id>`, `/api/auth/callback/<id>`)                          |
+| `PORT`                                                              | `3001`                                                              | the server; the host port under compose                                            |
+| `SMTP_URL`, `SMTP_FROM`                                             | unset; `ravocal@<APP_URL host>`                                     | email (magic links, invites, votes)                                                |
+| `SECURE_LOCAL_NET`, `I_KNOW_SECURE_LOCAL_NET_IS_PUBLIC`             | `false`, `false`                                                    | sign-in by address alone; preflight                                                |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                          | unset                                                               | `auth/providers.ts`; both or neither (preflight)                                   |
+| `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET`                      | unset                                                               | as Google                                                                          |
+| `OIDC_ISSUER`, `OIDC_CLIENT_ID`                                     | unset                                                               | `sso/settings.ts` via `config.ts`; both or neither (preflight); win over a pairing |
+| `OIDC_CLIENT_SECRET`, `OIDC_CLIENT_AUTH`, `OIDC_NAME`               | unset, `client_secret_basic`, `SSO` (`AUTH_DEFAULTS`)               | the OIDC client: a public one without a secret; preflight refuses an unknown auth  |
+| `TRUST_PROXY`                                                       | `false`                                                             | Express `trust proxy`, so the sign-in limiter's `ctx.ip`                           |
+| `DB_CONNECT_TIMEOUT_MS`                                             | `60000`                                                             | `waitForDatabase` at boot                                                          |
+| `NODE_ENV`                                                          | unset; `production` in the image                                    | preflight's secret check, GraphiQL off                                             |
+| `POSTGRES_PASSWORD`                                                 | `ravocal`                                                           | `docker-compose.yml` only                                                          |
+| `POSTGRES_PORT`, `MAILPIT_SMTP_PORT`, `MAILPIT_UI_PORT`, `DEV_BIND` | `5436`, `1036`, `8036`, `127.0.0.1`                                 | `docker-compose.dev.yml` only                                                      |
 
 A new variable goes in `config.ts`, `.env.example`, `docker-compose.yml`'s `environment` and this table.
 
@@ -269,6 +275,7 @@ Run the smoke script against any instance: `.github/scripts/boot-smoke.sh http:/
 ## Code Style Guidelines
 
 ### Formatting (Biome)
+
 - **Semicolons**: always
 - **Quotes**: single quotes
 - **Indentation**: 2 spaces
@@ -279,18 +286,21 @@ Run the smoke script against any instance: `.github/scripts/boot-smoke.sh http:/
 - Vendored cubeui files (`app/src/components/ui/**`, the cubeui shells and lib helpers, `cubeui-*.css`) are excluded from Biome
 
 ### Imports
+
 - `type` imports for type-only symbols (enforced by Biome `style/useImportType`)
 - `@/` path alias within `app/` (maps to `app/src/`)
 - In the server, tables and row types come from `@cubicecho/ravocal-db/schema`. Only `index.ts` imports the package root, which needs `DATABASE_URL` and connects to Postgres (`import type { DB }` from the root is fine anywhere)
 - Relative imports carry the real `.ts` / `.tsx` extension
 
 ### TypeScript
+
 - Strict mode everywhere — no implicit `any`
 - Prefix unused params with `_`
 - `interface` for object shapes, `type` for unions/utilities
 - Infer types from Drizzle (`$inferSelect` / `$inferInsert`) — never duplicate manually
 
 ### Naming
+
 - **Files**: `kebab-case.ts` / `kebab-case.tsx`
 - **Components**: `PascalCase`
 - **Variables/functions**: `camelCase`
@@ -302,15 +312,15 @@ Run the smoke script against any instance: `.github/scripts/boot-smoke.sh http:/
 
 Rows are shared by **group membership**, not owned by one user. `scope` (`graphql/tenancy.ts`) confines every generated read, update and delete to the caller's groups, on every path (root, single, nested, aggregates; a client `OR` can only narrow it). It can't tell a read from a write, so graphql-casl (`graphql/permissions.ts`) narrows the generated single-row writes further by ANDing the caller's conditions into their `where`. `Mutation` is an allow-list: a write a new table generates arrives refused, and so does every bulk form. better-auth's operations are on it.
 
-| Table | Read | Write |
-|---|---|---|
-| `groups` | members | `createGroup` (hand-written: the group and the owner's membership in one transaction). `updateGroup` (name, threshold) and `deleteGroup`, generated, owner only (casl on `ownerId`; `ownerId` itself is never in the input) |
-| `group_members` | members of the same group | Hand-written only: `createGroup`, `acceptGroupInvite`, `removeMember` (owner only; not themselves; takes their time blocks in the group and their ballot in its open vote, keeps a closed vote's result) |
-| `group_invites` | the group's owner only; `token` is not in the schema | Hand-written only: `inviteToGroup`, `acceptGroupInvite`, `cancelInvite` (owner only; the link stops working) |
-| `time_blocks` | members of the same group | Generated `createTimeBlock`, `updateTimeBlock`, `deleteTimeBlock`. `userId` is stamped (`contextValues`); a hook refuses a group the caller isn't in (also moving a block into one), the 30-minute grid in UTC, and an end not after the start; casl limits update and delete to your own |
-| `votes`, `vote_slots` | members | Hand-written only: `startVote`, `forceStartVote` (owner only; one open vote per group), `closeVote` (owner only) |
-| `vote_rankings` | your own only, in a group you are in | Hand-written `submitRankings` (members, open votes, the vote's own slots) |
-| `users` | yourself, and anyone you share a group with | `updateUser`, generated, your own row only (casl on `id`), the name only |
+| Table                 | Read                                                 | Write                                                                                                                                                                                                                                                                                     |
+| --------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `groups`              | members                                              | `createGroup` (hand-written: the group and the owner's membership in one transaction). `updateGroup` (name, threshold) and `deleteGroup`, generated, owner only (casl on `ownerId`; `ownerId` itself is never in the input)                                                               |
+| `group_members`       | members of the same group                            | Hand-written only: `createGroup`, `acceptGroupInvite`, `removeMember` (owner only; not themselves; takes their time blocks in the group and their ballot in its open vote, keeps a closed vote's result)                                                                                  |
+| `group_invites`       | the group's owner only; `token` is not in the schema | Hand-written only: `inviteToGroup`, `acceptGroupInvite`, `cancelInvite` (owner only; the link stops working)                                                                                                                                                                              |
+| `time_blocks`         | members of the same group                            | Generated `createTimeBlock`, `updateTimeBlock`, `deleteTimeBlock`. `userId` is stamped (`contextValues`); a hook refuses a group the caller isn't in (also moving a block into one), the 30-minute grid in UTC, and an end not after the start; casl limits update and delete to your own |
+| `votes`, `vote_slots` | members                                              | Hand-written only: `startVote`, `forceStartVote` (owner only; one open vote per group), `closeVote` (owner only)                                                                                                                                                                          |
+| `vote_rankings`       | your own only, in a group you are in                 | Hand-written `submitRankings` (members, open votes, the vote's own slots)                                                                                                                                                                                                                 |
+| `users`               | yourself, and anyone you share a group with          | `updateUser`, generated, your own row only (casl on `id`), the name only                                                                                                                                                                                                                  |
 
 `sessions`, `accounts` and `verifications` (`AUTH_TABLES`), and `oidc_settings` (`SERVER_TABLES`, it holds the paired client's secret and registration token), are excluded from the schema. `users.is_admin` is readable like the other columns and never writable (the users hook). The client reads its own user through better-auth's `getSession`; there is no hand-written `me`.
 
@@ -319,6 +329,7 @@ Rows are shared by **group membership**, not owned by one user. `scope` (`graphq
 Hand-written resolvers don't inherit `scope`: they load their group through `groups/access.ts` (`loadMemberGroup`, `loadOwnedGroup`), which refuse with NOT_FOUND, and read their result back through the generated query (`graphql/read-back.ts`), so it is scoped like any other read.
 
 ### Auth
+
 - better-auth (`server/src/auth/`), following the `cubicecho_backend` skill's auth.md: sessions in Postgres (`sessions`, `accounts`, `verifications`, uuid ids), sent as `Authorization: Bearer <token>`, signed with `BETTER_AUTH_SECRET`
 - Its endpoints are served as GraphQL by `@cubicecho/graphql-better-auth`, limited to `BETTER_AUTH_OPERATIONS` (`signInMagicLink`, `magicLinkVerify`, `verifyOneTimeToken`, `getSession`, `listSessions`, `signOut`, `revokeSession`, `revokeSessions`, `revokeOtherSessions`, `linkSocialAccount`, `listUserAccounts`, `unlinkAccount`). Its REST routes are not mounted, except a provider's callback (`http/sso.ts`). `authConfig { secureLocalNet magicLink providers { id name signInUrl } }` tells the login page what is on offer
 - `createApp({ db, authHost })` takes an `AuthHost`, and each request's context carries `ctx.auth` (`authHost.current()`) and `ctx.authHost`. No module imports a global auth; tests build a real one on PGlite (`createTestAuth`) and wrap it in `fixedAuthHost(auth, providers)`
@@ -331,6 +342,7 @@ Hand-written resolvers don't inherit `scope`: they load their group through `gro
 - A spent, expired or unknown link is `BAD_USER_INPUT`, never `UNAUTHENTICATED`: the app drops its token on `UNAUTHENTICATED`, and a bad link must not sign anyone out
 
 ### Error handling
+
 - Yoga masks every error that isn't a `GraphQLError` as `Unexpected error.`, so a failure the client should read is thrown with a coded helper from `server/src/core/errors.ts`. The app branches on the code (`app/src/lib/error-codes.ts`) and shows the message
 - Input is parsed with `parseOrThrow(schema, value)` (`core/validation.ts`), and every zod rule carries a sentence
 - Read a caught value with `errorMessage(error)`, never `(error as Error).message`
@@ -340,9 +352,11 @@ Hand-written resolvers don't inherit `scope`: they load their group through `gro
 - Emails a write announces (an invite, a vote opening or closing) are sent once it has committed, through `ctx.mailer`; a failed send is logged, not thrown. A side effect from an `onWrite` hook goes through `onCommit`
 
 ### Tunables
+
 - Every limit, lifetime, size and timeout is a member of a `<CONCEPT>_DEFAULTS` group in `server/src/core/defaults.ts` (`DATABASE_DEFAULTS` is in the db package), and tests read the group rather than repeat its numbers
 
 ### Testing
+
 - Test files in `__tests__/` or as `*.test.ts`
 - Database tests run on in-memory PGlite: `createTestDb()` in `beforeAll`, `resetTestDb(db)` in `beforeEach`, `closeTestDb(db)` in `afterAll` (`server/src/__tests__/helpers.ts`)
 - `vitest.config.ts` sets `DATABASE_URL` empty, so a test that imports the db package root fails instead of touching a real Postgres, and empties `SMTP_URL` and `SECURE_LOCAL_NET`
@@ -355,6 +369,7 @@ Hand-written resolvers don't inherit `scope`: they load their group through `gro
 ## Git
 
 Use merge instead of rebase:
+
 ```bash
 git pull --no-rebase
 ```
@@ -363,11 +378,11 @@ Do not add `Co-Authored-By` trailers to commit messages.
 
 ## Documentation Reference
 
-| Topic | Document |
-| ----- | -------- |
-| Running it: quickstart, configuration, sign-in methods, releases | [`README.md`](README.md) |
-| Database tables, migrations, Drizzle patterns | [`docs/database.md`](docs/database.md) |
-| Server folders, boot, HTTP, errors, schema, resolvers | [`docs/server.md`](docs/server.md) |
-| The generated API, and what is hand-written | [`docs/graphql.md`](docs/graphql.md) |
-| React app, routing, Apollo Client | [`docs/frontend.md`](docs/frontend.md) |
-| Overlap algorithm, ranked-choice tallying | [`docs/voting.md`](docs/voting.md) |
+| Topic                                                            | Document                               |
+| ---------------------------------------------------------------- | -------------------------------------- |
+| Running it: quickstart, configuration, sign-in methods, releases | [`README.md`](README.md)               |
+| Database tables, migrations, Drizzle patterns                    | [`docs/database.md`](docs/database.md) |
+| Server folders, boot, HTTP, errors, schema, resolvers            | [`docs/server.md`](docs/server.md)     |
+| The generated API, and what is hand-written                      | [`docs/graphql.md`](docs/graphql.md)   |
+| React app, routing, Apollo Client                                | [`docs/frontend.md`](docs/frontend.md) |
+| Overlap algorithm, ranked-choice tallying                        | [`docs/voting.md`](docs/voting.md)     |

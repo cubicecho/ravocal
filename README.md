@@ -38,20 +38,20 @@ anywhere else. To email sign-in links instead, drop that line and set `SMTP_URL`
 `docker-compose.yml` reads `.env` from its own directory and passes each variable to the container. Every variable,
 its default and what it does is in [`.env.example`](.env.example). What an install usually sets:
 
-| Variable | Default | |
-| --- | --- | --- |
-| `BETTER_AUTH_SECRET` | none | **Required.** `openssl rand -hex 32`. The server refuses a missing, placeholder or short one. |
-| `APP_URL` | `http://localhost:3001` | The address people open. Links in emails and the providers' redirect URIs are built from it. |
-| `SMTP_URL`, `SMTP_FROM` | unset | Outgoing mail, e.g. `smtps://user:pass@smtp.example.com:465`. |
-| `SECURE_LOCAL_NET` | `false` | Sign in with an address alone. Private networks only. |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | unset | Sign in with Google. Both or neither. |
-| `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET` | unset | Sign in with Facebook. Both or neither. |
-| `OIDC_ISSUER`, `OIDC_CLIENT_ID` | unset | Sign in with your own OpenID Connect provider. Both or neither; or pair one from the app instead. |
-| `OIDC_CLIENT_SECRET`, `OIDC_CLIENT_AUTH`, `OIDC_NAME` | unset, `client_secret_basic`, `SSO` | That provider's secret (unset for a public client), how it is sent, and the button's label. |
-| `SERVER_URL` | `APP_URL` | Where a browser reaches the server, if not at `APP_URL`. |
-| `TRUST_PROXY` | `false` | `1` behind one reverse proxy, so sign-in is rate-limited per visitor, not per proxy. |
-| `PORT` | `3001` | The host port the app is published on. |
-| `POSTGRES_PASSWORD` | `ravocal` | The compose Postgres's password. Set it before the first `up`. Postgres isn't published outside the compose network. |
+| Variable                                              | Default                             |                                                                                                                      |
+| ----------------------------------------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`                                  | none                                | **Required.** `openssl rand -hex 32`. The server refuses a missing, placeholder or short one.                        |
+| `APP_URL`                                             | `http://localhost:3001`             | The address people open. Links in emails and the providers' redirect URIs are built from it.                         |
+| `SMTP_URL`, `SMTP_FROM`                               | unset                               | Outgoing mail, e.g. `smtps://user:pass@smtp.example.com:465`.                                                        |
+| `SECURE_LOCAL_NET`                                    | `false`                             | Sign in with an address alone. Private networks only.                                                                |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`            | unset                               | Sign in with Google. Both or neither.                                                                                |
+| `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET`        | unset                               | Sign in with Facebook. Both or neither.                                                                              |
+| `OIDC_ISSUER`, `OIDC_CLIENT_ID`                       | unset                               | Sign in with your own OpenID Connect provider. Both or neither; or pair one from the app instead.                    |
+| `OIDC_CLIENT_SECRET`, `OIDC_CLIENT_AUTH`, `OIDC_NAME` | unset, `client_secret_basic`, `SSO` | That provider's secret (unset for a public client), how it is sent, and the button's label.                          |
+| `SERVER_URL`                                          | `APP_URL`                           | Where a browser reaches the server, if not at `APP_URL`.                                                             |
+| `TRUST_PROXY`                                         | `false`                             | `1` behind one reverse proxy, so sign-in is rate-limited per visitor, not per proxy.                                 |
+| `PORT`                                                | `3001`                              | The host port the app is published on.                                                                               |
+| `POSTGRES_PASSWORD`                                   | `ravocal`                           | The compose Postgres's password. Set it before the first `up`. Postgres isn't published outside the compose network. |
 
 The server checks its configuration before it starts, and exits with a sentence saying what to fix.
 

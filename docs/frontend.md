@@ -73,17 +73,17 @@ then `clearToken()`, clear Apollo's store, and navigate to `/login`.
 
 TanStack Router with file-based routes. The Vite plugin regenerates `app/src/routeTree.gen.ts` in dev, and `npm run codegen` generates it for typechecks and builds. It is gitignored; do not edit it manually.
 
-| Route | File | Purpose |
-|-------|------|---------|
-| `/` | `routes/index.tsx` | Redirect → `/groups` or `/login` |
-| `/login` | `routes/login.tsx` | Magic link request form, provider buttons, `?error=` messages, setting sign-in up on a new instance |
-| `/auth/verify` | `routes/auth/verify.tsx` | Spend a magic link's token for a session |
-| `/auth/sso` | `routes/auth/sso.tsx` | Spend a provider sign-in's one-time token for a session |
-| `/settings` | `routes/settings.tsx` | Connected accounts: connect and disconnect providers; Single sign-on for the admin |
-| `/invite` | `routes/invite.tsx` | Accept group invite via token |
-| `/groups` | `routes/groups/index.tsx` | List user's groups |
-| `/groups/new` | `routes/groups/new.tsx` | Create group form |
-| `/groups/$groupId` | `routes/groups/$groupId.tsx` | Group detail + calendar + vote |
+| Route              | File                         | Purpose                                                                                             |
+| ------------------ | ---------------------------- | --------------------------------------------------------------------------------------------------- |
+| `/`                | `routes/index.tsx`           | Redirect → `/groups` or `/login`                                                                    |
+| `/login`           | `routes/login.tsx`           | Magic link request form, provider buttons, `?error=` messages, setting sign-in up on a new instance |
+| `/auth/verify`     | `routes/auth/verify.tsx`     | Spend a magic link's token for a session                                                            |
+| `/auth/sso`        | `routes/auth/sso.tsx`        | Spend a provider sign-in's one-time token for a session                                             |
+| `/settings`        | `routes/settings.tsx`        | Connected accounts: connect and disconnect providers; Single sign-on for the admin                  |
+| `/invite`          | `routes/invite.tsx`          | Accept group invite via token                                                                       |
+| `/groups`          | `routes/groups/index.tsx`    | List user's groups                                                                                  |
+| `/groups/new`      | `routes/groups/new.tsx`      | Create group form                                                                                   |
+| `/groups/$groupId` | `routes/groups/$groupId.tsx` | Group detail + calendar + vote                                                                      |
 
 Add new routes by creating files in `app/src/routes/`. Run the dev server once to let the plugin generate the updated route tree.
 
@@ -92,7 +92,7 @@ Add new routes by creating files in `app/src/routes/`. Run the dev server once t
 Use the typed `graphql()` helper — never raw `gql`:
 
 ```typescript
-import { graphql } from "@/__generated__/index.js";
+import { graphql } from '@/__generated__/index.js';
 
 const MY_QUERY = graphql(`
   query MyGroups {
@@ -110,8 +110,8 @@ The API is mostly generated (`docs/graphql.md`): `groups` is already only the re
 `@/` maps to `app/src/`. Use it for all imports within the app:
 
 ```typescript
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 ```
 
 ## cubeui
@@ -147,5 +147,5 @@ After mutations that modify lists, pass `refetchQueries`:
 ```typescript
 useMutation(CREATE_GROUP, {
   refetchQueries: [{ query: MY_GROUPS }],
-})
+});
 ```
