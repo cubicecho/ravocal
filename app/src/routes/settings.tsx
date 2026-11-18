@@ -6,6 +6,7 @@ import type { SettingsQuery } from '@/__generated__/graphql.js';
 import { graphql } from '@/__generated__/index.js';
 import { CardLayout } from '@/components/card-layout';
 import { ConfirmButton } from '@/components/confirm-button';
+import { SsoSettings } from '@/components/domain/sso/sso-settings';
 import { LoadState } from '@/components/load-state';
 import { PageLayout } from '@/components/page-layout';
 import { SettingRow } from '@/components/setting-row';
@@ -41,6 +42,7 @@ const SETTINGS = graphql(`
     }
     getSession {
       user {
+        id
         email
         emailVerified
       }
@@ -48,6 +50,11 @@ const SETTINGS = graphql(`
     listUserAccounts {
       id
       providerId
+    }
+    # The admins the reader can see (themselves, and anyone in a group with them), so the page can tell whether the
+    # reader is one.
+    admins: users(where: { isAdmin: { eq: true } }) {
+      id
     }
   }
 `);
@@ -247,6 +254,8 @@ function SettingsPage() {
   // Once the link has its URL the page is on its way to the provider.
   const isLeaving = linking.data !== undefined;
   const busy = linking.loading || isLeaving || unlinking.loading;
+  const readerId = settings?.getSession?.user.id;
+  const isAdmin = readerId !== undefined && settings?.admins.some((admin) => admin.id === readerId) === true;
 
   return (
     <PageLayout
@@ -298,6 +307,7 @@ function SettingsPage() {
               }
             />
           )}
+          {isAdmin && <SsoSettings />}
         </>
       }
     />
