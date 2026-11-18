@@ -28,6 +28,7 @@ import {
 } from '../helpers.ts';
 import { cookiesFrom, locationOf } from './fixtures/browser.ts';
 import { FAKE_PROVIDERS, type FakeProvider, startFakeProvider } from './fixtures/fake-provider.ts';
+import type { OidcClient } from './fixtures/oidc-issuer.ts';
 
 // A provider's whole sign-in through the real app, over HTTP, against a stand-in for Google and Facebook on a loopback
 // port (fixtures/fake-provider.ts). The test plays the browser: it follows each redirect by hand, carrying cookies.
@@ -254,6 +255,14 @@ describe('signing in with Google', () => {
     expect(await providersOf(session.userId)).toEqual([ProviderId.Google]);
   });
 
+  it('sends a reader whose id token has no address back to the login page', async () => {
+    provider.google = { sub: 'g-nomail', name: 'No Mail' };
+    const { location } = await signIn(ProviderId.Google);
+    expect(location.pathname).toBe('/login');
+    expect(location.searchParams.get('error')).toBe('email_not_found');
+    expect(await db.select().from(users)).toEqual([]);
+  });
+
   it('refuses a callback whose state does not match', async () => {
     const { location } = await signIn(ProviderId.Google, (back) => back.searchParams.set('state', 'forged'));
     expect(location.pathname).toBe('/login');
@@ -300,6 +309,52 @@ describe('signing in with Facebook', () => {
     expect(`${location.origin}${location.pathname}`).toBe(`${appUrl}/login`);
     expect(location.searchParams.get('token')).toBeNull();
     expect(warn).toHaveBeenCalledWith(expect.stringMatching(/^\[auth\] could not read the Facebook profile/));
+    expect(await db.select().from(users)).toEqual([]);
+  });
+});
+
+describe('signing in with the OIDC provider set in the environment', () => {
+  /**
+   * Sets the provider in the environment as an operator would, for a client the stand-in has registered, and serves
+   * the app built from it.
+   *
+   * @param client - The client, and how it sends its secret (or that it has none).
+   */
+  async function serveWithEnvOidc(client: OidcClient): Promise<void> {
+    provider.oidcClient = client;
+    vi.stubEnv('OIDC_ISSUER', provider.oidcIssuer);
+    vi.stubEnv('OIDC_CLIENT_ID', client.clientId);
+    if (client.clientSecret !== undefined) {
+      vi.stubEnv('OIDC_CLIENT_SECRET', client.clientSecret);
+    }
+    if (client.method === 'client_secret_post') {
+      vi.stubEnv('OIDC_CLIENT_AUTH', client.method);
+    }
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await serve(() => createAuthHost(db, { secret: TEST_SECRET, providerEndpoints: provider.endpoints }));
+  }
+
+  it.each<[string, OidcClient]>([
+    ['a secret in a Basic header', { clientId: 'ravocal-oidc', clientSecret: 'oidc-secret' }],
+    [
+      'a secret in the form (OIDC_CLIENT_AUTH=client_secret_post)',
+      { clientId: 'ravocal-oidc', clientSecret: 'oidc-secret', method: 'client_secret_post' },
+    ],
+    ['no secret, as a public client', { clientId: 'ravocal-public', method: 'none' }],
+  ])('signs in as a client that sends %s', async (_sends, client) => {
+    await serveWithEnvOidc(client);
+    const session = await verified((await signIn(ProviderId.Oidc)).location);
+    const { body } = await graphqlOverHttp(ME, {}, session.token);
+    expect(body.data.getSession.user).toEqual({ id: session.userId, email: provider.oidc.email });
+    expect(await providersOf(session.userId)).toEqual([ProviderId.Oidc]);
+  });
+
+  it('sends a reader whose id token has no address back to the login page', async () => {
+    await serveWithEnvOidc(provider.oidcClient);
+    provider.oidc = { sub: 'o-nomail', name: 'No Mail' };
+    const { location } = await signIn(ProviderId.Oidc);
+    expect(location.pathname).toBe('/login');
+    expect(location.searchParams.get('error')).toBe('email_not_found');
     expect(await db.select().from(users)).toEqual([]);
   });
 });

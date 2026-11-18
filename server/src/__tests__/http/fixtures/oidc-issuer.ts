@@ -3,8 +3,9 @@ import express, { type Express } from 'express';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 
 // What an OpenID Connect provider does, mounted under a path of a stand-in's loopback server: discovery, a JWKS, and a
-// code flow whose token endpoint takes the client secret in a Basic header, checks PKCE, and signs an id token
-// carrying the nonce. Google's half of fake-provider.ts is one; the paired provider (sso/fixtures/fake-dcr.ts) is
+// code flow whose token endpoint authenticates the client as it was registered (the secret in a Basic header or in the
+// form, or no secret at all for a public client), checks PKCE, and signs an id token carrying the nonce; and a userinfo
+// endpoint, which better-auth asks when the id token has no address. Google's half of fake-provider.ts is one; the paired provider (sso/fixtures/fake-dcr.ts) is
 // another.
 
 /** Who signs in next: the id token's claims. */
@@ -17,10 +18,22 @@ export interface OidcProfile {
   preferred_username?: string;
 }
 
+/** How a client proves itself at the token endpoint (RFC 7591's `token_endpoint_auth_method`). */
+export type OidcClientMethod = 'client_secret_basic' | 'client_secret_post' | 'none';
+
 /** The client the token endpoint accepts. */
 export interface OidcClient {
   clientId: string;
-  clientSecret: string;
+  /** Absent for a public client, which proves itself with PKCE alone. */
+  clientSecret?: string;
+  /** How it sends its secret. `client_secret_basic` when left out. */
+  method?: OidcClientMethod;
+}
+
+/** The token request's form fields that carry a client's credentials. */
+interface ClientCredentials {
+  client_id?: string;
+  client_secret?: string;
 }
 
 /** What a token endpoint answers a client that cannot prove who it is. */
@@ -78,6 +91,8 @@ export async function mountOidcIssuer(
   const { publicKey, privateKey } = await generateKeyPair('RS256');
   const jwk = { ...(await exportJWK(publicKey)), kid: 'k1', alg: 'RS256', use: 'sig' };
   const grants = new Map<string, Grant>();
+  /** The access tokens issued, to the profile each was issued for. */
+  const accessTokens = new Map<string, OidcProfile>();
   const issuer = `${origin}${path}`;
 
   const provider: OidcIssuer = {
@@ -103,6 +118,27 @@ export async function mountOidcIssuer(
       });
       return { code, state: params.get('state') ?? '' };
     },
+  };
+
+  /**
+   * Whether a token request proves it comes from the client, the way that client was registered to prove it.
+   *
+   * @param authorization - The request's `Authorization` header.
+   * @param body - The request's form fields.
+   * @param client - The client.
+   * @returns true when it does, and by no other method.
+   */
+  const authenticates = (authorization: string | undefined, body: ClientCredentials, client: OidcClient): boolean => {
+    const method = client.method ?? 'client_secret_basic';
+    if (method === 'client_secret_basic') {
+      const basic = Buffer.from(`${client.clientId}:${client.clientSecret}`).toString('base64');
+      return authorization === `Basic ${basic}` && body.client_secret === undefined;
+    }
+    const inForm = authorization === undefined && body.client_id === client.clientId;
+    if (method === 'client_secret_post') {
+      return inForm && body.client_secret === client.clientSecret;
+    }
+    return inForm && body.client_secret === undefined;
   };
 
   /**
@@ -134,17 +170,24 @@ export async function mountOidcIssuer(
       userinfo_endpoint: `${issuer}/userinfo`,
       jwks_uri: `${issuer}/jwks`,
       id_token_signing_alg_values_supported: ['RS256'],
-      token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post'],
+      token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
       ...options.discovery?.(),
     });
   });
   app.get(`${path}/jwks`, (_req, res) => {
     res.json({ keys: [jwk] });
   });
+  app.get(`${path}/userinfo`, (req, res) => {
+    const profile = accessTokens.get(String(req.headers.authorization).replace('Bearer ', ''));
+    if (profile === undefined) {
+      res.status(UNAUTHORIZED).json({ error: 'invalid_token' });
+      return;
+    }
+    res.json(profile);
+  });
   app.post(`${path}/token`, express.urlencoded({ extended: false }), async (req, res) => {
     const client = options.client();
-    const basic = client && Buffer.from(`${client.clientId}:${client.clientSecret}`).toString('base64');
-    if (client === undefined || req.headers.authorization !== `Basic ${basic}`) {
+    if (client === undefined || authenticates(req.headers.authorization, req.body, client) === false) {
       res.status(UNAUTHORIZED).json({ error: 'invalid_client' });
       return;
     }
@@ -162,7 +205,9 @@ export async function mountOidcIssuer(
       .setIssuedAt()
       .setExpirationTime('5m')
       .sign(privateKey);
-    res.json({ access_token: `${path.slice(1)}-${sub}`, token_type: 'Bearer', expires_in: 300, id_token: idToken });
+    const accessToken = `${path.slice(1)}-${randomUUID()}`;
+    accessTokens.set(accessToken, grant.profile);
+    res.json({ access_token: accessToken, token_type: 'Bearer', expires_in: 300, id_token: idToken });
   });
   return provider;
 }

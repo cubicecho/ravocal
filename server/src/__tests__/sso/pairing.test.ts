@@ -571,6 +571,23 @@ describe('signing in with the paired provider', () => {
     expect(await providersOf(admin.id)).toEqual([]);
   });
 
+  it('signs in as a client the provider registered to send its secret in the form', async () => {
+    dcr.authMethod = 'client_secret_post';
+    await ok(PAIR, { url: dcr.setupUrl() });
+    expect((await readPairedOidc(db))?.clientAuth).toBe('client_secret_post');
+    const session = await verified(await signInWithOidc());
+    expect(await providersOf(session.userId)).toEqual([ProviderId.Oidc]);
+  });
+
+  it('sends a reader whose id token has no address back to the login page', async () => {
+    await ok(PAIR, { url: dcr.setupUrl() });
+    dcr.oidc.profile = { sub: 'o-nomail', name: 'No Mail' };
+    const location = await signInWithOidc();
+    expect(location.pathname).toBe('/login');
+    expect(location.searchParams.get('error')).toBe('email_not_found');
+    expect(await db.select().from(users)).toEqual([]);
+  });
+
   it('makes an account with the address not yet confirmed when the provider did not check a new address', async () => {
     await ok(PAIR, { url: dcr.setupUrl() });
     dcr.oidc.profile = { sub: 'o-ada', email: 'ada@example.com', name: 'Ada', email_verified: false };

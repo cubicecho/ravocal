@@ -45,6 +45,8 @@ export interface FakeDcr {
   canRegister: boolean;
   /** What the next registration answers, when the token is good. */
   answer: RegistrationAnswer;
+  /** How the client it registers must send its secret, whatever Ravocal asked for: its answer says so. */
+  authMethod: 'client_secret_basic' | 'client_secret_post';
   /** What deleting the client answers. */
   deleteStatus: number;
   /** Every call to the registration endpoint, with its body and `Authorization` header. */
@@ -106,6 +108,7 @@ export async function startFakeDcr(
     claimedIssuer: issuer,
     canRegister: true,
     answer: 'created',
+    authMethod: 'client_secret_basic',
     deleteStatus: Status.NoContent,
     registrations: [],
     redirected: [],
@@ -145,9 +148,10 @@ export async function startFakeDcr(
         .json({ error: 'invalid_redirect_uri', error_description: BAD_REDIRECT_DESCRIPTION });
       return;
     }
-    client = { ...REGISTERED };
+    client = { ...REGISTERED, method: fake.authMethod };
     res.status(Status.Created).json({
       ...req.body,
+      token_endpoint_auth_method: fake.authMethod,
       client_id: REGISTERED.clientId,
       client_secret: REGISTERED.clientSecret,
       registration_access_token: REGISTRATION_TOKEN,
