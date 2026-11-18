@@ -1,9 +1,9 @@
-import { eq } from "drizzle-orm";
 import { groupInvites, groupMembers, groups, users } from "@ravocal/db";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Context } from "../../context.ts";
-import { sendGroupInviteEmail } from "../../services/email.ts";
 import { randomToken } from "../../services/auth.ts";
+import { sendGroupInviteEmail } from "../../services/email.ts";
 
 const CreateGroupInput = z.object({
   name: z.string().min(1).max(100),
@@ -55,11 +55,7 @@ export function applyGroupResolvers(
     };
   };
 
-  mutationFields.updateMyProfile = async (
-    _: unknown,
-    args: { name: string },
-    ctx: Context,
-  ) => {
+  mutationFields.updateMyProfile = async (_: unknown, args: { name: string }, ctx: Context) => {
     if (!ctx.userId) throw new Error("Not authenticated");
     const [updated] = await ctx.db
       .update(users)
@@ -80,9 +76,7 @@ export function applyGroupResolvers(
       .insert(groups)
       .values({ ...input, ownerId: ctx.userId })
       .returning();
-    await ctx.db
-      .insert(groupMembers)
-      .values({ groupId: group.id, userId: ctx.userId });
+    await ctx.db.insert(groupMembers).values({ groupId: group.id, userId: ctx.userId });
     return group;
   };
 
@@ -95,7 +89,10 @@ export function applyGroupResolvers(
     const group = await ctx.db.query.groups.findFirst({ where: eq(groups.id, args.id) });
     if (!group) throw new Error(`Group ${args.id} not found`);
     if (group.ownerId !== ctx.userId) throw new Error("Forbidden");
-    const input = UpdateGroupInput.parse({ name: args.name, overlapThreshold: args.overlapThreshold });
+    const input = UpdateGroupInput.parse({
+      name: args.name,
+      overlapThreshold: args.overlapThreshold,
+    });
     const patch = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined));
     const [updated] = await ctx.db
       .update(groups)
@@ -137,11 +134,7 @@ export function applyGroupResolvers(
     return invite;
   };
 
-  mutationFields.acceptGroupInvite = async (
-    _: unknown,
-    args: { token: string },
-    ctx: Context,
-  ) => {
+  mutationFields.acceptGroupInvite = async (_: unknown, args: { token: string }, ctx: Context) => {
     if (!ctx.userId) throw new Error("Not authenticated");
     const invite = await ctx.db.query.groupInvites.findFirst({
       where: eq(groupInvites.token, args.token),

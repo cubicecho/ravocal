@@ -4,7 +4,11 @@
   "private": true,
   "description": "Group scheduling and ranked-choice voting app",
   "type": "module",
-  "workspaces": ["app", "server", "db"],
+  "workspaces": [
+    "app",
+    "server",
+    "db"
+  ],
   "scripts": {
     "dev": "npm run build:db && concurrently \"npm run dev:server\" \"npm run dev:app\"",
     "dev:app": "npm run dev -w app",

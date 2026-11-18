@@ -7,11 +7,7 @@ export type Context = {
   db: DB;
 };
 
-const PUBLIC_MUTATIONS = new Set([
-  "requestMagicLink",
-  "verifyMagicLink",
-  "acceptGroupInvite",
-]);
+const PUBLIC_MUTATIONS = new Set(["requestMagicLink", "verifyMagicLink", "acceptGroupInvite"]);
 
 export { PUBLIC_MUTATIONS };
 

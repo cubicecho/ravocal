@@ -1,5 +1,5 @@
-import nodemailer from "nodemailer";
 import type { VoteSlot } from "@ravocal/db";
+import nodemailer from "nodemailer";
 
 /** One outgoing email. */
 interface MailMessage {
