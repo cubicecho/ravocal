@@ -49,7 +49,7 @@ function GroupsPage() {
 
   return (
     <PageLayout
-      title="Your Groups"
+      title="Your groups"
       actionSlot={
         <>
           <Button size="sm" variant="outline" onClick={() => void leave()} content="Sign out" />
@@ -58,7 +58,7 @@ function GroupsPage() {
             variant="info"
             iconSlot={<Plus />}
             linkSlot={<Link to="/groups/new" />}
-            content="New Group"
+            content="New group"
           />
         </>
       }
@@ -83,15 +83,9 @@ function GroupsPage() {
               <ListItem
                 key={group.id}
                 title={group.name}
+                description={`${group.members.length} ${group.members.length === 1 ? "member" : "members"}`}
                 linkSlot={<Link to="/groups/$groupId" params={{ groupId: group.id }} />}
-                meta={
-                  <>
-                    {group.activeVote && <Badge variant="info-soft">Vote active</Badge>}
-                    <span className="text-xs text-foreground/60">
-                      {group.members.length} member{group.members.length !== 1 ? "s" : ""}
-                    </span>
-                  </>
-                }
+                meta={group.activeVote ? <Badge variant="info-soft">Vote active</Badge> : undefined}
               />
             ))}
           />
