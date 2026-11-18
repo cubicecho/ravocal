@@ -24,9 +24,9 @@ const withCode =
 
 /** Arguments the caller can fix. */
 export const badInput = withCode(ErrorCode.BadUserInput);
-/** The row is missing. */
+/** Missing, or out of the caller's reach. Deliberately one code, so callers can't probe for ids. */
 export const notFound = withCode(ErrorCode.NotFound);
-/** The caller may not do this. */
+/** This kind of caller may never do this: a mutation off the allow-list. Never for a row they can't reach. */
 export const forbidden = withCode(ErrorCode.Forbidden);
 /** The operation is too deep, too aliased or too costly. Thrown only by operation-limits.ts. */
 export const tooComplex = withCode(ErrorCode.QueryTooComplex);
