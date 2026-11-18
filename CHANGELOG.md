@@ -1,3 +1,13 @@
+# [1.1.0](https://github.com/cubicecho/ravocal/compare/v1.0.0...v1.1.0) (2026-11-18)
+
+### Features
+
+* **app:** set sign-in up from a setup URL, and manage it in Settings ([f2c37b1](https://github.com/cubicecho/ravocal/commit/f2c37b15fccceb04640f19cd7274786c3d53540a))
+* **db:** oidc_settings for a paired provider, and users.is_admin ([023808b](https://github.com/cubicecho/ravocal/commit/023808b9ecf67520d795b364aafedcc380b5fb54))
+* **server:** pair an OIDC provider from a setup URL ([3c72375](https://github.com/cubicecho/ravocal/commit/3c7237543a8da1de63cf99f96d35938da5abb6e5))
+* **server:** sign in with an OIDC provider set by OIDC_ISSUER ([0c9cbf3](https://github.com/cubicecho/ravocal/commit/0c9cbf3dc845e069f20c2f033f142c585140775b))
+* **server:** the first account becomes the instance's admin ([bd98a01](https://github.com/cubicecho/ravocal/commit/bd98a01b3a92105eed37c771c930325a6eef45db))
+
 # 1.0.0 (2026-11-18)
 
 * feat!: sign in with better-auth sessions and magic links ([37c0145](https://github.com/cubicecho/ravocal/commit/37c014574d378151273744b09cea63f961ecefd0))
