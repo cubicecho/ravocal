@@ -2,9 +2,11 @@ import type * as React from "react";
 import { useEffect, useRef } from "react";
 import {
   DEFAULT_MAX,
+  PROGRESS_TONES,
   type ProgressBaseProps,
   progressIndicatorClass,
   progressState,
+  progressTone,
   progressTrackClass,
   SWEEP_DURATION_MS,
   SWEEP_FROM,
@@ -63,9 +65,13 @@ export function Progress({
   valueLabel,
   className,
   indicatorClassName,
+  warningAt,
+  negativeAt,
   ...props
 }: ProgressProps) {
   const { limit, now, percent } = progressState(value, max);
+  const tone = progressTone(now, warningAt, negativeAt);
+  const fill = cn(PROGRESS_TONES[tone], indicatorClassName);
   // Radix's three states, so a shadcn call site's `data-[state=complete]:` still matches.
   const state = now === undefined ? "indeterminate" : now === limit ? "complete" : "loading";
 
@@ -73,6 +79,7 @@ export function Progress({
     <div
       data-slot="progress"
       data-state={state}
+      data-tone={tone}
       role="progressbar"
       aria-valuemin={0}
       aria-valuemax={limit}
@@ -83,14 +90,14 @@ export function Progress({
       className={cn(progressTrackClass, className)}
     >
       {now === undefined ? (
-        <Sweep className={indicatorClassName} />
+        <Sweep className={fill} />
       ) : (
         <div
           data-slot="progress-indicator"
           className={cn(
             progressIndicatorClass,
             "transition-[width] motion-reduce:transition-none",
-            indicatorClassName,
+            fill,
           )}
           style={{ width: `${percent}%` }}
         />

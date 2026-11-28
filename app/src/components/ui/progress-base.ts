@@ -17,7 +17,17 @@ export type ProgressBaseProps = {
   valueLabel?: string | undefined;
   /** On the track, the full-width bar the fill is drawn in. A different height is an `h-*` here. */
   className?: string | undefined;
-  /** The filled part: `bg-negative` for a context window nearly full. */
+  /**
+   * The value, in `value`'s own units, from which the fill turns `warning`: a context window or a
+   * disk filling up. The bar's length already says how full it is; the colour says it matters.
+   */
+  warningAt?: number | undefined;
+  /**
+   * The value from which the fill turns `negative`, past `warningAt` when both are given: a window
+   * about to overflow, a quota about to run out.
+   */
+  negativeAt?: number | undefined;
+  /** The filled part, for a look of its own. A fill that warns as it fills is `warningAt`. */
   indicatorClassName?: string | undefined;
 };
 
@@ -49,8 +59,41 @@ export function progressState(
 export const progressTrackClass =
   "h-2 w-full overflow-hidden rounded-full border border-foreground/50 bg-foreground/10";
 
-/** The indicator, determinate or sweeping. */
-export const progressIndicatorClass = "h-full bg-neutral";
+/** The indicator, determinate or sweeping. Its colour is `PROGRESS_TONES`'. */
+export const progressIndicatorClass = "h-full";
+
+/**
+ * The fill's colour at each step of how full it is. Each is 3:1 or more from the track in every
+ * palette (WCAG 1.4.11), which `palette-contrast.test.mjs` holds.
+ */
+export const PROGRESS_TONES = {
+  neutral: "bg-neutral",
+  warning: "bg-warning",
+  negative: "bg-negative",
+} as const;
+
+export type ProgressTone = keyof typeof PROGRESS_TONES;
+
+/**
+ * Which colour the fill takes: `negative` from `negativeAt`, `warning` from `warningAt`, and
+ * `neutral` below both, or while the bar is indeterminate and has no value to be past anything.
+ */
+export function progressTone(
+  now: number | undefined,
+  warningAt: number | undefined,
+  negativeAt: number | undefined,
+): ProgressTone {
+  if (now === undefined) {
+    return "neutral";
+  }
+  if (negativeAt !== undefined && now >= negativeAt) {
+    return "negative";
+  }
+  if (warningAt !== undefined && now >= warningAt) {
+    return "warning";
+  }
+  return "neutral";
+}
 
 /** The indeterminate segment's share of the track: a third, so it reads as a part moving. */
 export const SWEEP_WIDTH = "33.333%";

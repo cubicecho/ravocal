@@ -51,6 +51,8 @@ export default defineConfig({
       },
       {
         extends: true,
+        // The app's `@/` imports, as its tsconfig and Vite resolve them (a helper using a cubeui lib, `@/lib/day`).
+        resolve: { alias: [{ find: /^@\//, replacement: `${path.resolve(__dirname, './app/src')}/` }] },
         test: {
           name: 'app',
           environment: 'node',
