@@ -123,6 +123,12 @@ describe('dayChoices in a zone a quarter hour off UTC', () => {
     expect(values).toMatchObject({ day: '2026-06-10', start: '555', end: '645', extraEnd: undefined });
   });
 
+  it('reads a block that starts just after the local midnight onto that local day, the evening before in UTC', () => {
+    // 12:15 to 12:45 AM on June 10 in Kathmandu is still June 9 in UTC.
+    const values = blockValues('2026-06-09T18:30:00.000Z', '2026-06-09T19:00:00.000Z');
+    expect(values).toMatchObject({ day: '2026-06-10', start: '15', end: '45', extraEnd: undefined });
+  });
+
   it('runs an end past midnight on the quarter hours', () => {
     // 11:15 PM to 12:45 AM.
     const { ends } = dayChoices('2026-06-10', '1395');

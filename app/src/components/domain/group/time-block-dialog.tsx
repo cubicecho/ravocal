@@ -2,22 +2,15 @@ import { useMutation } from '@apollo/client';
 import { useStore } from '@tanstack/react-form';
 import { useMemo } from 'react';
 import { graphql } from '@/__generated__/index.js';
-import { InputField, SelectField, useAppForm } from '@/components/app-form';
+import { SelectField, useAppForm } from '@/components/app-form';
+import { DateField } from '@/components/date-field';
 import { DialogLayout } from '@/components/dialog-layout';
 import { dialogForm } from '@/components/domain/form/dialog-form';
 import { FormError } from '@/components/domain/form/form-error';
 import { FieldRow } from '@/components/field-row';
 import { Button } from '@/components/ui/button';
-import {
-  blockValues,
-  dayChoices,
-  instantOf,
-  isOnGrid,
-  localDayOf,
-  SLOT_MINUTES,
-  startOfLocalDay,
-  type TimeChoice,
-} from '@/lib/time-grid';
+import { dayOf, dayToDate, today } from '@/lib/day';
+import { blockValues, dayChoices, instantOf, isOnGrid, SLOT_MINUTES, type TimeChoice } from '@/lib/time-grid';
 
 const CREATE_TIME_BLOCK = graphql(`
   mutation CreateTimeBlock($groupId: UUID!, $startsAt: DateTime!, $endsAt: DateTime!) {
@@ -52,12 +45,24 @@ interface TimeBlockDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+/** The form's values: the day as the date picker holds it (its local midnight), each end as a time choice's value. */
+interface BlockFormValues {
+  day: Date | null;
+  start: string;
+  end: string;
+}
+
 /** The reader's zone, as the description names it: "Europe/Paris". */
 const READER_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 /** Whether the reader's half hours are the server's, which is false a quarter hour off UTC (Nepal, Chatham). */
 function isOffGrid(choices: readonly TimeChoice[]): boolean {
   return choices.some((choice) => Number(choice.value) % SLOT_MINUTES !== 0);
+}
+
+/** The picked date as the day the grid works on: the date picker holds its local midnight. */
+function dayOfPick(picked: Date | null): string {
+  return picked === null ? '' : (dayOf(picked) ?? '');
 }
 
 /**
@@ -74,15 +79,20 @@ export function TimeBlockDialog({ groupId, block, open, onOpenChange }: TimeBloc
   const [createBlock, created] = useMutation(CREATE_TIME_BLOCK, options);
   const [updateBlock, updated] = useMutation(UPDATE_TIME_BLOCK, options);
 
-  const form = useAppForm({
-    defaultValues: {
-      day: initial?.day ?? localDayOf(new Date()),
+  const defaultValues = useMemo(
+    (): BlockFormValues => ({
+      day: dayToDate(initial?.day ?? today()),
       start: initial?.start ?? '',
       end: initial?.end ?? '',
-    },
+    }),
+    [initial],
+  );
+  const form = useAppForm({
+    defaultValues,
     onSubmit: async ({ value }) => {
-      const startsAt = instantOf(value.day, value.start);
-      const endsAt = instantOf(value.day, value.end);
+      const day = dayOfPick(value.day);
+      const startsAt = instantOf(day, value.start);
+      const endsAt = instantOf(day, value.end);
       // The validators have the choices; this is the guard that nothing off the grid is ever sent.
       if (
         startsAt === undefined ||
@@ -102,7 +112,7 @@ export function TimeBlockDialog({ groupId, block, open, onOpenChange }: TimeBloc
     },
   });
 
-  const day = useStore(form.store, (state) => state.values.day);
+  const day = dayOfPick(useStore(form.store, (state) => state.values.day));
   const start = useStore(form.store, (state) => state.values.start);
   const choices = useMemo(() => dayChoices(day, start), [day, start]);
   // An edited block's end that the start doesn't offer (one longer than a day) stays a choice, so it still shows.
@@ -124,14 +134,14 @@ export function TimeBlockDialog({ groupId, block, open, onOpenChange }: TimeBloc
       wrapperSlot={dialogForm(form.AppForm, form.handleSubmit)}
       contentSlot={
         <>
-          <InputField
+          <DateField
             form={form}
             name="day"
             label="Date"
-            type="date"
             required
+            clearable={false}
             validators={{
-              onChange: ({ value }) => (startOfLocalDay(value) ? undefined : 'Choose a date.'),
+              onChange: ({ value }) => (value === null ? 'Choose a date.' : undefined),
             }}
           />
           <FieldRow
@@ -152,7 +162,7 @@ export function TimeBlockDialog({ groupId, block, open, onOpenChange }: TimeBloc
                       if (value === '') {
                         return 'Choose when you are free from.';
                       }
-                      const starts = dayChoices(fieldApi.form.getFieldValue('day')).starts;
+                      const starts = dayChoices(dayOfPick(fieldApi.form.getFieldValue('day'))).starts;
                       return offered(starts, value) ? undefined : 'Choose a start on this date.';
                     },
                   }}
@@ -172,7 +182,7 @@ export function TimeBlockDialog({ groupId, block, open, onOpenChange }: TimeBloc
                       if (value === '') {
                         return 'Choose when you are free until.';
                       }
-                      const currentDay = fieldApi.form.getFieldValue('day');
+                      const currentDay = dayOfPick(fieldApi.form.getFieldValue('day'));
                       const currentStart = fieldApi.form.getFieldValue('start');
                       if (currentStart !== '' && Number(value) <= Number(currentStart)) {
                         return 'The end has to be after the start.';

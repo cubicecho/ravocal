@@ -13,6 +13,8 @@
  * halves can be told apart.
  */
 
+import { dayOf, dayToDate, parseDay } from '@/lib/day';
+
 /** The server's slot length (`SCHEDULE_DEFAULTS.slotMinutes`). */
 export const SLOT_MINUTES = 30;
 
@@ -22,8 +24,6 @@ export const LONGEST_BLOCK_MINUTES = 1440;
 const MS_PER_MINUTE = 60_000;
 const SLOT_MS = SLOT_MINUTES * MS_PER_MINUTE;
 const LONGEST_BLOCK_MS = LONGEST_BLOCK_MINUTES * MS_PER_MINUTE;
-const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
-const PAD = 2;
 
 /** One time in a select: minutes since the local midnight, as the select's value, and the clock time it is. */
 export interface TimeChoice {
@@ -44,32 +44,15 @@ const TIME_WITH_ZONE: Intl.DateTimeFormatOptions = { ...TIME, timeZoneName: 'sho
 const DAY_AND_TIME: Intl.DateTimeFormatOptions = { ...TIME, weekday: 'short', month: 'short', day: 'numeric' };
 
 /**
- * Reads a date input's value as that day's local midnight.
+ * A day's local midnight, the instant the grid counts from: `@cubeui/day` checks the day and finds its midnight in the
+ * reader's zone.
  *
  * @param day - `YYYY-MM-DD`.
  * @returns The instant the day starts, or undefined when the text is not a real date.
  */
-export function startOfLocalDay(day: string): Date | undefined {
-  const match = DATE_PATTERN.exec(day);
-  if (match === null) {
-    return undefined;
-  }
-  const [year, month, date] = [Number(match[1]), Number(match[2]) - 1, Number(match[3])];
-  const midnight = new Date(year, month, date);
-  const isSameDay = midnight.getFullYear() === year && midnight.getMonth() === month && midnight.getDate() === date;
-  return isSameDay ? midnight : undefined;
-}
-
-/**
- * Writes an instant's local date the way a date input holds it.
- *
- * @param at - The instant.
- * @returns `YYYY-MM-DD` in the reader's zone.
- */
-export function localDayOf(at: Date): string {
-  const month = String(at.getMonth() + 1).padStart(PAD, '0');
-  const date = String(at.getDate()).padStart(PAD, '0');
-  return `${at.getFullYear()}-${month}-${date}`;
+function startOfDay(day: string): Date | undefined {
+  const checked = parseDay(day);
+  return checked === undefined ? undefined : dayToDate(checked);
 }
 
 /** The first instant on the UTC grid at or after `ms`. The epoch is on the grid, so this is the UTC one. */
@@ -127,7 +110,7 @@ function label(instants: readonly number[], midnight: Date): TimeChoice[] {
  *   it, on into the next day. Both empty for a day that isn't one.
  */
 export function dayChoices(day: string, start = ''): DayChoices {
-  const midnight = startOfLocalDay(day);
+  const midnight = startOfDay(day);
   if (midnight === undefined) {
     return { starts: [], ends: [] };
   }
@@ -161,7 +144,7 @@ export function dayChoices(day: string, start = ''): DayChoices {
  * @returns The instant, or undefined when the day or the value is not one.
  */
 export function instantOf(day: string, minutes: string): Date | undefined {
-  const midnight = startOfLocalDay(day);
+  const midnight = startOfDay(day);
   const offset = Number(minutes);
   if (midnight === undefined || minutes === '' || Number.isInteger(offset) === false) {
     return undefined;
@@ -192,8 +175,8 @@ export function blockValues(
   endsAt: string,
 ): { day: string; start: string; end: string; extraEnd: TimeChoice | undefined } {
   const startInstant = new Date(startsAt);
-  const day = localDayOf(startInstant);
-  const dayStart = startOfLocalDay(day)?.getTime() ?? startInstant.getTime();
+  const day = dayOf(startInstant) ?? '';
+  const dayStart = startOfDay(day)?.getTime() ?? startInstant.getTime();
   const minutesOf = (at: string) => String((Date.parse(at) - dayStart) / MS_PER_MINUTE);
   const start = minutesOf(startsAt);
   const end = minutesOf(endsAt);

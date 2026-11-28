@@ -13,9 +13,10 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { dayOf, formatDay } from '@/lib/day';
 import { ErrorCode, hasErrorCode } from '@/lib/error-codes';
 import { describeError } from '@/lib/error-message';
-import { formatDay, formatWindow } from '@/lib/time-window';
+import { formatWindow } from '@/lib/time-window';
 import { useDialog } from '@/lib/use-dialog';
 
 const START_VOTE = graphql(`
@@ -163,7 +164,7 @@ function YourBallot({ vote, memberCount }: { vote: Vote; memberCount: number }) 
  */
 function VoteResult({ vote }: { vote: Vote }) {
   const winner = vote.slots.find((slot) => slot.id === vote.winnerSlotId);
-  const closed = vote.closedAt ? `Closed ${formatDay(vote.closedAt)}.` : 'Closed.';
+  const closed = vote.closedAt ? `Closed ${formatDay(dayOf(vote.closedAt) ?? '', 'short')}.` : 'Closed.';
   return (
     <>
       {winner ? (

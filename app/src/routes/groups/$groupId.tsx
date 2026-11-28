@@ -18,8 +18,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Settings } from '@/components/ui/icons';
 import { asQuery } from '@/lib/as-query';
+import { dayOf, formatDay } from '@/lib/day';
 import { describeError } from '@/lib/error-message';
-import { formatDay } from '@/lib/time-window';
 import { useDialog } from '@/lib/use-dialog';
 
 export const Route = createFileRoute('/groups/$groupId')({
@@ -229,7 +229,7 @@ function GroupPage() {
                         <ListItem
                           key={invite.id}
                           title={invite.email}
-                          meta={`Expires ${formatDay(invite.expiresAt)}`}
+                          meta={`Expires ${formatDay(dayOf(invite.expiresAt) ?? '', 'short')}`}
                           actionSlot={
                             isOwner ? (
                               <ConfirmButton
