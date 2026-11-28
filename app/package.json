@@ -20,7 +20,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.4.0",
-    "graphql": "^16.10.0",
+    "graphql": "^17.1.0",
     "lucide-react": "^1.82.0",
     "radix-ui": "^1.8.1",
     "react": "^19.3.1",
