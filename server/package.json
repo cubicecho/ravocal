@@ -15,9 +15,9 @@
     "@escape.tech/graphql-armor-max-aliases": "^2.6.2",
     "@escape.tech/graphql-armor-max-depth": "^2.4.2",
     "@escape.tech/graphql-armor-max-tokens": "^2.5.1",
-    "@vantreeseba/drizzle-graphql": "^19.0.0",
+    "@vantreeseba/drizzle-graphql": "^19.1.1",
     "@vantreeseba/graphql-casl": "^1.11.0",
-    "better-auth": "^1.7.25",
+    "better-auth": "^1.7.28",
     "dataloader": "^2.2.3",
     "drizzle-orm": "1.0.0-rc.5",
     "express": "^5.3.0",
@@ -30,12 +30,12 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.16",
+    "@electric-sql/pglite": "^0.6.0",
     "@types/express": "^5.0.6",
-    "@types/node": "^26.6.6",
+    "@types/node": "^26.6.7",
     "@types/nodemailer": "^6.4.17",
     "drizzle-kit": "1.0.0-rc.5",
-    "jose": "^6.2.17",
+    "jose": "^6.2.18",
     "typescript": "^7.0.2"
   }
 }
